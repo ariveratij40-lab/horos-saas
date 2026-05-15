@@ -285,3 +285,12 @@
 - [ ] Backend: endpoint cctvLicenses.lookupEquipo — busca equipo por nombre/ID en las 7 tablas CCTV
 - [ ] Frontend: componente EquipmentQuickView — sheet lateral con detalles del equipo vinculado
 - [ ] Frontend: campo Equipo Asignado en LicensesTab muestra enlace que abre EquipmentQuickView
+
+## Pólizas - Fecha de Renovación y Estado Automático
+- [ ] Schema: agregar campo renewalDate (bigint, nullable) a tabla policies
+- [ ] Migración SQL: ALTER TABLE policies ADD COLUMN renewal_date
+- [ ] Backend: incluir renewalDate en create/update/list de pólizas
+- [ ] Backend: calcular coverageStatus automático (active/expiring_soon/expired) según endDate vs hoy
+- [ ] Frontend: campo "Fecha de Renovación" en formulario Nueva/Editar Póliza
+- [ ] Frontend: badge de estado automático (Activa/Por Vencer/Expirada) en lista y detalle de póliza
+- [ ] Frontend: indicador visual en lista de pólizas próximas a vencer

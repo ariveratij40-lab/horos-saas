@@ -13,7 +13,20 @@ import { and, eq } from "drizzle-orm";
 export const policiesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     const tenantId = ctx.user.tenantId ?? 1;
-    return getPoliciesByTenant(tenantId);
+    const rows = await getPoliciesByTenant(tenantId);
+    const now = new Date();
+    const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const in90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    return rows.map((p: any) => {
+      const end = p.endDate ? new Date(p.endDate) : null;
+      let coverageStatus: string = "active";
+      if (end) {
+        if (end < now) coverageStatus = "expired";
+        else if (end <= in30) coverageStatus = "expiring_30";
+        else if (end <= in90) coverageStatus = "expiring_soon";
+      }
+      return { ...p, coverageStatus };
+    });
   }),
 
   getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ ctx, input }) => {
@@ -27,7 +40,17 @@ export const policiesRouter = router({
       getPolicyExclusions(input.id, tenantId),
       getPolicyOperationalRules(input.id, tenantId),
     ]);
-    return { ...policy, coverages, slaRules, services, exclusions, operationalRules };
+    const now = new Date();
+    const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const in90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    const end = policy.endDate ? new Date(policy.endDate) : null;
+    let coverageStatus: string = "active";
+    if (end) {
+      if (end < now) coverageStatus = "expired";
+      else if (end <= in30) coverageStatus = "expiring_30";
+      else if (end <= in90) coverageStatus = "expiring_soon";
+    }
+    return { ...policy, coverageStatus, coverages, slaRules, services, exclusions, operationalRules };
   }),
 
   create: protectedProcedure.input(z.object({
