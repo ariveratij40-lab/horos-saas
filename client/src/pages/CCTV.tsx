@@ -20,6 +20,7 @@ import {
   Plus, Search, Pencil, Trash2, RefreshCw, FileText,
   CheckCircle2, XCircle, AlertTriangle, Clock,
   LayoutGrid, List, Upload, ImageIcon, X as XIcon, Activity,
+  ChevronDown, ChevronRight,
 } from "lucide-react";
 import CctvTechSheet, { type CctvEquipmentType } from "@/components/CctvTechSheet";
 
@@ -212,6 +213,10 @@ function CamerasTab() {
   const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const toggleRow = (id: number) => setExpandedRows(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const expandAll = () => setExpandedRows(new Set(filtered.map((c: any) => c.id)));
+  const collapseAll = () => setExpandedRows(new Set());
   // Scene upload state (modal separado)
   const [sceneOpen, setSceneOpen] = useState(false);
   const [sceneCamera, setSceneCamera] = useState<any>(null);
@@ -362,27 +367,170 @@ function CamerasTab() {
           </div>
         )
       ) : (
-        /* Vista de lista */
-        <DataTable
-          columns={[
-            { key: "sceneImageUrl", label: "Escena", render: r => r.sceneImageUrl ? (
-              <img src={r.sceneImageUrl} alt="escena" className="w-16 h-10 object-cover rounded" />
-            ) : <div className="w-16 h-10 bg-muted/30 rounded flex items-center justify-center"><ImageIcon className="w-4 h-4 text-muted-foreground/30" /></div> },
-            { key: "idCamera", label: "ID" },
-            { key: "marca", label: "Marca" },
-            { key: "modelo", label: "Modelo" },
-            { key: "tipo", label: "Tipo", render: r => <span className="capitalize">{r.tipo ?? "—"}</span> },
-            { key: "resolucion", label: "Resolución" },
-            { key: "area", label: "Área" },
-            { key: "ip", label: "IP" },
-            { key: "status", label: "Estado", render: r => <StatusBadge status={r.status} /> },
-            { key: "ctpat", label: "CTPAT", render: r => r.ctpat ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase">CTPAT</span> : <span className="text-muted-foreground/30">—</span> },
-          ]}
-          rows={filtered}
-          onEdit={openEdit}
-          onDelete={id => deleteMut.mutate({ id })}
-          onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idCamera ?? ""}`.trim()); }}
-        />
+        /* Vista de lista expandible */
+        <div className="rounded-xl border border-border/50 overflow-hidden">
+          {/* Cabecera de tabla */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border/30 bg-muted/20">
+            <span className="text-xs text-muted-foreground font-medium">{filtered.length} cámaras</span>
+            <div className="flex items-center gap-2">
+              <button onClick={expandAll} className="text-xs text-primary hover:underline">Expandir todo</button>
+              <span className="text-muted-foreground/40">|</span>
+              <button onClick={collapseAll} className="text-xs text-muted-foreground hover:underline">Colapsar todo</button>
+            </div>
+          </div>
+          {/* Encabezados */}
+          <div className="grid grid-cols-[2rem_2.5rem_1fr_1fr_1fr_1fr_1fr_1fr_6rem_2rem] gap-x-3 px-4 py-2 border-b border-border/30 bg-muted/10 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+            <span></span>
+            <span>Img</span>
+            <span>Cámara</span>
+            <span>Marca</span>
+            <span>Modelo</span>
+            <span>Tipo</span>
+            <span>Zona / Área</span>
+            <span>IP</span>
+            <span>Estado</span>
+            <span></span>
+          </div>
+          {/* Filas */}
+          {filtered.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Camera className="w-10 h-10 mx-auto mb-2 opacity-20" />
+              <p className="text-sm">No hay cámaras registradas.</p>
+            </div>
+          ) : filtered.map((cam: any) => {
+            const isExpanded = expandedRows.has(cam.id);
+            return (
+              <div key={cam.id} className="border-b border-border/20 last:border-0">
+                {/* Fila principal */}
+                <div
+                  className={`grid grid-cols-[2rem_2.5rem_1fr_1fr_1fr_1fr_1fr_1fr_6rem_2rem] gap-x-3 px-4 py-2.5 items-center hover:bg-muted/20 transition-colors cursor-pointer ${
+                    isExpanded ? "bg-muted/10" : ""
+                  }`}
+                  onClick={() => toggleRow(cam.id)}
+                >
+                  {/* Chevron */}
+                  <span className="text-muted-foreground">
+                    {isExpanded
+                      ? <ChevronDown className="w-4 h-4" />
+                      : <ChevronRight className="w-4 h-4" />}
+                  </span>
+                  {/* Miniatura */}
+                  <span>
+                    {cam.sceneImageUrl
+                      ? <img src={cam.sceneImageUrl} alt="escena" className="w-9 h-6 object-cover rounded" />
+                      : <div className="w-9 h-6 bg-muted/40 rounded flex items-center justify-center"><Camera className="w-3 h-3 text-muted-foreground/30" /></div>}
+                  </span>
+                  {/* ID + nombre */}
+                  <span>
+                    <p className="text-xs font-mono text-primary font-semibold leading-none">{cam.idCamera ?? "SIN ID"}</p>
+                    <p className="text-xs text-foreground/80 truncate max-w-[12rem]">{cam.area ?? cam.edificio ?? "—"}</p>
+                    {cam.ctpat && <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase">CTPAT</span>}
+                  </span>
+                  <span className="text-xs text-foreground/70 truncate">{cam.marca ?? "—"}</span>
+                  <span className="text-xs text-foreground/70 truncate">{cam.modelo ?? "—"}</span>
+                  <span className="text-xs capitalize text-foreground/70">{cam.tipo ?? "—"}</span>
+                  <span className="text-xs text-foreground/70 truncate">{cam.conexion ?? cam.area ?? "—"}</span>
+                  <span className="text-xs font-mono text-foreground/70">{cam.ip ?? "—"}</span>
+                  <span><StatusBadge status={cam.status} /></span>
+                  {/* Acciones rápidas */}
+                  <span className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    <button className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors" title="Editar" onClick={() => openEdit(cam)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button className="p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-destructive transition-colors" title="Eliminar" onClick={() => deleteMut.mutate({ id: cam.id })}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                </div>
+
+                {/* Panel expandido */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-2 bg-muted/5 border-t border-border/20 animate-fade-up">
+                    <div className="flex gap-4">
+                      {/* Imagen grande */}
+                      <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-muted/30 border border-border/30">
+                        {cam.sceneImageUrl
+                          ? <img src={cam.sceneImageUrl} alt="escena" className="w-full h-full object-cover" />
+                          : <div className="w-full h-full flex items-center justify-center"><Camera className="w-8 h-8 text-muted-foreground/20" /></div>}
+                      </div>
+                      {/* Detalle en columnas */}
+                      <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 text-xs">
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide text-[10px] font-semibold">ID / Serie</p>
+                          <p className="font-mono text-primary">{cam.idCamera ?? "—"}</p>
+                          <p className="text-foreground/60">{cam.serie ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide text-[10px] font-semibold">Marca / Modelo</p>
+                          <p className="font-medium">{cam.marca ?? "—"}</p>
+                          <p className="text-foreground/60">{cam.modelo ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide text-[10px] font-semibold">IP / MAC</p>
+                          <p className="font-mono">{cam.ip ?? "—"}</p>
+                          <p className="text-foreground/60 font-mono">{cam.mac ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide text-[10px] font-semibold">Zona / Área</p>
+                          <p className="font-medium">{cam.area ?? "—"}</p>
+                          <p className="text-foreground/60">{cam.edificio ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide text-[10px] font-semibold">Tipo / Resolución</p>
+                          <p className="capitalize">{cam.tipo ?? "—"}</p>
+                          <p className="text-foreground/60">{cam.resolucion ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide text-[10px] font-semibold">Conexión</p>
+                          <p>{cam.conexion ?? "—"}</p>
+                          <p className="text-foreground/60">Puerto: {cam.puertoSw ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide text-[10px] font-semibold">PoE / Internet</p>
+                          <p>{cam.poe ? "✅ PoE" : "No PoE"}</p>
+                          <p className="text-foreground/60">{cam.internet ? "Con internet" : "Sin internet"}</p>
+                        </div>
+                        {cam.ctpat && (
+                          <div>
+                            <p className="text-muted-foreground uppercase tracking-wide text-[10px] font-semibold">Programa</p>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase tracking-wide">CTPAT</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {/* Notas */}
+                    {cam.observaciones && (
+                      <p className="mt-2 text-xs text-muted-foreground bg-muted/20 rounded-lg px-3 py-2 border border-border/20">
+                        <span className="font-semibold text-foreground/60">Notas: </span>{cam.observaciones}
+                      </p>
+                    )}
+                    {/* Descripción de escena */}
+                    {cam.sceneDescription && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground/60">Escena: </span>{cam.sceneDescription}
+                      </p>
+                    )}
+                    {/* Botones */}
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1.5" onClick={() => { setSheetId(cam.id); setSheetName(`${cam.marca ?? ""} ${cam.modelo ?? ""} ${cam.idCamera ?? ""}`.trim()); }}>
+                        <FileText className="w-3 h-3" /> Ficha Técnica
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1.5" onClick={() => openEdit(cam)}>
+                        <Pencil className="w-3 h-3" /> Editar
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1.5" onClick={() => openUploadScene(cam)}>
+                        <Upload className="w-3 h-3" /> Imagen
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-3 text-xs gap-1.5 text-destructive hover:text-destructive ml-auto" onClick={() => deleteMut.mutate({ id: cam.id })}>
+                        <Trash2 className="w-3 h-3" /> Eliminar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {sheetId !== null && (

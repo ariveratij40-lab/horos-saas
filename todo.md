@@ -138,3 +138,9 @@
 - [x] Frontend: filtro CTPAT en la lista de cámaras (botón toggle en toolbar)
 - [x] Frontend: badge CTPAT en tarjeta y columna en vista lista
 - [x] Frontend: contador de cámaras CTPAT en la pestaña Resumen (KPI)
+
+## CCTV - Tabla expandible en vista de lista
+- [x] Vista lista: cada fila tiene botón chevron para expandir/colapsar
+- [x] Panel expandido: imagen de escena, ID/serie, marca/modelo, IP/MAC, zona/área, tipo, notas, CTPAT
+- [x] Panel expandido: botones "Ficha Técnica", "Editar" e "Imagen" inline
+- [x] Botón "Expandir todo / Colapsar todo" en la cabecera de la tabla
