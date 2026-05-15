@@ -695,6 +695,7 @@ export const cctvRouter = router({
           puertoSw: "Puerto Switch", proveedor: "Proveedor", fechaCompra: "Fecha Compra",
           po: "Orden de Compra", tiempoUso: "Tiempo en Uso", garantiaExpiracion: "Vencimiento Garantía",
           status: "Estado", observaciones: "Observaciones",
+          sceneImageUrl: "Imagen de Escena", sceneDescription: "Descripción de Escena",
         },
         idf: {
           idIdf: "ID IDF", nombre: "Nombre", ubicacion: "Ubicación", tipo: "Tipo",

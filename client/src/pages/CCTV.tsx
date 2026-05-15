@@ -176,6 +176,7 @@ function CameraCard({ cam, onEdit, onDelete, onSheet, onUploadScene }: {
         <p className="font-semibold text-sm text-foreground leading-tight truncate">{cam.area ?? cam.edificio ?? "Sin nombre"}</p>
         <p className="text-xs text-muted-foreground truncate">{[cam.marca, cam.modelo].filter(Boolean).join(" ") || "Sin modelo"}</p>
         {cam.conexion && <p className="text-xs text-blue-400 font-medium">{cam.conexion}</p>}
+        {cam.branchId && <p className="text-xs text-muted-foreground/60">Sucursal #{cam.branchId}</p>}
       </div>
       {/* Acciones */}
       <div className="px-3 pb-3 flex items-center gap-1.5 flex-wrap">
@@ -207,20 +208,23 @@ function CamerasTab() {
   const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
-  // Scene upload state
+  // Scene upload state (modal separado)
   const [sceneOpen, setSceneOpen] = useState(false);
   const [sceneCamera, setSceneCamera] = useState<any>(null);
   const [scenePreview, setScenePreview] = useState<string | null>(null);
   const [sceneBase64, setSceneBase64] = useState<string | null>(null);
   const [sceneDesc, setSceneDesc] = useState("");
+  // Imagen de escena inline en el formulario de crear/editar
+  const [formScenePreview, setFormScenePreview] = useState<string | null>(null);
+  const [formSceneBase64, setFormSceneBase64] = useState<string | null>(null);
 
   const { data: cameras = [], refetch } = trpc.cctv.cameras.list.useQuery(undefined);
   const { data: stats } = trpc.cctv.cameras.stats.useQuery();
-  const createMut = trpc.cctv.cameras.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Cámara registrada"); } });
-  const updateMut = trpc.cctv.cameras.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Cámara actualizada"); } });
+  const createMut = trpc.cctv.cameras.create.useMutation();
+  const updateMut = trpc.cctv.cameras.update.useMutation();
   const deleteMut = trpc.cctv.cameras.delete.useMutation({ onSuccess: () => { refetch(); toast.success("Cámara eliminada"); } });
   const uploadSceneMut = trpc.cctv.cameras.uploadScene.useMutation({
-    onSuccess: () => { refetch(); setSceneOpen(false); setScenePreview(null); setSceneBase64(null); setSceneDesc(""); toast.success("Imagen de escena guardada"); },
+    onSuccess: () => { refetch(); setSceneOpen(false); setOpen(false); setScenePreview(null); setSceneBase64(null); setSceneDesc(""); setFormScenePreview(null); setFormSceneBase64(null); toast.success("Imagen de escena guardada"); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -228,11 +232,45 @@ function CamerasTab() {
     !search || [c.idCamera, c.marca, c.modelo, c.serie, c.area, c.edificio, c.ip].some(v => v?.toLowerCase().includes(search.toLowerCase()))
   );
 
-  function openCreate() { setEditing(null); setForm({}); setOpen(true); }
-  function openEdit(row: any) { setEditing(row); setForm({ ...row, fechaCompra: row.fechaCompra ? new Date(row.fechaCompra).toISOString().split("T")[0] : "", garantiaExpiracion: row.garantiaExpiracion ? new Date(row.garantiaExpiracion).toISOString().split("T")[0] : "" }); setOpen(true); }
+  function openCreate() { setEditing(null); setForm({}); setFormScenePreview(null); setFormSceneBase64(null); setOpen(true); }
+  function openEdit(row: any) {
+    setEditing(row);
+    setForm({ ...row, fechaCompra: row.fechaCompra ? new Date(row.fechaCompra).toISOString().split("T")[0] : "", garantiaExpiracion: row.garantiaExpiracion ? new Date(row.garantiaExpiracion).toISOString().split("T")[0] : "" });
+    setFormScenePreview(row.sceneImageUrl ?? null);
+    setFormSceneBase64(null);
+    setOpen(true);
+  }
   function handleSave() {
-    if (editing) updateMut.mutate({ id: editing.id, ...form });
-    else createMut.mutate(form);
+    const afterSave = (savedId: number) => {
+      if (formSceneBase64) {
+        uploadSceneMut.mutate({ id: savedId, imageBase64: formSceneBase64, description: form.sceneDescription ?? "" });
+      } else {
+        refetch();
+        setOpen(false);
+      }
+    };
+    if (editing) {
+      updateMut.mutate({ id: editing.id, ...form }, {
+        onSuccess: () => { afterSave(editing.id); toast.success("Cámara actualizada"); },
+        onError: (e) => toast.error(e.message),
+      });
+    } else {
+      createMut.mutate(form, {
+        onSuccess: (created: any) => { if (created?.id) afterSave(created.id); else { refetch(); setOpen(false); } toast.success("Cámara registrada"); },
+        onError: (e) => toast.error(e.message),
+      });
+    }
+  }
+  function handleFormSceneFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      setFormSceneBase64(result);
+      setFormScenePreview(result);
+    };
+    reader.readAsDataURL(file);
   }
   function openUploadScene(cam: any) { setSceneCamera(cam); setScenePreview(cam.sceneImageUrl ?? null); setSceneBase64(null); setSceneDesc(cam.sceneDescription ?? ""); setSceneOpen(true); }
   function handleSceneFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -453,6 +491,39 @@ function CamerasTab() {
             </div>
             <div className="col-span-2">
               <Field label="Observaciones"><Textarea value={form.observaciones ?? ""} onChange={e => f("observaciones", e.target.value)} rows={2} /></Field>
+            </div>
+            {/* Imagen de escena inline */}
+            <div className="col-span-2 space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Imagen de Escena (opcional)</Label>
+              <div className="relative rounded-xl overflow-hidden bg-muted/30 border border-border/50" style={{ aspectRatio: "16/9", maxHeight: "180px" }}>
+                {formScenePreview ? (
+                  <>
+                    <img src={formScenePreview} alt="escena" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => { setFormScenePreview(null); setFormSceneBase64(null); }}
+                      className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1"
+                    >
+                      <XIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                ) : (
+                  <label className="w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors">
+                    <ImageIcon className="w-8 h-8 text-muted-foreground/30" />
+                    <span className="text-xs text-muted-foreground">Clic para subir imagen de escena</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleFormSceneFile} />
+                  </label>
+                )}
+              </div>
+              {formScenePreview && (
+                <label className="flex items-center gap-1.5 text-xs text-primary cursor-pointer hover:underline">
+                  <Upload className="w-3 h-3" /> Cambiar imagen
+                  <input type="file" accept="image/*" className="hidden" onChange={handleFormSceneFile} />
+                </label>
+              )}
+              <Field label="Descripción de la escena">
+                <Input value={form.sceneDescription ?? ""} onChange={e => f("sceneDescription", e.target.value)} placeholder="Ej: Vista del almacén principal, acceso norte..." />
+              </Field>
             </div>
           </div>
           <DialogFooter>

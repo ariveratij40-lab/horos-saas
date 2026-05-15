@@ -215,6 +215,14 @@ export default function CctvTechSheet({ open, onClose, equipmentType, equipmentI
                     </div>
                   </div>
 
+                  {/* Imagen de escena en impresión */}
+                  {equipmentType === "camera" && fieldMap.get("sceneImageUrl") && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1e90ff', marginBottom: 6 }}>Vista de Escena</div>
+                      <img src={fieldMap.get("sceneImageUrl")} alt="Escena" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 8, border: '1px solid #e0e0e0' }} />
+                      {fieldMap.get("sceneDescription") && <p style={{ fontSize: 10, color: '#666', marginTop: 4 }}>{fieldMap.get("sceneDescription")}</p>}
+                    </div>
+                  )}
                   {/* Secciones */}
                   {SECTION_GROUPS[equipmentType].map((section) => {
                     const sectionFields = section.keys
@@ -244,6 +252,24 @@ export default function CctvTechSheet({ open, onClose, equipmentType, equipmentI
               </div>
 
               {/* Vista previa en pantalla */}
+              {/* Imagen de escena (solo para cámaras) */}
+              {equipmentType === "camera" && fieldMap.get("sceneImageUrl") && (
+                <div className="mb-5 rounded-xl overflow-hidden border border-white/10">
+                  <div className="relative">
+                    <img
+                      src={fieldMap.get("sceneImageUrl")}
+                      alt="Escena de cámara"
+                      className="w-full h-48 object-cover"
+                    />
+                    <div className="absolute top-2 left-2">
+                      <span className="bg-black/60 text-white text-xs px-2 py-1 rounded-md font-medium">Vista de Escena</span>
+                    </div>
+                  </div>
+                  {fieldMap.get("sceneDescription") && (
+                    <p className="text-xs text-muted-foreground px-3 py-2 bg-white/5">{fieldMap.get("sceneDescription")}</p>
+                  )}
+                </div>
+              )}
               {/* Cabecera del equipo */}
               <div className="flex items-start gap-4 p-4 rounded-xl bg-white/5 border border-white/10 mb-6">
                 <div className={`p-3 rounded-xl bg-white/5 ${config.color}`}>

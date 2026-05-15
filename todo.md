@@ -110,10 +110,13 @@
 - [x] Reemplazar respaldo simulado en /cctv/backup con exportación real JSON sin mock
 
 ## CCTV - Imagen de Escena de Cámara
-- [ ] Schema BD: agregar campo sceneImageUrl y sceneImageKey a cctv_cameras
-- [ ] Router CCTV: endpoint uploadCameraScene para subir imagen al storage S3
-- [ ] Router CCTV: incluir sceneImageUrl en el endpoint list y getSheet
-- [ ] Frontend: toggle Lista/Tarjetas en CamerasTab
-- [ ] Frontend: vista de tarjetas con imagen de escena, badge de estado, código, nombre, sucursal
-- [ ] Frontend: botón de subida de imagen en cada tarjeta y en el formulario de edición
-- [ ] Frontend: preview de imagen en la ficha técnica CctvTechSheet
+- [x] Schema BD: agregar campo sceneImageUrl y sceneImageKey a cctv_cameras
+- [x] Router CCTV: endpoint uploadCameraScene para subir imagen al storage S3
+- [x] Router CCTV: incluir sceneImageUrl en el endpoint list y getSheet
+- [x] Frontend: toggle Lista/Tarjetas en CamerasTab
+- [x] Frontend: vista de tarjetas con imagen de escena, badge de estado, código, nombre, sucursal
+- [x] Frontend: botón de subida de imagen en cada tarjeta y en el formulario de edición
+- [x] Frontend: preview de imagen en la ficha técnica CctvTechSheet
+- [x] Frontend: campo de imagen de escena inline en el formulario de crear/editar cámara
+- [x] Frontend: mostrar branchId (sucursal) en la tarjeta de cámara
+- [x] Backend: labelMap de getSheet actualizado con sceneImageUrl/sceneDescription
