@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -132,6 +132,123 @@ function DataTable({
   );
 }
 
+// ─── Tabla expandible genérica ──────────────────────────────────────────────────
+function ExpandableTable({
+  rows, idKey = "id", columns, detailFields, onEdit, onDelete, onSheet, emptyIcon, emptyText,
+}: {
+  rows: any[];
+  idKey?: string;
+  columns: { key: string; label: string; render?: (row: any) => React.ReactNode }[];
+  detailFields: { label: string; render: (row: any) => React.ReactNode }[];
+  onEdit: (row: any) => void;
+  onDelete: (id: number) => void;
+  onSheet?: (row: any) => void;
+  emptyIcon?: React.ReactNode;
+  emptyText?: string;
+}) {
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const toggle = (id: number) => setExpanded(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const expandAll = () => setExpanded(new Set(rows.map(r => r[idKey])));
+  const collapseAll = () => setExpanded(new Set());
+
+  if (rows.length === 0) {
+    return (
+      <div className="text-center py-16 text-muted-foreground">
+        {emptyIcon ?? <Camera className="w-12 h-12 mx-auto mb-3 opacity-20" />}
+        <p className="text-sm">{emptyText ?? "No hay registros. Agrega el primero."}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-border/50 overflow-hidden">
+      {/* Cabecera */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border/30 bg-muted/20">
+        <span className="text-xs text-muted-foreground font-medium">{rows.length} registros</span>
+        <div className="flex items-center gap-2">
+          <button onClick={expandAll} className="text-xs text-primary hover:underline">Expandir todo</button>
+          <span className="text-muted-foreground/40">|</span>
+          <button onClick={collapseAll} className="text-xs text-muted-foreground hover:underline">Colapsar todo</button>
+        </div>
+      </div>
+      {/* Encabezados */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border/50 bg-muted/30">
+              <th className="w-8 px-2 py-2"></th>
+              {columns.map(c => (
+                <th key={c.key} className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{c.label}</th>
+              ))}
+              <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => {
+              const id = row[idKey];
+              const isExp = expanded.has(id);
+              return (
+                <React.Fragment key={id}>
+                  <tr
+                    className={`border-b border-border/30 hover:bg-muted/20 transition-colors cursor-pointer ${i % 2 === 0 ? "" : "bg-muted/10"} ${isExp ? "bg-muted/20" : ""}`}
+                    onClick={() => toggle(id)}
+                  >
+                    <td className="w-8 px-2 py-2 text-muted-foreground">
+                      {isExp ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </td>
+                    {columns.map(c => (
+                      <td key={c.key} className="px-3 py-2 whitespace-nowrap">
+                        {c.render ? c.render(row) : (row[c.key] ?? <span className="text-muted-foreground/40">—</span>)}
+                      </td>
+                    ))}
+                    <td className="px-3 py-2 text-right" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        {onSheet && (
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-primary border-primary/30 hover:bg-primary/10 gap-1" onClick={() => onSheet(row)}>
+                            <FileText className="w-3 h-3" /> Ficha
+                          </Button>
+                        )}
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => onDelete(row[idKey])}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                  {isExp && (
+                    <tr className="border-b border-border/30 bg-muted/5">
+                      <td colSpan={columns.length + 2} className="px-6 py-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                          {detailFields.map((f, fi) => (
+                            <div key={fi} className="space-y-0.5">
+                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{f.label}</p>
+                              <div className="text-sm">{f.render(row)}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/20">
+                          {onSheet && (
+                            <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10" onClick={() => onSheet(row)}>
+                              <FileText className="w-3 h-3" /> Ficha Técnica
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1" onClick={() => onEdit(row)}>
+                            <Pencil className="w-3 h-3" /> Editar
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-3 text-xs gap-1 text-destructive hover:text-destructive" onClick={() => onDelete(row[idKey])}>
+                            <Trash2 className="w-3 h-3" /> Eliminar
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ─── Tarjeta de cámara ────────────────────────────────────────────────────────
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   active:      { text: "Operativa",      cls: "bg-emerald-500 text-white" },
@@ -214,9 +331,12 @@ function CamerasTab() {
   const [sheetName, setSheetName] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [sortKey, setSortKey] = useState<string>("idCamera");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const toggleRow = (id: number) => setExpandedRows(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
-  const expandAll = () => setExpandedRows(new Set(filtered.map((c: any) => c.id)));
+  const expandAll = () => setExpandedRows(new Set(sortedFiltered.map((c: any) => c.id)));
   const collapseAll = () => setExpandedRows(new Set());
+  const toggleSort = (key: string) => { if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(key); setSortDir("asc"); } };
   // Scene upload state (modal separado)
   const [sceneOpen, setSceneOpen] = useState(false);
   const [sceneCamera, setSceneCamera] = useState<any>(null);
@@ -242,6 +362,34 @@ function CamerasTab() {
     if (search && ![c.idCamera, c.marca, c.modelo, c.serie, c.area, c.edificio, c.ip].some(v => v?.toLowerCase().includes(search.toLowerCase()))) return false;
     return true;
   });
+
+  const sortedFiltered = [...filtered].sort((a: any, b: any) => {
+    const av = a[sortKey] ?? "";
+    const bv = b[sortKey] ?? "";
+    const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  function exportCSV() {
+    const cols = ["idCamera","marca","modelo","tipo","resolucion","area","edificio","ip","mac","conexion","status","ctpat","serie","proveedor","po","observaciones"];
+    const header = ["ID Cámara","Marca","Modelo","Tipo","Resolución","Área","Edificio","IP","MAC","Conexión","Estado","CTPAT","Serie","Proveedor","PO","Observaciones"];
+    const rows = sortedFiltered.map((c: any) => cols.map(k => c[k] ?? "").join(","));
+    const csv = [header.join(","), ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `camaras_cctv_${new Date().toISOString().split("T")[0]}.csv`; a.click(); URL.revokeObjectURL(url);
+  }
+
+  async function exportExcel() {
+    const XLSX = await import("xlsx");
+    const cols = ["idCamera","marca","modelo","tipo","resolucion","area","edificio","ip","mac","conexion","status","ctpat","serie","proveedor","po","observaciones"];
+    const header = ["ID Cámara","Marca","Modelo","Tipo","Resolución","Área","Edificio","IP","MAC","Conexión","Estado","CTPAT","Serie","Proveedor","PO","Observaciones"];
+    const data = [header, ...sortedFiltered.map((c: any) => cols.map(k => c[k] ?? ""))];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Cámaras CCTV");
+    XLSX.writeFile(wb, `camaras_cctv_${new Date().toISOString().split("T")[0]}.xlsx`);
+  }
 
   function openCreate() { setEditing(null); setForm({}); setFormScenePreview(null); setFormSceneBase64(null); setOpen(true); }
   function openEdit(row: any) {
@@ -321,7 +469,7 @@ function CamerasTab() {
         >
           CTPAT {filterCtpat && `(${filtered.length})`}
         </button>
-        <span className="text-xs text-muted-foreground ml-1">{filtered.length} cámaras</span>
+        <span className="text-xs text-muted-foreground ml-1">{sortedFiltered.length} cámaras</span>
         {/* Toggle vista */}
         <div className="flex items-center border border-border/50 rounded-lg overflow-hidden ml-auto">
           <button
@@ -341,6 +489,13 @@ function CamerasTab() {
             <List className="w-3.5 h-3.5" /> Lista
           </button>
         </div>
+        {/* Exportar */}
+        <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/50 text-xs text-muted-foreground hover:bg-muted/50 transition-colors" title="Exportar CSV">
+          <FileText className="w-3.5 h-3.5" /> CSV
+        </button>
+        <button onClick={exportExcel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/30 text-xs text-emerald-400 hover:bg-emerald-500/10 transition-colors" title="Exportar Excel">
+          <FileText className="w-3.5 h-3.5" /> Excel
+        </button>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nueva Cámara</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
@@ -371,33 +526,36 @@ function CamerasTab() {
         <div className="rounded-xl border border-border/50 overflow-hidden">
           {/* Cabecera de tabla */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-border/30 bg-muted/20">
-            <span className="text-xs text-muted-foreground font-medium">{filtered.length} cámaras</span>
+            <span className="text-xs text-muted-foreground font-medium">{sortedFiltered.length} cámaras</span>
             <div className="flex items-center gap-2">
               <button onClick={expandAll} className="text-xs text-primary hover:underline">Expandir todo</button>
               <span className="text-muted-foreground/40">|</span>
               <button onClick={collapseAll} className="text-xs text-muted-foreground hover:underline">Colapsar todo</button>
             </div>
           </div>
-          {/* Encabezados */}
+          {/* Encabezados con ordenamiento */}
           <div className="grid grid-cols-[2rem_2.5rem_1fr_1fr_1fr_1fr_1fr_1fr_6rem_2rem] gap-x-3 px-4 py-2 border-b border-border/30 bg-muted/10 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             <span></span>
             <span>Img</span>
-            <span>Cámara</span>
-            <span>Marca</span>
-            <span>Modelo</span>
-            <span>Tipo</span>
-            <span>Zona / Área</span>
-            <span>IP</span>
-            <span>Estado</span>
+            {(["idCamera","marca","modelo","tipo","area","ip"] as const).map((col, i) => (
+              <button key={col} onClick={() => toggleSort(col)} className="flex items-center gap-1 hover:text-foreground transition-colors text-left">
+                {["Cámara","Marca","Modelo","Tipo","Zona / Área","IP"][i]}
+                {sortKey === col ? (sortDir === "asc" ? " ▲" : " ▼") : " ▵"}
+              </button>
+            ))}
+            <button onClick={() => toggleSort("status")} className="flex items-center gap-1 hover:text-foreground transition-colors text-left">
+              Estado
+              {sortKey === "status" ? (sortDir === "asc" ? " ▲" : " ▼") : " ▵"}
+            </button>
             <span></span>
           </div>
           {/* Filas */}
-          {filtered.length === 0 ? (
+          {sortedFiltered.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Camera className="w-10 h-10 mx-auto mb-2 opacity-20" />
               <p className="text-sm">No hay cámaras registradas.</p>
             </div>
-          ) : filtered.map((cam: any) => {
+          ) : sortedFiltered.map((cam: any) => {
             const isExpanded = expandedRows.has(cam.id);
             return (
               <div key={cam.id} className="border-b border-border/20 last:border-0">
@@ -737,24 +895,31 @@ function IdfsTab() {
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nuevo IDF/MDF</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <DataTable
+      <ExpandableTable
+        rows={idfs}
+        idKey="id"
         columns={[
           { key: "idIdf", label: "ID" },
           { key: "nombre", label: "Nombre" },
           { key: "tipo", label: "Tipo" },
           { key: "ubicacion", label: "Ubicación" },
           { key: "numeroRacks", label: "Racks" },
-          { key: "numGabinetes", label: "Gabinetes" },
           { key: "noSwitches", label: "Switches" },
-          { key: "noServidores", label: "Servidores" },
-          { key: "noUps", label: "UPS" },
-          { key: "fibraOptica", label: "Fibra", render: r => r.fibraOptica ? <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-xs">Sí</Badge> : <span className="text-muted-foreground text-xs">No</span> },
-          { key: "status", label: "Estado", render: r => <StatusBadge status={r.status} /> },
+          { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
         ]}
-        rows={idfs}
+        detailFields={[
+          { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idIdf ?? "—"}</p><p className="text-foreground/60 capitalize">{r.tipo ?? "—"}</p></> },
+          { label: "Nombre", render: (r: any) => <><p>{r.nombre ?? "—"}</p><p className="text-foreground/60">{r.ubicacion ?? "—"}</p></> },
+          { label: "Racks / Gabinetes", render: (r: any) => <><p>{r.numeroRacks ?? 0} racks</p><p className="text-foreground/60">{r.numGabinetes ?? 0} gabinetes</p></> },
+          { label: "Switches / Servidores", render: (r: any) => <><p>{r.noSwitches ?? 0} switches</p><p className="text-foreground/60">{r.noServidores ?? 0} servidores</p></> },
+          { label: "UPS / Fibra", render: (r: any) => <><p>{r.noUps ?? 0} UPS</p><p className="text-foreground/60">{r.fibraOptica ? "Con fibra óptica" : "Sin fibra"}</p></> },
+          { label: "Capacidad", render: (r: any) => <><p>{r.capacidadRacks ?? "—"} U racks</p><p className="text-foreground/60">{r.capacidadGabinetes ?? "—"} gabinetes</p></> },
+        ]}
         onEdit={openEdit}
-        onDelete={id => deleteMut.mutate({ id })}
-        onSheet={row => { setSheetId(row.id); setSheetName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); }}
+        onDelete={(id: number) => deleteMut.mutate({ id })}
+        onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); }}
+        emptyIcon={<Network className="w-10 h-10 mx-auto mb-2 opacity-20" />}
+        emptyText="No hay IDF/MDF registrados."
       />
 
       {sheetId !== null && (
@@ -861,22 +1026,31 @@ function LicensesTab() {
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nueva Licencia</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <DataTable
+      <ExpandableTable
+        rows={licenses}
+        idKey="id"
         columns={[
           { key: "idLicencia", label: "ID" },
           { key: "marca", label: "Marca" },
           { key: "modelo", label: "Modelo" },
-          { key: "tipo", label: "Tipo", render: r => <span className="capitalize">{r.tipo}</span> },
+          { key: "tipo", label: "Tipo", render: (r: any) => <span className="capitalize">{r.tipo}</span> },
           { key: "noContrato", label: "N° Contrato" },
-          { key: "equipoAsignado", label: "Equipo Asignado" },
-          { key: "fechaExpiracion", label: "Expiración", render: r => r.fechaExpiracion ? new Date(r.fechaExpiracion).toLocaleDateString("es-MX") : "—" },
-          { key: "proveedor", label: "Proveedor" },
-          { key: "status", label: "Estado", render: r => <StatusBadge status={r.status} /> },
+          { key: "fechaExpiracion", label: "Expiración", render: (r: any) => r.fechaExpiracion ? new Date(r.fechaExpiracion).toLocaleDateString("es-MX") : "—" },
+          { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
         ]}
-        rows={licenses}
+        detailFields={[
+          { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idLicencia ?? "—"}</p><p className="text-foreground/60 capitalize">{r.tipo ?? "—"}</p></> },
+          { label: "Marca / Modelo", render: (r: any) => <><p>{r.marca ?? "—"}</p><p className="text-foreground/60">{r.modelo ?? "—"}</p></> },
+          { label: "Contrato / Equipo", render: (r: any) => <><p>{r.noContrato ?? "—"}</p><p className="text-foreground/60">{r.equipoAsignado ?? "—"}</p></> },
+          { label: "Proveedor", render: (r: any) => <><p>{r.proveedor ?? "—"}</p><p className="text-foreground/60">{r.ubicacion ?? "—"}</p></> },
+          { label: "Inicio / Expiración", render: (r: any) => <><p>{r.fechaInicio ? new Date(r.fechaInicio).toLocaleDateString("es-MX") : "—"}</p><p className="text-foreground/60">{r.fechaExpiracion ? new Date(r.fechaExpiracion).toLocaleDateString("es-MX") : "—"}</p></> },
+          { label: "Observaciones", render: (r: any) => <p className="text-foreground/70 text-xs">{r.observaciones ?? "—"}</p> },
+        ]}
         onEdit={openEdit}
-        onDelete={id => deleteMut.mutate({ id })}
-        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idLicencia ?? ""}`.trim()); }}
+        onDelete={(id: number) => deleteMut.mutate({ id })}
+        onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idLicencia ?? ""}`.trim()); }}
+        emptyIcon={<Shield className="w-10 h-10 mx-auto mb-2 opacity-20" />}
+        emptyText="No hay licencias registradas."
       />
 
       {sheetId !== null && (
@@ -963,24 +1137,31 @@ function MonitorsTab() {
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nueva Pantalla</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <DataTable
+      <ExpandableTable
+        rows={monitors}
+        idKey="id"
         columns={[
           { key: "idMonitor", label: "ID" },
           { key: "marca", label: "Marca" },
           { key: "modelo", label: "Modelo" },
-          { key: "tipo", label: "Tipo", render: r => <span className="capitalize">{r.tipo}</span> },
+          { key: "tipo", label: "Tipo", render: (r: any) => <span className="capitalize">{r.tipo}</span> },
           { key: "tamano", label: "Tamaño" },
           { key: "resolucion", label: "Resolución" },
-          { key: "tecnologia", label: "Tecnología" },
-          { key: "puerto", label: "Puerto" },
-          { key: "ubicacion", label: "Ubicación" },
-          { key: "ups", label: "UPS", render: r => r.ups ? <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-xs">Sí</Badge> : <span className="text-muted-foreground text-xs">No</span> },
-          { key: "status", label: "Estado", render: r => <StatusBadge status={r.status} /> },
+          { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
         ]}
-        rows={monitors}
+        detailFields={[
+          { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idMonitor ?? "—"}</p><p className="text-foreground/60 capitalize">{r.tipo ?? "—"}</p></> },
+          { label: "Marca / Modelo", render: (r: any) => <><p>{r.marca ?? "—"}</p><p className="text-foreground/60">{r.modelo ?? "—"}</p></> },
+          { label: "Tamaño / Resolución", render: (r: any) => <><p>{r.tamano ?? "—"}</p><p className="text-foreground/60">{r.resolucion ?? "—"}</p></> },
+          { label: "Tecnología / Puerto", render: (r: any) => <><p>{r.tecnologia ?? "—"}</p><p className="text-foreground/60">{r.puerto ?? "—"}</p></> },
+          { label: "Ubicación", render: (r: any) => <><p>{r.ubicacion ?? "—"}</p><p className="text-foreground/60">{r.ups ? "✅ Con UPS" : "Sin UPS"}</p></> },
+          { label: "Observaciones", render: (r: any) => <p className="text-foreground/70 text-xs">{r.observaciones ?? "—"}</p> },
+        ]}
         onEdit={openEdit}
-        onDelete={id => deleteMut.mutate({ id })}
-        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.tamano ?? ""}`.trim()); }}
+        onDelete={(id: number) => deleteMut.mutate({ id })}
+        onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.tamano ?? ""}`.trim()); }}
+        emptyIcon={<Monitor className="w-10 h-10 mx-auto mb-2 opacity-20" />}
+        emptyText="No hay pantallas registradas."
       />
 
       {sheetId !== null && (
@@ -1080,24 +1261,31 @@ function ServersTab() {
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nuevo Servidor/NVR</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <DataTable
+      <ExpandableTable
+        rows={servers}
+        idKey="id"
         columns={[
           { key: "idServer", label: "ID" },
           { key: "marca", label: "Marca" },
           { key: "modelo", label: "Modelo" },
-          { key: "tipo", label: "Tipo", render: r => <span className="uppercase text-xs font-semibold">{r.tipo}</span> },
+          { key: "tipo", label: "Tipo", render: (r: any) => <span className="uppercase text-xs font-semibold">{r.tipo}</span> },
           { key: "versionVms", label: "VMS" },
-          { key: "licencias", label: "Licencias" },
-          { key: "numCamaras", label: "Cámaras" },
-          { key: "so", label: "SO" },
           { key: "ip", label: "IP" },
-          { key: "ubicacion", label: "Ubicación" },
-          { key: "status", label: "Estado", render: r => <StatusBadge status={r.status} /> },
+          { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
         ]}
-        rows={servers}
+        detailFields={[
+          { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idServer ?? "—"}</p><p className="text-foreground/60 uppercase text-xs">{r.tipo ?? "—"}</p></> },
+          { label: "Marca / Modelo", render: (r: any) => <><p>{r.marca ?? "—"}</p><p className="text-foreground/60">{r.modelo ?? "—"}</p></> },
+          { label: "VMS / Licencias", render: (r: any) => <><p>{r.versionVms ?? "—"}</p><p className="text-foreground/60">{r.licencias ?? 0} lic. ({r.licenciasLibres ?? 0} libres)</p></> },
+          { label: "IP / MAC", render: (r: any) => <><p className="font-mono">{r.ip ?? "—"}</p><p className="text-foreground/60 font-mono">{r.mac ?? "—"}</p></> },
+          { label: "SO / Hardware", render: (r: any) => <><p>{r.so ?? "—"}</p><p className="text-foreground/60">{r.memoria ?? ""} {r.procesador ?? ""}</p></> },
+          { label: "Ubicación / Cámaras", render: (r: any) => <><p>{r.ubicacion ?? "—"}</p><p className="text-foreground/60">{r.numCamaras ?? 0} cámaras</p></> },
+        ]}
         onEdit={openEdit}
-        onDelete={id => deleteMut.mutate({ id })}
-        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); }}
+        onDelete={(id: number) => deleteMut.mutate({ id })}
+        onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); }}
+        emptyIcon={<Server className="w-10 h-10 mx-auto mb-2 opacity-20" />}
+        emptyText="No hay servidores/NVR registrados."
       />
 
       {sheetId !== null && (
@@ -1194,26 +1382,31 @@ function SwitchesTab() {
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nuevo Switch</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <DataTable
+      <ExpandableTable
+        rows={switches}
+        idKey="id"
         columns={[
           { key: "idSwitch", label: "ID" },
           { key: "marca", label: "Marca" },
           { key: "modelo", label: "Modelo" },
-          { key: "tipo", label: "Tipo", render: r => <span className="uppercase text-xs font-semibold">{r.tipo}</span> },
-          { key: "firmware", label: "Firmware" },
+          { key: "tipo", label: "Tipo", render: (r: any) => <span className="uppercase text-xs font-semibold">{r.tipo}</span> },
           { key: "puertos", label: "Puertos" },
-          { key: "puertosPoe", label: "Puertos PoE" },
-          { key: "capacidadPto", label: "Capacidad" },
-          { key: "numCamaras", label: "Cámaras" },
           { key: "puertosLibres", label: "Libres" },
-          { key: "ip", label: "IP" },
-          { key: "ubicacion", label: "Ubicación" },
-          { key: "status", label: "Estado", render: r => <StatusBadge status={r.status} /> },
+          { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
         ]}
-        rows={switches}
+        detailFields={[
+          { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idSwitch ?? "—"}</p><p className="text-foreground/60 uppercase text-xs">{r.tipo ?? "—"}</p></> },
+          { label: "Marca / Modelo", render: (r: any) => <><p>{r.marca ?? "—"}</p><p className="text-foreground/60">{r.modelo ?? "—"}</p></> },
+          { label: "Puertos / PoE", render: (r: any) => <><p>{r.puertos ?? 0} totales</p><p className="text-foreground/60">{r.puertosPoe ?? 0} PoE</p></> },
+          { label: "Libres / Cámaras", render: (r: any) => <><p>{r.puertosLibres ?? 0} libres</p><p className="text-foreground/60">{r.numCamaras ?? 0} cámaras</p></> },
+          { label: "IP / Firmware", render: (r: any) => <><p className="font-mono">{r.ip ?? "—"}</p><p className="text-foreground/60">{r.firmware ?? "—"}</p></> },
+          { label: "Ubicación", render: (r: any) => <><p>{r.ubicacion ?? "—"}</p><p className="text-foreground/60">{r.capacidadPto ?? ""}</p></> },
+        ]}
         onEdit={openEdit}
-        onDelete={id => deleteMut.mutate({ id })}
-        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); }}
+        onDelete={(id: number) => deleteMut.mutate({ id })}
+        onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); }}
+        emptyIcon={<Wifi className="w-10 h-10 mx-auto mb-2 opacity-20" />}
+        emptyText="No hay switches registrados."
       />
 
       {sheetId !== null && (
@@ -1298,24 +1491,31 @@ function UpsTab() {
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nuevo UPS</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <DataTable
+      <ExpandableTable
+        rows={upsList}
+        idKey="id"
         columns={[
           { key: "idUps", label: "ID" },
           { key: "marca", label: "Marca" },
           { key: "modelo", label: "Modelo" },
-          { key: "tipo", label: "Tipo", render: r => <span className="capitalize">{r.tipo}</span> },
+          { key: "tipo", label: "Tipo", render: (r: any) => <span className="capitalize">{r.tipo}</span> },
           { key: "capacidad", label: "Capacidad" },
           { key: "autonomia", label: "Autonomía" },
-          { key: "equiposConectados", label: "Equipos" },
-          { key: "consumoActual", label: "Consumo" },
-          { key: "tarjetaRed", label: "Red", render: r => r.tarjetaRed ? <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-xs">Sí</Badge> : <span className="text-muted-foreground text-xs">No</span> },
-          { key: "ubicacion", label: "Ubicación" },
-          { key: "status", label: "Estado", render: r => <StatusBadge status={r.status} /> },
+          { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
         ]}
-        rows={upsList}
+        detailFields={[
+          { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idUps ?? "—"}</p><p className="text-foreground/60 capitalize">{r.tipo ?? "—"}</p></> },
+          { label: "Marca / Modelo", render: (r: any) => <><p>{r.marca ?? "—"}</p><p className="text-foreground/60">{r.modelo ?? "—"}</p></> },
+          { label: "Capacidad / Autonomía", render: (r: any) => <><p>{r.capacidad ?? "—"}</p><p className="text-foreground/60">{r.autonomia ?? "—"}</p></> },
+          { label: "Equipos / Consumo", render: (r: any) => <><p>{r.equiposConectados ?? 0} equipos</p><p className="text-foreground/60">{r.consumoActual ?? "—"}</p></> },
+          { label: "IP / Tarjeta Red", render: (r: any) => <><p className="font-mono">{r.ip ?? "—"}</p><p className="text-foreground/60">{r.tarjetaRed ? "✅ Con tarjeta red" : "Sin tarjeta red"}</p></> },
+          { label: "Ubicación", render: (r: any) => <><p>{r.ubicacion ?? "—"}</p><p className="text-foreground/60">{r.observaciones ?? ""}</p></> },
+        ]}
         onEdit={openEdit}
-        onDelete={id => deleteMut.mutate({ id })}
-        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); }}
+        onDelete={(id: number) => deleteMut.mutate({ id })}
+        onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); }}
+        emptyIcon={<Zap className="w-10 h-10 mx-auto mb-2 opacity-20" />}
+        emptyText="No hay UPS registrados."
       />
 
       {sheetId !== null && (

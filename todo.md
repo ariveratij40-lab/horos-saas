@@ -144,3 +144,16 @@
 - [x] Panel expandido: imagen de escena, ID/serie, marca/modelo, IP/MAC, zona/área, tipo, notas, CTPAT
 - [x] Panel expandido: botones "Ficha Técnica", "Editar" e "Imagen" inline
 - [x] Botón "Expandir todo / Colapsar todo" en la cabecera de la tabla
+
+## CCTV - Ordenamiento y exportación
+- [x] Tabla cámaras: ordenamiento por columna (marca, estado, área, IP) asc/desc
+- [x] Toolbar: botón "Exportar CSV" que descargue la lista filtrada actual
+- [x] Toolbar: botón "Exportar Excel" (.xlsx) con la lista filtrada actual
+
+## CCTV - Tabla expandible en otros módulos
+- [x] IDF/MDF: vista lista expandible con panel de detalle
+- [x] Licencias: vista lista expandible con panel de detalle
+- [x] Switches: vista lista expandible con panel de detalle
+- [x] UPS: vista lista expandible con panel de detalle
+- [x] Servidores: vista lista expandible con panel de detalle
+- [x] Pantallas/Monitores: vista lista expandible con panel de detalle
