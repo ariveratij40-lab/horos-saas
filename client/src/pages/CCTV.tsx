@@ -626,6 +626,9 @@ function CamerasTab() {
                   <span><StatusBadge status={cam.status} /></span>
                   {/* Acciones rápidas */}
                   <span className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    <button className="p-1 rounded hover:bg-amber-500/10 text-muted-foreground hover:text-amber-500 transition-colors" title="Bitácora de Mantenimiento" onClick={() => { setMaintId(cam.id); setMaintName(`${cam.marca ?? ""} ${cam.modelo ?? ""} ${cam.idCamera ?? ""}`.trim()); setMaintOpen(true); }}>
+                      <Wrench className="w-3.5 h-3.5" />
+                    </button>
                     <button className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors" title="Editar" onClick={() => openEdit(cam)}>
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
@@ -1183,6 +1186,7 @@ function IdfsTab() {
                   <span className="text-xs">{row.noSwitches ?? 0}</span>
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${st.cls}`}>{st.text}</span>
                   <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    <button className="p-1 rounded hover:bg-amber-500/10 text-muted-foreground hover:text-amber-500 transition-colors" title="Bitácora de Mantenimiento" onClick={() => { setMaintId(row.id); setMaintName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); setMaintOpen(true); }}><Wrench className="w-3.5 h-3.5" /></button>
                     <button className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors" title="Editar" onClick={() => openEdit(row)}><Pencil className="w-3.5 h-3.5" /></button>
                     <button className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Eliminar" onClick={() => deleteMut.mutate({ id: row.id })}><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
@@ -1648,6 +1652,7 @@ function MonitorsTab() {
                     <td className="px-3 py-2"><StatusBadge status={mon.status} /></td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10" title="Bitácora de Mantenimiento" onClick={() => { setMaintId(mon.id); setMaintName(`${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.tamano ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(mon.id); setSheetName(`${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.tamano ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(mon)}><Pencil className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: mon.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
@@ -1909,6 +1914,7 @@ function ServersTab() {
                     <td className="px-3 py-2"><StatusBadge status={srv.status} /></td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10" title="Bitácora de Mantenimiento" onClick={() => { setMaintId(srv.id); setMaintName(`${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(srv.id); setSheetName(`${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(srv)}><Pencil className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: srv.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
@@ -2171,6 +2177,7 @@ function SwitchesTab() {
                     <td className="px-3 py-2"><StatusBadge status={sw.status} /></td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10" title="Bitácora de Mantenimiento" onClick={() => { setMaintId(sw.id); setMaintName(`${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(sw.id); setSheetName(`${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(sw)}><Pencil className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: sw.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
@@ -2417,6 +2424,7 @@ function UpsTab() {
                     <td className="px-3 py-2"><StatusBadge status={u.status} /></td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10" title="Bitácora de Mantenimiento" onClick={() => { setMaintId(u.id); setMaintName(`${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(u.id); setSheetName(`${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(u)}><Pencil className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: u.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
