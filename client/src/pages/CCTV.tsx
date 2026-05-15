@@ -876,6 +876,39 @@ function CamerasTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB: IDF / MDF
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// Mini galería de imágenes para el panel expandido
+function IdfImagesMini({ idfId }: { idfId: number; onOpenLightbox?: (url: string) => void }) {
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const { data: images = [] } = trpc.cctv.idfs.listImages.useQuery({ idfId }, { enabled: !!idfId });
+  if (images.length === 0) return (
+    <div className="w-20 h-14 rounded border-2 border-dashed border-border bg-muted/20 flex items-center justify-center">
+      <ImageIcon className="w-5 h-5 opacity-20" />
+    </div>
+  );
+  return (
+    <>
+      <div className="flex gap-1 flex-wrap max-w-[220px]">
+        {images.slice(0, 4).map((img: any) => (
+          <div key={img.id} className="relative group cursor-pointer" onClick={() => setLightbox(img.url)}>
+            <img src={img.url} alt={img.label ?? ""} className="w-16 h-12 object-cover rounded border hover:opacity-80 transition-opacity" />
+            <span className="absolute bottom-0 left-0 right-0 text-[9px] text-center bg-black/50 text-white rounded-b truncate px-0.5">{img.label}</span>
+          </div>
+        ))}
+        {images.length > 4 && (
+          <div className="w-16 h-12 rounded border bg-muted/40 flex items-center justify-center text-xs text-muted-foreground">+{images.length - 4}</div>
+        )}
+      </div>
+      {lightbox && (
+        <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="Vista completa" className="max-w-full max-h-full rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
+          <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 text-white text-xl hover:bg-white/30 flex items-center justify-center" onClick={() => setLightbox(null)}>×</button>
+        </div>
+      )}
+    </>
+  );
+}
+
 function IdfsTab() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -886,17 +919,27 @@ function IdfsTab() {
 
   const { data: idfsRaw = [], refetch } = trpc.cctv.idfs.list.useQuery(undefined);
   const idfs = idfsRaw.filter(r => !search || [r.idIdf, r.nombre, r.ubicacion, r.tipo].some(v => v?.toLowerCase().includes(search.toLowerCase())));
+  const [lightboxImg, setLightboxImg] = useState<string | null>(null);
+  const [uploadLabel, setUploadLabel] = useState("Frontal");
+
   const createMut = trpc.cctv.idfs.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("IDF registrado"); } });
   const updateMut = trpc.cctv.idfs.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("IDF actualizado"); } });
   const deleteMut = trpc.cctv.idfs.delete.useMutation({ onSuccess: () => { refetch(); toast.success("IDF eliminado"); } });
-  const uploadImageMut = trpc.cctv.idfs.uploadImage.useMutation({
-    onSuccess: (data) => {
-      refetch();
-      setForm((p: any) => ({ ...p, idfImageUrl: data.url, idfImageKey: data.key }));
-      toast.success("Imagen subida correctamente");
-    },
-    onError: () => toast.error("Error al subir imagen"),
+  const addImageMut = trpc.cctv.idfs.addImage.useMutation({
+    onSuccess: () => { refetchImages(); toast.success("Imagen agregada"); },
+    onError: (e) => toast.error(e.message || "Error al subir imagen"),
   });
+  const deleteImageMut = trpc.cctv.idfs.deleteImage.useMutation({
+    onSuccess: () => { refetchImages(); toast.success("Imagen eliminada"); },
+  });
+  const updateLabelMut = trpc.cctv.idfs.updateImageLabel.useMutation({
+    onSuccess: () => refetchImages(),
+  });
+
+  const { data: idfImages = [], refetch: refetchImages } = trpc.cctv.idfs.listImages.useQuery(
+    { idfId: editing?.id ?? 0 },
+    { enabled: !!editing?.id }
+  );
 
   function openCreate() { setEditing(null); setForm({}); setOpen(true); }
   function openEdit(row: any) { setEditing(row); setForm({ ...row }); setOpen(true); }
@@ -908,9 +951,11 @@ function IdfsTab() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const base64 = ev.target?.result as string;
-      uploadImageMut.mutate({ id: editing.id, imageBase64: base64, mimeType: file.type });
+      addImageMut.mutate({ idfId: editing.id, imageBase64: base64, mimeType: file.type, label: uploadLabel });
     };
     reader.readAsDataURL(file);
+    // Reset input
+    e.target.value = "";
   }
   const f = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
 
@@ -937,12 +982,8 @@ function IdfsTab() {
           { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
         ]}
         detailFields={[
-          { label: "IMAGEN", render: (r: any) => r.idfImageUrl ? (
-            <img src={r.idfImageUrl} alt="IDF" className="w-full max-w-[160px] h-24 object-cover rounded-lg border" />
-          ) : (
-            <div className="w-[160px] h-24 rounded-lg border-2 border-dashed border-border bg-muted/30 flex items-center justify-center">
-              <ImageIcon className="w-6 h-6 opacity-20" />
-            </div>
+          { label: "FOTOS", render: (r: any) => (
+            <IdfImagesMini idfId={r.id} onOpenLightbox={(url: string) => { /* handled inline */ }} />
           )},
           { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idIdf ?? "—"}</p><p className="text-foreground/60 capitalize">{r.tipo ?? "—"}</p></> },
           { label: "Nombre", render: (r: any) => <><p>{r.nombre ?? "—"}</p><p className="text-foreground/60">{r.ubicacion ?? "—"}</p></> },
@@ -1005,43 +1046,81 @@ function IdfsTab() {
             <div className="col-span-2"><Field label="Observaciones"><Textarea value={form.observaciones ?? ""} onChange={e => f("observaciones", e.target.value)} rows={2} /></Field></div>
             <Field label="No. Factura"><Input value={form.invoiceNumber ?? ""} onChange={e => f("invoiceNumber", e.target.value)} placeholder="FAC-2024-001" /></Field>
             <Field label="Monto"><Input type="number" step="0.01" value={form.amount ?? ""} onChange={e => f("amount", e.target.value)} placeholder="0.00" /></Field>
-            {/* Imagen del IDF/MDF */}
+            {/* Galería múltiple de imágenes del IDF/MDF */}
             <div className="col-span-2">
               <div className="border-t pt-4">
-                <p className="text-sm font-medium mb-3 text-foreground/80">IMAGEN DEL IDF/MDF (OPCIONAL)</p>
-                <div className="flex gap-4 items-start">
-                  <div
-                    className="relative w-48 h-32 rounded-lg border-2 border-dashed border-border bg-muted/30 flex items-center justify-center cursor-pointer overflow-hidden hover:border-primary/50 transition-colors"
-                    onClick={() => editing && document.getElementById('idf-image-upload')?.click()}
-                  >
-                    {form.idfImageUrl ? (
-                      <img src={form.idfImageUrl} alt="IDF" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-center text-muted-foreground">
-                        <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-40" />
-                        <p className="text-xs">{editing ? "Clic para subir imagen" : "Guarda primero para subir imagen"}</p>
-                      </div>
-                    )}
-                    {uploadImageMut.isPending && (
-                      <div className="absolute inset-0 bg-background/70 flex items-center justify-center">
-                        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {editing && (
-                      <>
-                        <Button size="sm" variant="outline" onClick={() => document.getElementById('idf-image-upload')?.click()} disabled={uploadImageMut.isPending}>
-                          <Upload className="w-3.5 h-3.5 mr-1.5" />{form.idfImageUrl ? "Cambiar imagen" : "Subir imagen"}
-                        </Button>
-                        <input id="idf-image-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                      </>
-                    )}
-                    <p className="text-xs text-muted-foreground">Foto del rack, gabinete o instalación.<br/>Formatos: JPG, PNG, WEBP</p>
-                  </div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium text-foreground/80">FOTOS DEL IDF/MDF ({idfImages.length}/10)</p>
+                  {editing && idfImages.length < 10 && (
+                    <div className="flex items-center gap-2">
+                      <Select value={uploadLabel} onValueChange={setUploadLabel}>
+                        <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {["Frontal", "Lateral", "Cableado", "Rack", "Gabinete", "UPS", "Otro"].map(l => (
+                            <SelectItem key={l} value={l}>{l}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" variant="outline" onClick={() => document.getElementById('idf-image-upload')?.click()} disabled={addImageMut.isPending}>
+                        {addImageMut.isPending ? <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
+                        Agregar foto
+                      </Button>
+                      <input id="idf-image-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                    </div>
+                  )}
                 </div>
+                {!editing && (
+                  <p className="text-xs text-muted-foreground mb-3">Guarda el IDF primero para poder agregar fotos.</p>
+                )}
+                {idfImages.length === 0 && editing && (
+                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center text-muted-foreground">
+                    <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">Sin fotos aún. Selecciona una etiqueta y agrega la primera foto.</p>
+                  </div>
+                )}
+                {idfImages.length > 0 && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    {idfImages.map((img: any) => (
+                      <div key={img.id} className="group relative rounded-lg overflow-hidden border bg-muted/20">
+                        <img
+                          src={img.url}
+                          alt={img.label ?? "Foto"}
+                          className="w-full h-24 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => setLightboxImg(img.url)}
+                        />
+                        <div className="p-1.5">
+                          <Select value={img.label ?? "Otro"} onValueChange={v => updateLabelMut.mutate({ imageId: img.id, label: v })}>
+                            <SelectTrigger className="h-6 text-xs px-1.5 border-0 bg-transparent focus:ring-0">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["Frontal", "Lateral", "Cableado", "Rack", "Gabinete", "UPS", "Otro"].map(l => (
+                                <SelectItem key={l} value={l}>{l}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <button
+                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-destructive/80 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs hover:bg-destructive"
+                          onClick={() => deleteImageMut.mutate({ imageId: img.id })}
+                          title="Eliminar imagen"
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
+            {/* Lightbox */}
+            {lightboxImg && (
+              <div
+                className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4"
+                onClick={() => setLightboxImg(null)}
+              >
+                <img src={lightboxImg} alt="Vista completa" className="max-w-full max-h-full rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
+                <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 text-white text-xl hover:bg-white/30 flex items-center justify-center" onClick={() => setLightboxImg(null)}>×</button>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

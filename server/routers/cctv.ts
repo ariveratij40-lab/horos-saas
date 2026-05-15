@@ -3,7 +3,7 @@ import { eq, and, desc, like, or, lt, gte } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import {
-  cctvCameras, cctvIdfs, cctvLicenses, cctvMonitors,
+  cctvCameras, cctvIdfs, cctvIdfImages, cctvLicenses, cctvMonitors,
   cctvServers, cctvSwitches, cctvUps,
 } from "../../drizzle/schema";
 
@@ -381,27 +381,69 @@ export const cctvIdfsRouter = router({
     return { success: true };
   }),
 
-  // Subir imagen del IDF/MDF (base64 → S3)
-  uploadImage: protectedProcedure.input(z.object({
-    id: z.number(),
+  // Listar imágenes de un IDF/MDF
+  listImages: protectedProcedure.input(z.object({ idfId: z.number() })).query(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const tenantId = ctx.user.tenantId ?? 1;
+    return db.select().from(cctvIdfImages)
+      .where(and(eq(cctvIdfImages.idfId, input.idfId), eq(cctvIdfImages.tenantId, tenantId)))
+      .orderBy(cctvIdfImages.sortOrder, cctvIdfImages.createdAt);
+  }),
+
+  // Agregar imagen a la galería del IDF/MDF
+  addImage: protectedProcedure.input(z.object({
+    idfId: z.number(),
     imageBase64: z.string(),
     mimeType: z.string().default("image/jpeg"),
+    label: z.string().default("Frontal"),
   })).mutation(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) throw new Error("DB no disponible");
     const tenantId = ctx.user.tenantId ?? 1;
+    // Verify ownership
     const [idf] = await db.select().from(cctvIdfs)
-      .where(and(eq(cctvIdfs.id, input.id), eq(cctvIdfs.tenantId, tenantId))).limit(1);
+      .where(and(eq(cctvIdfs.id, input.idfId), eq(cctvIdfs.tenantId, tenantId))).limit(1);
     if (!idf) throw new Error("IDF/MDF no encontrado");
+    // Check max 10 images
+    const existing = await db.select().from(cctvIdfImages)
+      .where(and(eq(cctvIdfImages.idfId, input.idfId), eq(cctvIdfImages.tenantId, tenantId)));
+    if (existing.length >= 10) throw new Error("Máximo 10 imágenes por IDF/MDF");
+    // Upload to S3
     const { storagePut } = await import("../storage");
     const buffer = Buffer.from(input.imageBase64.replace(/^data:[^;]+;base64,/, ""), "base64");
-    const key = `cctv/idfs/${tenantId}/${input.id}-${Date.now()}.jpg`;
+    const key = `cctv/idfs/${tenantId}/${input.idfId}-${Date.now()}.jpg`;
     const { url } = await storagePut(key, buffer, input.mimeType);
-    await db.update(cctvIdfs).set({
-      idfImageUrl: url,
-      idfImageKey: key,
-    } as any).where(and(eq(cctvIdfs.id, input.id), eq(cctvIdfs.tenantId, tenantId)));
-    return { url, key };
+    // Insert record
+    const [result] = await db.insert(cctvIdfImages).values({
+      idfId: input.idfId,
+      tenantId,
+      url,
+      key,
+      label: input.label,
+      sortOrder: existing.length,
+    });
+    return { id: (result as any).insertId, url, key };
+  }),
+
+  // Eliminar imagen de la galería
+  deleteImage: protectedProcedure.input(z.object({ imageId: z.number() })).mutation(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) throw new Error("DB no disponible");
+    const tenantId = ctx.user.tenantId ?? 1;
+    await db.delete(cctvIdfImages)
+      .where(and(eq(cctvIdfImages.id, input.imageId), eq(cctvIdfImages.tenantId, tenantId)));
+    return { success: true };
+  }),
+
+  // Actualizar etiqueta de una imagen
+  updateImageLabel: protectedProcedure.input(z.object({ imageId: z.number(), label: z.string() })).mutation(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) throw new Error("DB no disponible");
+    const tenantId = ctx.user.tenantId ?? 1;
+    await db.update(cctvIdfImages).set({ label: input.label })
+      .where(and(eq(cctvIdfImages.id, input.imageId), eq(cctvIdfImages.tenantId, tenantId)));
+    return { success: true };
   }),
 });
 

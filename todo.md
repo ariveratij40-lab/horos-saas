@@ -182,3 +182,13 @@
 - [x] Router CCTV: endpoint uploadImage para subir imagen al storage S3
 - [x] Frontend: campo de subida de imagen en el formulario de edición de IDF/MDF con preview
 - [x] Frontend: preview de imagen en el panel expandido de la tabla lista IDF/MDF
+
+## CCTV - Galería múltiple de imágenes en IDF/MDF
+- [x] Schema Drizzle: tabla cctv_idf_images (id, idfId, tenantId, url, key, label, sortOrder, createdAt)
+- [x] Migración SQL: CREATE TABLE cctv_idf_images
+- [x] Router CCTV: endpoints idfs.addImage, deleteImage, listImages, updateImageLabel
+- [x] Frontend: galería de miniaturas en el formulario de edición IDF/MDF (máx 10 fotos)
+- [x] Frontend: selector de etiqueta por imagen (Frontal, Lateral, Cableado, Rack, Gabinete, UPS, Otro)
+- [x] Frontend: botón eliminar en cada miniatura (hover)
+- [x] Frontend: componente IdfImagesMini en el panel expandido de la tabla lista
+- [x] Frontend: lightbox para ver imagen en tamaño completo al hacer clic

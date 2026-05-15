@@ -494,6 +494,21 @@ export const cctvIdfs = mysqlTable("cctv_idfs", {
 export type CctvIdf = typeof cctvIdfs.$inferSelect;
 export type InsertCctvIdf = typeof cctvIdfs.$inferInsert;
 
+// ─── CCTV: IDF IMAGES (galería múltiple) ─────────────────────────────────────────
+export const cctvIdfImages = mysqlTable("cctv_idf_images", {
+  id: int("id").autoincrement().primaryKey(),
+  idfId: int("idfId").notNull(),
+  tenantId: int("tenantId").notNull(),
+  url: text("url").notNull(),
+  key: text("key").notNull(),
+  label: varchar("label", { length: 100 }).default("Frontal"),  // Frontal, Lateral, Cableado, Rack, Otro
+  sortOrder: int("sortOrder").default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CctvIdfImage = typeof cctvIdfImages.$inferSelect;
+export type InsertCctvIdfImage = typeof cctvIdfImages.$inferInsert;
+
 // ─── CCTV: LICENCIAS ─────────────────────────────────────────────────────────
 export const cctvLicenses = mysqlTable("cctv_licenses", {
   id: int("id").autoincrement().primaryKey(),
