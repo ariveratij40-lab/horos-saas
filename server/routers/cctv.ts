@@ -616,6 +616,9 @@ export const cctvUpsRouter = router({
   }),
 });
 
+// ─── Ficha Técnica ──────────────────────────────────────────────────────────
+const equipmentTypeEnum = z.enum(["camera", "idf", "license", "monitor", "server", "switch", "ups"]);
+
 // ─── Router principal CCTV ────────────────────────────────────────────────────
 export const cctvRouter = router({
   cameras: cctvCamerasRouter,
@@ -625,6 +628,127 @@ export const cctvRouter = router({
   servers: cctvServersRouter,
   switches: cctvSwitchesRouter,
   ups: cctvUpsRouter,
+
+  // Ficha técnica por tipo de equipo
+  getSheet: protectedProcedure
+    .input(z.object({ type: equipmentTypeEnum, id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const tenantId = ctx.user.tenantId ?? 1;
+
+      const tableMap = {
+        camera:  { table: cctvCameras,  idField: cctvCameras.id,  tenantField: cctvCameras.tenantId },
+        idf:     { table: cctvIdfs,     idField: cctvIdfs.id,     tenantField: cctvIdfs.tenantId },
+        license: { table: cctvLicenses, idField: cctvLicenses.id, tenantField: cctvLicenses.tenantId },
+        monitor: { table: cctvMonitors, idField: cctvMonitors.id, tenantField: cctvMonitors.tenantId },
+        server:  { table: cctvServers,  idField: cctvServers.id,  tenantField: cctvServers.tenantId },
+        switch:  { table: cctvSwitches, idField: cctvSwitches.id, tenantField: cctvSwitches.tenantId },
+        ups:     { table: cctvUps,      idField: cctvUps.id,      tenantField: cctvUps.tenantId },
+      } as const;
+
+      const { table, idField, tenantField } = tableMap[input.type];
+      const [row] = await db.select().from(table as any)
+        .where(and(eq(idField as any, input.id), eq(tenantField as any, tenantId)))
+        .limit(1);
+
+      if (!row) return null;
+
+      // Etiquetas legibles por tipo de equipo
+      const labelMaps: Record<string, Record<string, string>> = {
+        camera: {
+          idCamera: "ID Cámara", marca: "Marca", modelo: "Modelo", serie: "Número de Serie",
+          familia: "Familia", resolucion: "Resolución", tipo: "Tipo", poe: "PoE",
+          area: "Área", edificio: "Edificio", ip: "Dirección IP", mascara: "Máscara",
+          gateway: "Gateway", mac: "MAC", internet: "Acceso Internet", conexion: "Conexión",
+          puertoSw: "Puerto Switch", proveedor: "Proveedor", fechaCompra: "Fecha Compra",
+          po: "Orden de Compra", tiempoUso: "Tiempo en Uso", garantiaExpiracion: "Vencimiento Garantía",
+          status: "Estado", observaciones: "Observaciones",
+        },
+        idf: {
+          idIdf: "ID IDF", nombre: "Nombre", ubicacion: "Ubicación", tipo: "Tipo",
+          numeroRacks: "Número de Racks", numGabinetes: "Número de Gabinetes",
+          capacidadRacks: "Capacidad Racks (U)", capacidadGabinetes: "Capacidad Gabinetes (U)",
+          fibraOptica: "Fibra Óptica", tipoFibra: "Tipo de Fibra",
+          idfCompartido: "IDF Compartido", compartidoCon: "Compartido Con",
+          noSwitches: "Número de Switches", noServidores: "Número de Servidores",
+          noUps: "Número de UPS", refrigerado: "Refrigerado",
+          controlAcceso: "Control de Acceso", tipoControlAcceso: "Tipo Control Acceso",
+          status: "Estado", observaciones: "Observaciones",
+        },
+        license: {
+          idLicencia: "ID Licencia", marca: "Marca", modelo: "Software/VMS",
+          tipo: "Tipo", noContrato: "Número de Contrato",
+          fechaInicio: "Fecha Inicio", fechaExpiracion: "Fecha Expiración",
+          expirado: "Expirado", noLicencias: "Número de Licencias",
+          noCanales: "Canales Habilitados", equipoAsignado: "Equipo Asignado",
+          proveedor: "Proveedor", fechaCompra: "Fecha Compra", po: "Orden de Compra",
+          status: "Estado", observaciones: "Observaciones",
+        },
+        monitor: {
+          idMonitor: "ID Monitor", marca: "Marca", modelo: "Modelo", serie: "Número de Serie",
+          tipo: "Tipo", tamano: "Tamaño", resolucion: "Resolución", tecnologia: "Tecnología",
+          puertos: "Puertos", ubicacion: "Ubicación", ip: "Dirección IP",
+          proveedor: "Proveedor", fechaCompra: "Fecha Compra",
+          garantiaExpiracion: "Vencimiento Garantía", status: "Estado", observaciones: "Observaciones",
+        },
+        server: {
+          idServer: "ID Servidor", marca: "Marca", modelo: "Modelo", serie: "Número de Serie",
+          tipoVms: "Tipo VMS", versionVms: "Versión VMS", noLicencias: "Licencias VMS",
+          noCanales: "Canales Grabados", so: "Sistema Operativo", ram: "Memoria RAM",
+          cpu: "Procesador", almacenamiento: "Almacenamiento", raid: "RAID",
+          ip: "Dirección IP", ubicacion: "Ubicación",
+          proveedor: "Proveedor", fechaCompra: "Fecha Compra",
+          garantiaExpiracion: "Vencimiento Garantía", status: "Estado", observaciones: "Observaciones",
+        },
+        switch: {
+          idSwitch: "ID Switch", marca: "Marca", modelo: "Modelo", serie: "Número de Serie",
+          tipo: "Tipo", firmware: "Firmware", puertos: "Total Puertos",
+          puertosLibres: "Puertos Libres", poe: "PoE", puertosPoE: "Puertos PoE",
+          camarasConectadas: "Cámaras Conectadas", ip: "IP Administración", vlan: "VLANs",
+          proveedor: "Proveedor", fechaCompra: "Fecha Compra",
+          garantiaExpiracion: "Vencimiento Garantía", status: "Estado", observaciones: "Observaciones",
+        },
+        ups: {
+          idUps: "ID UPS", marca: "Marca", modelo: "Modelo", serie: "Número de Serie",
+          tipo: "Tipo", capacidadKva: "Capacidad (KVA)", capacidadW: "Capacidad (W)",
+          autonomia: "Autonomía", equiposConectados: "Equipos Conectados",
+          baterias: "Número de Baterías", fechaBaterias: "Fecha Última Reposición Baterías",
+          ubicacion: "Ubicación", proveedor: "Proveedor", fechaCompra: "Fecha Compra",
+          garantiaExpiracion: "Vencimiento Garantía", status: "Estado", observaciones: "Observaciones",
+        },
+      };
+
+      const typeLabels: Record<string, string> = {
+        camera: "Cámara CCTV", idf: "IDF / MDF", license: "Licencia de Software",
+        monitor: "Monitor / Pantalla", server: "Servidor / NVR", switch: "Switch", ups: "UPS",
+      };
+
+      const labels = labelMaps[input.type] ?? {};
+      const fields: { label: string; value: string; key: string }[] = [];
+
+      for (const [key, label] of Object.entries(labels)) {
+        const raw = (row as any)[key];
+        if (raw === null || raw === undefined || raw === "") continue;
+        let value: string;
+        if (raw instanceof Date) {
+          value = raw.toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" });
+        } else if (typeof raw === "boolean") {
+          value = raw ? "Sí" : "No";
+        } else {
+          value = String(raw);
+        }
+        fields.push({ key, label, value });
+      }
+
+      return {
+        id: (row as any).id,
+        type: input.type,
+        typeLabel: typeLabels[input.type],
+        fields,
+        generatedAt: new Date().toISOString(),
+      };
+    }),
 
   // Resumen global del módulo CCTV
   summary: protectedProcedure.query(async ({ ctx }) => {

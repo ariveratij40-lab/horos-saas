@@ -17,9 +17,10 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Camera, Server, Wifi, Monitor, Shield, Zap, Network,
-  Plus, Search, Pencil, Trash2, RefreshCw, Eye,
+  Plus, Search, Pencil, Trash2, RefreshCw, FileText,
   CheckCircle2, XCircle, AlertTriangle, Clock,
 } from "lucide-react";
+import CctvTechSheet, { type CctvEquipmentType } from "@/components/CctvTechSheet";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -68,12 +69,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 // ─── Tabla genérica ───────────────────────────────────────────────────────────
 function DataTable({
-  columns, rows, onEdit, onDelete,
+  columns, rows, onEdit, onDelete, onSheet,
 }: {
   columns: { key: string; label: string; render?: (row: any) => React.ReactNode }[];
   rows: any[];
   onEdit: (row: any) => void;
   onDelete: (id: number) => void;
+  onSheet?: (row: any) => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -106,6 +108,11 @@ function DataTable({
               ))}
               <td className="px-3 py-2 text-right">
                 <div className="flex items-center justify-end gap-1">
+                  {onSheet && (
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10" title="Ver Ficha Técnica" onClick={() => onSheet(row)}>
+                      <FileText className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(row)}>
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
@@ -130,6 +137,8 @@ function CamerasTab() {
   const [editing, setEditing] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<any>({});
+  const [sheetId, setSheetId] = useState<number | null>(null);
+  const [sheetName, setSheetName] = useState("");
 
   const { data: cameras = [], refetch } = trpc.cctv.cameras.list.useQuery(undefined);
   const { data: stats } = trpc.cctv.cameras.stats.useQuery();
@@ -184,7 +193,18 @@ function CamerasTab() {
         rows={filtered}
         onEdit={openEdit}
         onDelete={id => deleteMut.mutate({ id })}
+        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idCamera ?? ""}`.trim()); }}
       />
+
+      {sheetId !== null && (
+        <CctvTechSheet
+          open={sheetId !== null}
+          onClose={() => setSheetId(null)}
+          equipmentType="camera"
+          equipmentId={sheetId}
+          equipmentName={sheetName}
+        />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -255,6 +275,8 @@ function IdfsTab() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
+  const [sheetId, setSheetId] = useState<number | null>(null);
+  const [sheetName, setSheetName] = useState("");
 
   const { data: idfsRaw = [], refetch } = trpc.cctv.idfs.list.useQuery(undefined);
   const idfs = idfsRaw.filter(r => !search || [r.idIdf, r.nombre, r.ubicacion, r.tipo].some(v => v?.toLowerCase().includes(search.toLowerCase())));
@@ -294,7 +316,12 @@ function IdfsTab() {
         rows={idfs}
         onEdit={openEdit}
         onDelete={id => deleteMut.mutate({ id })}
+        onSheet={row => { setSheetId(row.id); setSheetName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); }}
       />
+
+      {sheetId !== null && (
+        <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="idf" equipmentId={sheetId} equipmentName={sheetName} />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -356,6 +383,8 @@ function LicensesTab() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
+  const [sheetId, setSheetId] = useState<number | null>(null);
+  const [sheetName, setSheetName] = useState("");
 
   const { data: licensesRaw = [], refetch } = trpc.cctv.licenses.list.useQuery(undefined);
   const licenses = licensesRaw.filter(r => !search || [r.idLicencia, r.marca, r.modelo, r.noContrato, r.equipoAsignado, r.proveedor].some(v => v?.toLowerCase().includes(search.toLowerCase())));
@@ -409,7 +438,12 @@ function LicensesTab() {
         rows={licenses}
         onEdit={openEdit}
         onDelete={id => deleteMut.mutate({ id })}
+        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idLicencia ?? ""}`.trim()); }}
       />
+
+      {sheetId !== null && (
+        <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="license" equipmentId={sheetId} equipmentName={sheetName} />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -467,6 +501,8 @@ function MonitorsTab() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
+  const [sheetId, setSheetId] = useState<number | null>(null);
+  const [sheetName, setSheetName] = useState("");
 
   const { data: monitorsRaw = [], refetch } = trpc.cctv.monitors.list.useQuery(undefined);
   const monitors = monitorsRaw.filter(r => !search || [r.idMonitor, r.marca, r.modelo, r.ubicacion, r.serie].some(v => v?.toLowerCase().includes(search.toLowerCase())));
@@ -506,7 +542,12 @@ function MonitorsTab() {
         rows={monitors}
         onEdit={openEdit}
         onDelete={id => deleteMut.mutate({ id })}
+        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.tamano ?? ""}`.trim()); }}
       />
+
+      {sheetId !== null && (
+        <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="monitor" equipmentId={sheetId} equipmentName={sheetName} />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -577,6 +618,8 @@ function ServersTab() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
+  const [sheetId, setSheetId] = useState<number | null>(null);
+  const [sheetName, setSheetName] = useState("");
 
   const { data: serversRaw = [], refetch } = trpc.cctv.servers.list.useQuery(undefined);
   const servers = serversRaw.filter(r => !search || [r.idServer, r.marca, r.modelo, r.ip, r.ubicacion, r.versionVms].some(v => v?.toLowerCase().includes(search.toLowerCase())));
@@ -616,7 +659,12 @@ function ServersTab() {
         rows={servers}
         onEdit={openEdit}
         onDelete={id => deleteMut.mutate({ id })}
+        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); }}
       />
+
+      {sheetId !== null && (
+        <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="server" equipmentId={sheetId} equipmentName={sheetName} />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -679,6 +727,8 @@ function SwitchesTab() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
+  const [sheetId, setSheetId] = useState<number | null>(null);
+  const [sheetName, setSheetName] = useState("");
 
   const { data: switches = [], refetch } = trpc.cctv.switches.list.useQuery(undefined);
   const createMut = trpc.cctv.switches.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Switch registrado"); } });
@@ -725,7 +775,12 @@ function SwitchesTab() {
         rows={switches}
         onEdit={openEdit}
         onDelete={id => deleteMut.mutate({ id })}
+        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); }}
       />
+
+      {sheetId !== null && (
+        <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="switch" equipmentId={sheetId} equipmentName={sheetName} />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -781,6 +836,8 @@ function UpsTab() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
+  const [sheetId, setSheetId] = useState<number | null>(null);
+  const [sheetName, setSheetName] = useState("");
 
   const { data: upsListRaw = [], refetch } = trpc.cctv.ups.list.useQuery(undefined);
   const upsList = upsListRaw.filter(r => !search || [r.idUps, r.marca, r.modelo, r.ubicacion].some(v => v?.toLowerCase().includes(search.toLowerCase())));
@@ -820,7 +877,12 @@ function UpsTab() {
         rows={upsList}
         onEdit={openEdit}
         onDelete={id => deleteMut.mutate({ id })}
+        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); }}
       />
+
+      {sheetId !== null && (
+        <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="ups" equipmentId={sheetId} equipmentName={sheetName} />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">

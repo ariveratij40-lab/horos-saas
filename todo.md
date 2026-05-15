@@ -79,3 +79,12 @@
 - [x] Frontend: tablas de listado con filtros y búsqueda por tipo de equipo
 - [x] Frontend: navegación desde Dashboard pestaña CCTV hacia el módulo
 - [x] Pruebas unitarias para los nuevos routers CCTV
+
+## Fichas Técnicas CCTV
+- [ ] Router tRPC: endpoint getEquipmentSheet por tipo y id (devuelve todos los campos del equipo)
+- [ ] Componente CctvTechSheet: modal de ficha técnica con secciones colapsables y diseño elegante
+- [ ] Botón "Ficha Técnica" en cada fila de las 7 pestañas CCTV
+- [ ] Exportación a PDF desde el navegador (window.print con estilos de impresión)
+- [ ] Encabezado de ficha con logo HOROS, nombre del equipo, fecha de generación y estado
+- [ ] Secciones por categoría: Identificación, Red/Conectividad, Hardware, Garantía/Proveedor, Observaciones
+- [ ] Pruebas unitarias para el endpoint getEquipmentSheet
