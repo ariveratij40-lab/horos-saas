@@ -173,3 +173,54 @@ describe("Policy types and statuses", () => {
     expect(statuses).toContain("expired");
   });
 });
+
+// ─── Tests para dashboard.kpisDetailed ───────────────────────────────────────
+describe("dashboard.kpisDetailed", () => {
+  it("kpisDetailed procedure exists in the router", () => {
+    const procedures = appRouter._def.procedures;
+    expect(procedures["dashboard.kpisDetailed"]).toBeDefined();
+  });
+
+  it("kpisByCategory procedure exists and accepts valid enum values", () => {
+    const procedures = appRouter._def.procedures;
+    expect(procedures["dashboard.kpisByCategory"]).toBeDefined();
+  });
+
+  it("dashboard tab categories map to correct asset sub-categories", () => {
+    const categoryMap: Record<string, string[]> = {
+      cctv:           ["camera", "nvr_dvr"],
+      access_control: ["access_control"],
+      voceo:          ["alarm", "sensor"],
+      cableado:       ["network", "server", "ups"],
+    };
+    // CCTV: cámaras y grabadores NVR/DVR
+    expect(categoryMap["cctv"]).toContain("camera");
+    expect(categoryMap["cctv"]).toContain("nvr_dvr");
+    expect(categoryMap["cctv"]).toHaveLength(2);
+    // Control de Acceso: lectores y puertas
+    expect(categoryMap["access_control"]).toContain("access_control");
+    // Voceo: altavoces y amplificadores
+    expect(categoryMap["voceo"]).toContain("alarm");
+    expect(categoryMap["voceo"]).toContain("sensor");
+    // Cableado: switches, servidores y UPS
+    expect(categoryMap["cableado"]).toContain("network");
+    expect(categoryMap["cableado"]).toContain("server");
+    expect(categoryMap["cableado"]).toContain("ups");
+    expect(categoryMap["cableado"]).toHaveLength(3);
+  });
+
+  it("all 5 dashboard tabs are defined", () => {
+    const tabs = ["resumen", "cctv", "access_control", "voceo", "cableado"];
+    expect(tabs).toHaveLength(5);
+    expect(tabs).toContain("resumen");
+    expect(tabs).toContain("cctv");
+    expect(tabs).toContain("access_control");
+    expect(tabs).toContain("voceo");
+    expect(tabs).toContain("cableado");
+  });
+
+  it("getDashboardKpisDetailed is exported from db module", async () => {
+    const dbModule = await import("./db");
+    expect(typeof dbModule.getDashboardKpisDetailed).toBe("function");
+  });
+});

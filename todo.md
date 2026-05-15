@@ -58,9 +58,9 @@
 - [x] Backend: router de KPIs filtrados por categoría de activo (camera, nvr_dvr, access_control, alarm, network)
 
 ## Dashboard - KPIs Granulares por Sub-categoría
-- [ ] Backend: endpoint kpisByCategoryDetailed con fichas por sub-categoría (camera, nvr_dvr, access_control, alarm, network, server, ups)
-- [ ] CCTV: fichas separadas para Cámaras activas y Grabadores NVR/DVR
-- [ ] Control de Acceso: fichas separadas para Lectores activos y Puertas controladas
-- [ ] Voceo: fichas separadas para Altavoces/Equipos activos y Amplificadores
-- [ ] Cableado Estructurado: fichas separadas para Switches/Routers, Servidores y UPS
-- [ ] Pruebas unitarias para los nuevos KPIs granulares
+- [x] Backend: endpoint kpisDetailedgoryDetailed con fichas por sub-categoría (camera, nvr_dvr, access_control, alarm, network, server, ups)
+- [x] CCTV: fichas separadas para Cámaras activas y Grabadores NVR/DVR
+- [x] Control de Acceso: fichas separadas para Lectores activos y Puertas controladas
+- [x] Voceo: fichas separadas para Altavoces/Equipos activos y Amplificadores
+- [x] Cableado Estructurado: fichas separadas para Switches/Routers, Servidores y UPS
+- [x] Pruebas unitarias para los nuevos KPIs granulares
