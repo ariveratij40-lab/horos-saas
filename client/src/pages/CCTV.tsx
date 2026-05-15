@@ -19,6 +19,7 @@ import {
   Camera, Server, Wifi, Monitor, Shield, Zap, Network,
   Plus, Search, Pencil, Trash2, RefreshCw, FileText,
   CheckCircle2, XCircle, AlertTriangle, Clock,
+  LayoutGrid, List, Upload, ImageIcon, X as XIcon,
 } from "lucide-react";
 import CctvTechSheet, { type CctvEquipmentType } from "@/components/CctvTechSheet";
 
@@ -130,6 +131,71 @@ function DataTable({
   );
 }
 
+// ─── Tarjeta de cámara ────────────────────────────────────────────────────────
+const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
+  active:      { text: "Operativa",      cls: "bg-emerald-500 text-white" },
+  inactive:    { text: "Inactiva",       cls: "bg-slate-500 text-white" },
+  maintenance: { text: "Mantenimiento",  cls: "bg-amber-500 text-white" },
+  retired:     { text: "Retirada",       cls: "bg-red-500 text-white" },
+};
+
+function CameraCard({ cam, onEdit, onDelete, onSheet, onUploadScene }: {
+  cam: any;
+  onEdit: (c: any) => void;
+  onDelete: (id: number) => void;
+  onSheet: (c: any) => void;
+  onUploadScene: (c: any) => void;
+}) {
+  const st = STATUS_LABEL[cam.status] ?? STATUS_LABEL.inactive;
+  return (
+    <div className="rounded-xl border border-border/50 bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow group">
+      {/* Imagen de escena */}
+      <div className="relative aspect-video bg-muted/30 overflow-hidden">
+        {cam.sceneImageUrl ? (
+          <img src={cam.sceneImageUrl} alt={cam.area ?? "Escena"} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground/40">
+            <Camera className="w-10 h-10" />
+            <span className="text-xs">Sin imagen de escena</span>
+          </div>
+        )}
+        {/* Badge de estado */}
+        <span className={`absolute top-2 right-2 text-xs font-semibold px-2 py-0.5 rounded-full ${st.cls}`}>{st.text}</span>
+        {/* Botón de subir imagen (aparece al hover) */}
+        <button
+          onClick={() => onUploadScene(cam)}
+          className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 hover:bg-black/80 text-white rounded-lg p-1.5 text-xs flex items-center gap-1"
+          title="Subir imagen de escena"
+        >
+          <Upload className="w-3 h-3" /> Imagen
+        </button>
+      </div>
+      {/* Info */}
+      <div className="p-3 space-y-1">
+        <p className="text-xs font-mono text-primary font-semibold">{cam.idCamera ?? "SIN ID"}</p>
+        <p className="font-semibold text-sm text-foreground leading-tight truncate">{cam.area ?? cam.edificio ?? "Sin nombre"}</p>
+        <p className="text-xs text-muted-foreground truncate">{[cam.marca, cam.modelo].filter(Boolean).join(" ") || "Sin modelo"}</p>
+        {cam.conexion && <p className="text-xs text-blue-400 font-medium">{cam.conexion}</p>}
+      </div>
+      {/* Acciones */}
+      <div className="px-3 pb-3 flex items-center gap-1.5 flex-wrap">
+        <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 flex-1" onClick={() => onSheet(cam)}>
+          <FileText className="w-3 h-3" /> Ficha
+        </Button>
+        <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 flex-1" onClick={() => onUploadScene(cam)}>
+          <Upload className="w-3 h-3" /> Mant.
+        </Button>
+        <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 flex-1" onClick={() => onEdit(cam)}>
+          <Pencil className="w-3 h-3" /> Editar
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => onDelete(cam.id)}>
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB: CÁMARAS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -140,12 +206,23 @@ function CamerasTab() {
   const [form, setForm] = useState<any>({});
   const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  // Scene upload state
+  const [sceneOpen, setSceneOpen] = useState(false);
+  const [sceneCamera, setSceneCamera] = useState<any>(null);
+  const [scenePreview, setScenePreview] = useState<string | null>(null);
+  const [sceneBase64, setSceneBase64] = useState<string | null>(null);
+  const [sceneDesc, setSceneDesc] = useState("");
 
   const { data: cameras = [], refetch } = trpc.cctv.cameras.list.useQuery(undefined);
   const { data: stats } = trpc.cctv.cameras.stats.useQuery();
   const createMut = trpc.cctv.cameras.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Cámara registrada"); } });
   const updateMut = trpc.cctv.cameras.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Cámara actualizada"); } });
   const deleteMut = trpc.cctv.cameras.delete.useMutation({ onSuccess: () => { refetch(); toast.success("Cámara eliminada"); } });
+  const uploadSceneMut = trpc.cctv.cameras.uploadScene.useMutation({
+    onSuccess: () => { refetch(); setSceneOpen(false); setScenePreview(null); setSceneBase64(null); setSceneDesc(""); toast.success("Imagen de escena guardada"); },
+    onError: (e) => toast.error(e.message),
+  });
 
   const filtered = cameras.filter(c =>
     !search || [c.idCamera, c.marca, c.modelo, c.serie, c.area, c.edificio, c.ip].some(v => v?.toLowerCase().includes(search.toLowerCase()))
@@ -156,6 +233,22 @@ function CamerasTab() {
   function handleSave() {
     if (editing) updateMut.mutate({ id: editing.id, ...form });
     else createMut.mutate(form);
+  }
+  function openUploadScene(cam: any) { setSceneCamera(cam); setScenePreview(cam.sceneImageUrl ?? null); setSceneBase64(null); setSceneDesc(cam.sceneDescription ?? ""); setSceneOpen(true); }
+  function handleSceneFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      setSceneBase64(result);
+      setScenePreview(result);
+    };
+    reader.readAsDataURL(file);
+  }
+  function handleSceneSave() {
+    if (!sceneCamera || !sceneBase64) return;
+    uploadSceneMut.mutate({ id: sceneCamera.id, imageBase64: sceneBase64, description: sceneDesc });
   }
 
   const f = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
@@ -170,32 +263,80 @@ function CamerasTab() {
           <SummaryCard icon={<AlertTriangle className="w-5 h-5" />} label="Mantenimiento" value={stats.maintenance} />
         </div>
       )}
+
+      {/* Toolbar */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar cámara..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        <span className="text-xs text-muted-foreground ml-1">{filtered.length} cámaras</span>
+        {/* Toggle vista */}
+        <div className="flex items-center border border-border/50 rounded-lg overflow-hidden ml-auto">
+          <button
+            onClick={() => setViewMode("cards")}
+            className={`px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+              viewMode === "cards" ? "bg-primary text-primary-foreground" : "hover:bg-muted/50 text-muted-foreground"
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" /> Tarjetas
+          </button>
+          <button
+            onClick={() => setViewMode("list")}
+            className={`px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+              viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted/50 text-muted-foreground"
+            }`}
+          >
+            <List className="w-3.5 h-3.5" /> Lista
+          </button>
+        </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nueva Cámara</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <DataTable
-        columns={[
-          { key: "idCamera", label: "ID" },
-          { key: "marca", label: "Marca" },
-          { key: "modelo", label: "Modelo" },
-          { key: "tipo", label: "Tipo", render: r => <span className="capitalize">{r.tipo ?? "—"}</span> },
-          { key: "resolucion", label: "Resolución" },
-          { key: "area", label: "Área" },
-          { key: "edificio", label: "Edificio" },
-          { key: "ip", label: "IP" },
-          { key: "poe", label: "PoE", render: r => r.poe ? <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-xs">Sí</Badge> : <span className="text-muted-foreground text-xs">No</span> },
-          { key: "status", label: "Estado", render: r => <StatusBadge status={r.status} /> },
-        ]}
-        rows={filtered}
-        onEdit={openEdit}
-        onDelete={id => deleteMut.mutate({ id })}
-        onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idCamera ?? ""}`.trim()); }}
-      />
+
+      {/* Vista de tarjetas */}
+      {viewMode === "cards" ? (
+        filtered.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground">
+            <Camera className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p className="text-sm">No hay cámaras registradas. Agrega la primera.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {filtered.map(cam => (
+              <CameraCard
+                key={cam.id}
+                cam={cam}
+                onEdit={openEdit}
+                onDelete={id => deleteMut.mutate({ id })}
+                onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idCamera ?? ""}`.trim()); }}
+                onUploadScene={openUploadScene}
+              />
+            ))}
+          </div>
+        )
+      ) : (
+        /* Vista de lista */
+        <DataTable
+          columns={[
+            { key: "sceneImageUrl", label: "Escena", render: r => r.sceneImageUrl ? (
+              <img src={r.sceneImageUrl} alt="escena" className="w-16 h-10 object-cover rounded" />
+            ) : <div className="w-16 h-10 bg-muted/30 rounded flex items-center justify-center"><ImageIcon className="w-4 h-4 text-muted-foreground/30" /></div> },
+            { key: "idCamera", label: "ID" },
+            { key: "marca", label: "Marca" },
+            { key: "modelo", label: "Modelo" },
+            { key: "tipo", label: "Tipo", render: r => <span className="capitalize">{r.tipo ?? "—"}</span> },
+            { key: "resolucion", label: "Resolución" },
+            { key: "area", label: "Área" },
+            { key: "ip", label: "IP" },
+            { key: "status", label: "Estado", render: r => <StatusBadge status={r.status} /> },
+          ]}
+          rows={filtered}
+          onEdit={openEdit}
+          onDelete={id => deleteMut.mutate({ id })}
+          onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idCamera ?? ""}`.trim()); }}
+        />
+      )}
 
       {sheetId !== null && (
         <CctvTechSheet
@@ -207,6 +348,64 @@ function CamerasTab() {
         />
       )}
 
+      {/* Modal: subir imagen de escena */}
+      <Dialog open={sceneOpen} onOpenChange={setSceneOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ImageIcon className="w-5 h-5 text-primary" />
+              Imagen de Escena — {sceneCamera?.idCamera ?? sceneCamera?.area ?? "Cámara"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Preview */}
+            <div className="relative aspect-video rounded-xl overflow-hidden bg-muted/30 border border-border/50">
+              {scenePreview ? (
+                <>
+                  <img src={scenePreview} alt="preview" className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => { setScenePreview(null); setSceneBase64(null); }}
+                    className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1"
+                  >
+                    <XIcon className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              ) : (
+                <label className="w-full h-full flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                  <Upload className="w-10 h-10 text-muted-foreground/40" />
+                  <span className="text-sm text-muted-foreground">Haz clic para seleccionar una imagen</span>
+                  <span className="text-xs text-muted-foreground/60">JPG, PNG, WEBP — máx. 10 MB</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleSceneFile} />
+                </label>
+              )}
+            </div>
+            {/* Descripción */}
+            <Field label="Descripción de la escena (opcional)">
+              <Input
+                value={sceneDesc}
+                onChange={e => setSceneDesc(e.target.value)}
+                placeholder="Ej: Vista del almacén principal, acceso norte..."
+              />
+            </Field>
+            {/* Botón de seleccionar si ya hay preview */}
+            {scenePreview && (
+              <label className="flex items-center gap-2 text-xs text-primary cursor-pointer hover:underline">
+                <Upload className="w-3.5 h-3.5" /> Cambiar imagen
+                <input type="file" accept="image/*" className="hidden" onChange={handleSceneFile} />
+              </label>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSceneOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSceneSave} disabled={!sceneBase64 || uploadSceneMut.isPending} className="gap-2">
+              <Upload className="w-4 h-4" />
+              {uploadSceneMut.isPending ? "Guardando..." : "Guardar Imagen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: crear/editar cámara */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>

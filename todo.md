@@ -108,3 +108,12 @@
 - [x] Corregir /cctv/policy para mostrar solo pólizas CCTV (eliminar || true del filtro)
 - [x] Agregar análisis OPEX a /cctv/capex (costos operativos: mantenimiento, licencias)
 - [x] Reemplazar respaldo simulado en /cctv/backup con exportación real JSON sin mock
+
+## CCTV - Imagen de Escena de Cámara
+- [ ] Schema BD: agregar campo sceneImageUrl y sceneImageKey a cctv_cameras
+- [ ] Router CCTV: endpoint uploadCameraScene para subir imagen al storage S3
+- [ ] Router CCTV: incluir sceneImageUrl en el endpoint list y getSheet
+- [ ] Frontend: toggle Lista/Tarjetas en CamerasTab
+- [ ] Frontend: vista de tarjetas con imagen de escena, badge de estado, código, nombre, sucursal
+- [ ] Frontend: botón de subida de imagen en cada tarjeta y en el formulario de edición
+- [ ] Frontend: preview de imagen en la ficha técnica CctvTechSheet

@@ -42,6 +42,9 @@ const cameraSchema = z.object({
   status: z.enum(["active", "inactive", "maintenance", "retired"]).optional(),
   observaciones: z.string().optional(),
   fotoUrl: z.string().optional(),
+  sceneImageUrl: z.string().optional(),
+  sceneImageKey: z.string().optional(),
+  sceneDescription: z.string().optional(),
   branchId: z.number().optional(),
 });
 
@@ -284,6 +287,34 @@ export const cctvCamerasRouter = router({
       bala: rows.filter(r => r.tipo === "bala").length,
       ptz: rows.filter(r => r.tipo === "ptz").length,
     };
+  }),
+
+  // Subir imagen de escena (base64 → S3)
+  uploadScene: protectedProcedure.input(z.object({
+    id: z.number(),
+    imageBase64: z.string(),
+    mimeType: z.string().default("image/jpeg"),
+    description: z.string().optional(),
+  })).mutation(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) throw new Error("DB no disponible");
+    const tenantId = ctx.user.tenantId ?? 1;
+    // Verify ownership
+    const [cam] = await db.select().from(cctvCameras)
+      .where(and(eq(cctvCameras.id, input.id), eq(cctvCameras.tenantId, tenantId))).limit(1);
+    if (!cam) throw new Error("Cámara no encontrada");
+    // Convert base64 to buffer and upload to S3
+    const { storagePut } = await import("../storage");
+    const buffer = Buffer.from(input.imageBase64.replace(/^data:[^;]+;base64,/, ""), "base64");
+    const key = `cctv/scenes/${tenantId}/${input.id}-${Date.now()}.jpg`;
+    const { url } = await storagePut(key, buffer, input.mimeType);
+    // Update camera record
+    await db.update(cctvCameras).set({
+      sceneImageUrl: url,
+      sceneImageKey: key,
+      sceneDescription: input.description ?? cam.sceneDescription,
+    } as any).where(and(eq(cctvCameras.id, input.id), eq(cctvCameras.tenantId, tenantId)));
+    return { url, key };
   }),
 });
 

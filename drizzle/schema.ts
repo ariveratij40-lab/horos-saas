@@ -433,6 +433,10 @@ export const cctvCameras = mysqlTable("cctv_cameras", {
   status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
   observaciones: text("observaciones"),
   fotoUrl: text("fotoUrl"),
+  // Imagen de la escena que visualiza la cámara
+  sceneImageUrl: text("sceneImageUrl"),
+  sceneImageKey: text("sceneImageKey"),
+  sceneDescription: varchar("sceneDescription", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
