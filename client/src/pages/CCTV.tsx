@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useLocation } from "wouter";
+import { MaintenanceHistorySheet } from "@/components/MaintenanceHistorySheet";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import {
   Plus, Search, Pencil, Trash2, RefreshCw, FileText,
   CheckCircle2, XCircle, AlertTriangle, Clock,
   LayoutGrid, List, Upload, ImageIcon, X as XIcon, Activity,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, Wrench,
 } from "lucide-react";
 import CctvTechSheet, { type CctvEquipmentType } from "@/components/CctvTechSheet";
 import { RfidTagField, RfidBadge } from "@/components/RfidTagField";
@@ -73,13 +74,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 // ─── Tabla genérica ───────────────────────────────────────────────────────────
 function DataTable({
-  columns, rows, onEdit, onDelete, onSheet,
+  columns, rows, onEdit, onDelete, onSheet, onMaintenance,
 }: {
   columns: { key: string; label: string; render?: (row: any) => React.ReactNode }[];
   rows: any[];
   onEdit: (row: any) => void;
   onDelete: (id: number) => void;
   onSheet?: (row: any) => void;
+  onMaintenance?: (row: any) => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -112,6 +114,11 @@ function DataTable({
               ))}
               <td className="px-3 py-2 text-right">
                 <div className="flex items-center justify-end gap-1">
+                  {onMaintenance && (
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10" title="Historial de Mantenimiento" onClick={() => onMaintenance(row)}>
+                      <Wrench className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
                   {onSheet && (
                     <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-primary border-primary/30 hover:bg-primary/10 hover:text-primary gap-1" title="Ver Ficha Técnica" onClick={() => onSheet(row)}>
                       <FileText className="w-3 h-3" />
@@ -136,7 +143,7 @@ function DataTable({
 
 // ─── Tabla expandible genérica ──────────────────────────────────────────────────
 function ExpandableTable({
-  rows, idKey = "id", columns, detailFields, onEdit, onDelete, onSheet, emptyIcon, emptyText,
+  rows, idKey = "id", columns, detailFields, onEdit, onDelete, onSheet, onMaintenance, emptyIcon, emptyText,
 }: {
   rows: any[];
   idKey?: string;
@@ -145,6 +152,7 @@ function ExpandableTable({
   onEdit: (row: any) => void;
   onDelete: (id: number) => void;
   onSheet?: (row: any) => void;
+  onMaintenance?: (row: any) => void;
   emptyIcon?: React.ReactNode;
   emptyText?: string;
 }) {
@@ -204,6 +212,11 @@ function ExpandableTable({
                     ))}
                     <td className="px-3 py-2 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
+                        {onMaintenance && (
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10" title="Historial de Mantenimiento" onClick={() => onMaintenance(row)}>
+                            <Wrench className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                         {onSheet && (
                           <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-primary border-primary/30 hover:bg-primary/10 gap-1" onClick={() => onSheet(row)}>
                             <FileText className="w-3 h-3" /> Ficha
@@ -226,6 +239,11 @@ function ExpandableTable({
                           ))}
                         </div>
                         <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/20">
+                          {onMaintenance && (
+                            <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={() => onMaintenance(row)}>
+                              <Wrench className="w-3 h-3" /> Mantenimiento
+                            </Button>
+                          )}
                           {onSheet && (
                             <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10" onClick={() => onSheet(row)}>
                               <FileText className="w-3 h-3" /> Ficha Técnica
@@ -259,12 +277,13 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   retired:     { text: "Retirada",       cls: "bg-red-500 text-white" },
 };
 
-function CameraCard({ cam, onEdit, onDelete, onSheet, onUploadScene }: {
+function CameraCard({ cam, onEdit, onDelete, onSheet, onUploadScene, onMaintenance }: {
   cam: any;
   onEdit: (c: any) => void;
   onDelete: (id: number) => void;
   onSheet: (c: any) => void;
   onUploadScene: (c: any) => void;
+  onMaintenance?: (c: any) => void;
 }) {
   const st = STATUS_LABEL[cam.status] ?? STATUS_LABEL.inactive;
   return (
@@ -307,8 +326,13 @@ function CameraCard({ cam, onEdit, onDelete, onSheet, onUploadScene }: {
           <FileText className="w-3 h-3" /> Ficha
         </Button>
         <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 flex-1" onClick={() => onUploadScene(cam)}>
-          <Upload className="w-3 h-3" /> Mant.
+          <Upload className="w-3 h-3" /> Imagen
         </Button>
+        {onMaintenance && (
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" title="Bitácora de Mantenimiento" onClick={() => onMaintenance(cam)}>
+            <Wrench className="w-3 h-3" />
+          </Button>
+        )}
         <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 flex-1" onClick={() => onEdit(cam)}>
           <Pencil className="w-3 h-3" /> Editar
         </Button>
@@ -332,6 +356,9 @@ function CamerasTab() {
   const [form, setForm] = useState<any>({});
   const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
+  const [maintOpen, setMaintOpen] = useState(false);
+  const [maintId, setMaintId] = useState<number | null>(null);
+  const [maintName, setMaintName] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [sortKey, setSortKey] = useState<string>("idCamera");
@@ -523,6 +550,7 @@ function CamerasTab() {
                 onDelete={id => deleteMut.mutate({ id })}
                 onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idCamera ?? ""}`.trim()); }}
                 onUploadScene={openUploadScene}
+                onMaintenance={row => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idCamera ?? ""}`.trim()); setMaintOpen(true); }}
               />
             ))}
           </div>
@@ -676,6 +704,9 @@ function CamerasTab() {
                     )}
                     {/* Botones */}
                     <div className="flex items-center gap-2 mt-3">
+                      <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1.5 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={() => { setMaintId(cam.id); setMaintName(`${cam.marca ?? ""} ${cam.modelo ?? ""} ${cam.idCamera ?? ""}`.trim()); setMaintOpen(true); }}>
+                        <Wrench className="w-3 h-3" /> Mantenimiento
+                      </Button>
                       <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1.5" onClick={() => { setSheetId(cam.id); setSheetName(`${cam.marca ?? ""} ${cam.modelo ?? ""} ${cam.idCamera ?? ""}`.trim()); }}>
                         <FileText className="w-3 h-3" /> Ficha Técnica
                       </Button>
@@ -697,7 +728,7 @@ function CamerasTab() {
         </div>
       )}
 
-      {sheetId !== null && (
+            {sheetId !== null && (
         <CctvTechSheet
           open={sheetId !== null}
           onClose={() => setSheetId(null)}
@@ -706,7 +737,13 @@ function CamerasTab() {
           equipmentName={sheetName}
         />
       )}
-
+      <MaintenanceHistorySheet
+        open={maintOpen}
+        onOpenChange={setMaintOpen}
+        category="cameras"
+        itemId={maintId ?? 0}
+        itemName={maintName}
+      />
       {/* Modal: subir imagen de escena */}
       <Dialog open={sceneOpen} onOpenChange={setSceneOpen}>
         <DialogContent className="max-w-lg">
@@ -980,9 +1017,11 @@ function IdfsTab() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const toggleSort = (key: string) => { if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(key); setSortDir("asc"); } };
   const toggleRow = (id: number) => setExpandedRows(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
-  const [sheetId, setSheetId] = useState<number | null>(null);
+    const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
-
+  const [maintOpen, setMaintOpen] = useState(false);
+  const [maintId, setMaintId] = useState<number | null>(null);
+  const [maintName, setMaintName] = useState("");
   const { data: idfsRaw = [], refetch } = trpc.cctv.idfs.list.useQuery(undefined);
   const filtered = idfsRaw.filter(r => {
     if (filterTipo !== "all" && r.tipo !== filterTipo) return false;
@@ -1160,6 +1199,7 @@ function IdfsTab() {
                     </div>
                     <IdfImagesMini idfId={row.id} />
                     <div className="flex items-center gap-2 mt-4">
+                      <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={e => { e.stopPropagation(); setMaintId(row.id); setMaintName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); setMaintOpen(true); }}><Wrench className="w-3 h-3" /> Mantenimiento</Button>
                       <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1" onClick={e => { e.stopPropagation(); setSheetId(row.id); setSheetName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); }}><FileText className="w-3 h-3" /> Ficha Técnica</Button>
                       <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1" onClick={e => { e.stopPropagation(); openEdit(row); }}><Pencil className="w-3 h-3" /> Editar</Button>
                       <Button size="sm" variant="ghost" className="h-7 px-3 text-xs gap-1 text-destructive hover:text-destructive" onClick={e => { e.stopPropagation(); deleteMut.mutate({ id: row.id }); }}><Trash2 className="w-3 h-3" /> Eliminar</Button>
@@ -1172,10 +1212,16 @@ function IdfsTab() {
         </div>
       )}
 
-      {sheetId !== null && (
+            {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="idf" equipmentId={sheetId} equipmentName={sheetName} />
       )}
-
+      <MaintenanceHistorySheet
+        open={maintOpen}
+        onOpenChange={setMaintOpen}
+        category="idfs"
+        itemId={maintId ?? 0}
+        itemName={maintName}
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Editar IDF/MDF" : "Nuevo IDF/MDF"}</DialogTitle></DialogHeader>
@@ -1319,9 +1365,11 @@ function LicensesTab() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
-  const [sheetId, setSheetId] = useState<number | null>(null);
+    const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
-
+  const [maintOpen, setMaintOpen] = useState(false);
+  const [maintId, setMaintId] = useState<number | null>(null);
+  const [maintName, setMaintName] = useState("");
   const { data: licensesRaw = [], refetch } = trpc.cctv.licenses.list.useQuery(undefined);
   const licenses = licensesRaw.filter(r => !search || [r.idLicencia, r.marca, r.modelo, r.noContrato, r.equipoAsignado, r.proveedor].some(v => v?.toLowerCase().includes(search.toLowerCase())));
   const { data: expiring = [] } = trpc.cctv.licenses.expiringSoon.useQuery();
@@ -1379,16 +1427,23 @@ function LicensesTab() {
           { label: "Inicio / Expiración", render: (r: any) => <><p>{r.fechaInicio ? new Date(r.fechaInicio).toLocaleDateString("es-MX") : "—"}</p><p className="text-foreground/60">{r.fechaExpiracion ? new Date(r.fechaExpiracion).toLocaleDateString("es-MX") : "—"}</p></> },
           { label: "Observaciones", render: (r: any) => <p className="text-foreground/70 text-xs">{r.observaciones ?? "—"}</p> },
         ]}
-        onEdit={openEdit}
+                onEdit={openEdit}
         onDelete={(id: number) => deleteMut.mutate({ id })}
         onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idLicencia ?? ""}`.trim()); }}
+        onMaintenance={(row: any) => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idLicencia ?? ""}`.trim()); setMaintOpen(true); }}
         emptyIcon={<Shield className="w-10 h-10 mx-auto mb-2 opacity-20" />}
         emptyText="No hay licencias registradas."
       />
-
       {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="license" equipmentId={sheetId} equipmentName={sheetName} />
       )}
+      <MaintenanceHistorySheet
+        open={maintOpen}
+        onOpenChange={setMaintOpen}
+        category="licenses"
+        itemId={maintId ?? 0}
+        itemName={maintName}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1484,9 +1539,11 @@ function MonitorsTab() {
   const [sortKey, setSortKey] = useState("idMonitor");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [sheetId, setSheetId] = useState<number | null>(null);
+    const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
-
+  const [maintOpen, setMaintOpen] = useState(false);
+  const [maintId, setMaintId] = useState<number | null>(null);
+  const [maintName, setMaintName] = useState("");
   const { data: monitorsRaw = [], refetch } = trpc.cctv.monitors.list.useQuery(undefined);
   const createMut = trpc.cctv.monitors.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Monitor registrado"); } });
   const updateMut = trpc.cctv.monitors.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Monitor actualizado"); } });
@@ -1610,6 +1667,7 @@ function MonitorsTab() {
                         <div><p className="text-xs text-muted-foreground">Factura / Monto</p><p>{mon.invoiceNumber ?? "—"}</p><p className="text-muted-foreground">{mon.amount ? `$${Number(mon.amount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "—"}</p></div>
                       </div>
                       <div className="flex gap-2 mt-3">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={() => { setMaintId(mon.id); setMaintName(`${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.tamano ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3 h-3" />Mantenimiento</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(mon.id); setSheetName(`${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.tamano ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(mon)}><Pencil className="w-3 h-3" />Editar</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: mon.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
@@ -1623,10 +1681,16 @@ function MonitorsTab() {
         </div>
       )}
 
-      {sheetId !== null && (
+            {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="monitor" equipmentId={sheetId} equipmentName={sheetName} />
       )}
-
+      <MaintenanceHistorySheet
+        open={maintOpen}
+        onOpenChange={setMaintOpen}
+        category="monitors"
+        itemId={maintId ?? 0}
+        itemName={maintName}
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Editar Pantalla/Monitor" : "Nueva Pantalla/Monitor"}</DialogTitle></DialogHeader>
@@ -1698,7 +1762,7 @@ function MonitorsTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // CARD: SERVIDOR
 // ═══════════════════════════════════════════════════════════════════════════════
-function ServerCard({ srv, onEdit, onDelete, onSheet }: { srv: any; onEdit: (r: any) => void; onDelete: (id: number) => void; onSheet: (r: any) => void }) {
+function ServerCard({ srv, onEdit, onDelete, onSheet, onMaintenance }: { srv: any; onEdit: (r: any) => void; onDelete: (id: number) => void; onSheet: (r: any) => void; onMaintenance?: (r: any) => void }) {
   return (
     <Card className="group relative overflow-hidden border border-border/60 hover:border-primary/40 transition-all hover:shadow-lg">
       <div className="aspect-video bg-muted/30 flex items-center justify-center relative overflow-hidden">
@@ -1713,6 +1777,7 @@ function ServerCard({ srv, onEdit, onDelete, onSheet }: { srv: any; onEdit: (r: 
         <p className="text-xs text-muted-foreground truncate font-mono">{srv.ip ?? "Sin IP"}</p>
         <div className="flex gap-1 pt-1">
           <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => onSheet(srv)}><FileText className="w-3 h-3 mr-1" />Ficha</Button>
+          {onMaintenance && <Button size="sm" variant="outline" className="h-7 px-2 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" title="Mantenimiento" onClick={() => onMaintenance(srv)}><Wrench className="w-3 h-3" /></Button>}
           <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => onEdit(srv)}><Pencil className="w-3 h-3" /></Button>
           <Button size="sm" variant="outline" className="h-7 px-2 text-destructive hover:bg-destructive/10" onClick={() => onDelete(srv.id)}><Trash2 className="w-3 h-3" /></Button>
         </div>
@@ -1735,9 +1800,11 @@ function ServersTab() {
   const [sortKey, setSortKey] = useState("idServer");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [sheetId, setSheetId] = useState<number | null>(null);
+    const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
-
+  const [maintOpen, setMaintOpen] = useState(false);
+  const [maintId, setMaintId] = useState<number | null>(null);
+  const [maintName, setMaintName] = useState("");
   const { data: serversRaw = [], refetch } = trpc.cctv.servers.list.useQuery(undefined);
   const createMut = trpc.cctv.servers.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Servidor registrado"); } });
   const updateMut = trpc.cctv.servers.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Servidor actualizado"); } });
@@ -1804,7 +1871,7 @@ function ServersTab() {
         sorted.length === 0
           ? <div className="text-center py-16 text-muted-foreground"><Server className="w-10 h-10 mx-auto mb-2 opacity-20" /><p>No hay servidores/NVR registrados.</p></div>
           : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {sorted.map(srv => <ServerCard key={srv.id} srv={srv} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); }} />)}
+              {sorted.map(srv => <ServerCard key={srv.id} srv={srv} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); }} onMaintenance={row => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); setMaintOpen(true); }} />)}
             </div>
       )}
 
@@ -1861,6 +1928,7 @@ function ServersTab() {
                         <div><p className="text-xs text-muted-foreground">Factura / Monto</p><p>{srv.invoiceNumber ?? "—"}</p><p className="text-muted-foreground">{srv.amount ? `$${Number(srv.amount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "—"}</p></div>
                       </div>
                       <div className="flex gap-2 mt-3">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={() => { setMaintId(srv.id); setMaintName(`${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3 h-3" />Mantenimiento</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(srv.id); setSheetName(`${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(srv)}><Pencil className="w-3 h-3" />Editar</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: srv.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
@@ -1874,10 +1942,16 @@ function ServersTab() {
         </div>
       )}
 
-      {sheetId !== null && (
+            {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="server" equipmentId={sheetId} equipmentName={sheetName} />
       )}
-
+      <MaintenanceHistorySheet
+        open={maintOpen}
+        onOpenChange={setMaintOpen}
+        category="servers"
+        itemId={maintId ?? 0}
+        itemName={maintName}
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Editar Servidor/NVR" : "Nuevo Servidor/NVR"}</DialogTitle></DialogHeader>
@@ -1942,7 +2016,7 @@ function ServersTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // CARD: SWITCH
 // ═══════════════════════════════════════════════════════════════════════════════
-function SwitchCard({ sw, onEdit, onDelete, onSheet }: { sw: any; onEdit: (r: any) => void; onDelete: (id: number) => void; onSheet: (r: any) => void }) {
+function SwitchCard({ sw, onEdit, onDelete, onSheet, onMaintenance }: { sw: any; onEdit: (r: any) => void; onDelete: (id: number) => void; onSheet: (r: any) => void; onMaintenance?: (r: any) => void }) {
   const free = sw.puertosLibres ?? 0;
   const total = sw.puertos ?? 0;
   const usedPct = total > 0 ? Math.round(((total - free) / total) * 100) : 0;
@@ -1966,6 +2040,7 @@ function SwitchCard({ sw, onEdit, onDelete, onSheet }: { sw: any; onEdit: (r: an
         <p className="text-xs text-muted-foreground truncate">{sw.ubicacion ?? "Sin ubicación"}</p>
         <div className="flex gap-1 pt-1">
           <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => onSheet(sw)}><FileText className="w-3 h-3 mr-1" />Ficha</Button>
+          {onMaintenance && <Button size="sm" variant="outline" className="h-7 px-2 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" title="Mantenimiento" onClick={() => onMaintenance(sw)}><Wrench className="w-3 h-3" /></Button>}
           <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => onEdit(sw)}><Pencil className="w-3 h-3" /></Button>
           <Button size="sm" variant="outline" className="h-7 px-2 text-destructive hover:bg-destructive/10" onClick={() => onDelete(sw.id)}><Trash2 className="w-3 h-3" /></Button>
         </div>
@@ -1988,9 +2063,11 @@ function SwitchesTab() {
   const [sortKey, setSortKey] = useState("idSwitch");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [sheetId, setSheetId] = useState<number | null>(null);
+    const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
-
+  const [maintOpen, setMaintOpen] = useState(false);
+  const [maintId, setMaintId] = useState<number | null>(null);
+  const [maintName, setMaintName] = useState("");
   const { data: switchesRaw = [], refetch } = trpc.cctv.switches.list.useQuery(undefined);
   const createMut = trpc.cctv.switches.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Switch registrado"); } });
   const updateMut = trpc.cctv.switches.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Switch actualizado"); } });
@@ -2056,7 +2133,7 @@ function SwitchesTab() {
         sorted.length === 0
           ? <div className="text-center py-16 text-muted-foreground"><Network className="w-10 h-10 mx-auto mb-2 opacity-20" /><p>No hay switches registrados.</p></div>
           : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {sorted.map(sw => <SwitchCard key={sw.id} sw={sw} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); }} />)}
+              {sorted.map(sw => <SwitchCard key={sw.id} sw={sw} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); }} onMaintenance={row => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); setMaintOpen(true); }} />)}
             </div>
       )}
 
@@ -2113,6 +2190,7 @@ function SwitchesTab() {
                         <div><p className="text-xs text-muted-foreground">Factura / Monto</p><p>{sw.invoiceNumber ?? "—"}</p><p className="text-muted-foreground">{sw.amount ? `$${Number(sw.amount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "—"}</p></div>
                       </div>
                       <div className="flex gap-2 mt-3">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={() => { setMaintId(sw.id); setMaintName(`${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3 h-3" />Mantenimiento</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(sw.id); setSheetName(`${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(sw)}><Pencil className="w-3 h-3" />Editar</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: sw.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
@@ -2126,10 +2204,16 @@ function SwitchesTab() {
         </div>
       )}
 
-      {sheetId !== null && (
+            {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="switch" equipmentId={sheetId} equipmentName={sheetName} />
       )}
-
+      <MaintenanceHistorySheet
+        open={maintOpen}
+        onOpenChange={setMaintOpen}
+        category="switches"
+        itemId={maintId ?? 0}
+        itemName={maintName}
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Editar Switch" : "Nuevo Switch"}</DialogTitle></DialogHeader>
@@ -2186,7 +2270,7 @@ function SwitchesTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // CARD: UPS
 // ═══════════════════════════════════════════════════════════════════════════════
-function UpsCard({ ups, onEdit, onDelete, onSheet }: { ups: any; onEdit: (r: any) => void; onDelete: (id: number) => void; onSheet: (r: any) => void }) {
+function UpsCard({ ups, onEdit, onDelete, onSheet, onMaintenance }: { ups: any; onEdit: (r: any) => void; onDelete: (id: number) => void; onSheet: (r: any) => void; onMaintenance?: (r: any) => void }) {
   return (
     <Card className="group relative overflow-hidden border border-border/60 hover:border-primary/40 transition-all hover:shadow-lg">
       <div className="aspect-video bg-muted/30 flex items-center justify-center relative overflow-hidden">
@@ -2202,6 +2286,7 @@ function UpsCard({ ups, onEdit, onDelete, onSheet }: { ups: any; onEdit: (r: any
         <p className="text-xs text-muted-foreground truncate">{ups.ubicacion ?? "Sin ubicación"}</p>
         <div className="flex gap-1 pt-1">
           <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => onSheet(ups)}><FileText className="w-3 h-3 mr-1" />Ficha</Button>
+          {onMaintenance && <Button size="sm" variant="outline" className="h-7 px-2 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" title="Mantenimiento" onClick={() => onMaintenance(ups)}><Wrench className="w-3 h-3" /></Button>}
           <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => onEdit(ups)}><Pencil className="w-3 h-3" /></Button>
           <Button size="sm" variant="outline" className="h-7 px-2 text-destructive hover:bg-destructive/10" onClick={() => onDelete(ups.id)}><Trash2 className="w-3 h-3" /></Button>
         </div>
@@ -2224,9 +2309,11 @@ function UpsTab() {
   const [sortKey, setSortKey] = useState("idUps");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [sheetId, setSheetId] = useState<number | null>(null);
+    const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
-
+  const [maintOpen, setMaintOpen] = useState(false);
+  const [maintId, setMaintId] = useState<number | null>(null);
+  const [maintName, setMaintName] = useState("");
   const { data: upsListRaw = [], refetch } = trpc.cctv.ups.list.useQuery(undefined);
   const createMut = trpc.cctv.ups.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("UPS registrado"); } });
   const updateMut = trpc.cctv.ups.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("UPS actualizado"); } });
@@ -2292,7 +2379,7 @@ function UpsTab() {
         sorted.length === 0
           ? <div className="text-center py-16 text-muted-foreground"><Zap className="w-10 h-10 mx-auto mb-2 opacity-20" /><p>No hay UPS registrados.</p></div>
           : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {sorted.map(u => <UpsCard key={u.id} ups={u} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); }} />)}
+              {sorted.map(u => <UpsCard key={u.id} ups={u} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); }} onMaintenance={row => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); setMaintOpen(true); }} />)}
             </div>
       )}
 
@@ -2349,6 +2436,7 @@ function UpsTab() {
                         <div><p className="text-xs text-muted-foreground">Factura / Monto</p><p>{u.invoiceNumber ?? "—"}</p><p className="text-muted-foreground">{u.amount ? `$${Number(u.amount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "—"}</p></div>
                       </div>
                       <div className="flex gap-2 mt-3">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={() => { setMaintId(u.id); setMaintName(`${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3 h-3" />Mantenimiento</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(u.id); setSheetName(`${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(u)}><Pencil className="w-3 h-3" />Editar</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: u.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
@@ -2362,10 +2450,16 @@ function UpsTab() {
         </div>
       )}
 
-      {sheetId !== null && (
+            {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="ups" equipmentId={sheetId} equipmentName={sheetName} />
       )}
-
+      <MaintenanceHistorySheet
+        open={maintOpen}
+        onOpenChange={setMaintOpen}
+        category="ups"
+        itemId={maintId ?? 0}
+        itemName={maintName}
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Editar UPS" : "Nuevo UPS"}</DialogTitle></DialogHeader>

@@ -256,3 +256,27 @@
 - [ ] Frontend: módulo móvil /rfid/scan — input de código RFID + ficha del equipo encontrado
 - [ ] Frontend: /rfid/scan accesible sin sidebar (layout móvil optimizado)
 - [ ] Agregar ruta /rfid/scan al App.tsx y link desde el sidebar CCTV
+
+## CCTV - Historial y Bitácora de Mantenimiento por Equipo
+
+- [ ] Backend: endpoint cctv.getMaintenanceHistory(category, itemId) — devuelve tareas de mantenimiento del equipo
+- [ ] Backend: endpoint cctv.addMaintenanceEntry — agrega entrada manual a la bitácora del equipo
+- [ ] Frontend: componente MaintenanceHistorySheet — panel lateral Sheet con historial del equipo
+- [ ] Frontend: ícono de herramienta (Wrench) en cada fila de las 7 pestañas del inventario CCTV
+- [ ] Frontend: Sheet muestra lista de mantenimientos con fecha, tipo, técnico, descripción y estado
+- [ ] Frontend: Sheet permite agregar nueva entrada de bitácora (formulario inline)
+- [ ] Frontend: Sheet muestra resumen: total mantenimientos, último mantenimiento, próximo programado
+
+## CCTV - Historial y Bitácora de Mantenimiento por Equipo
+- [x] Schema Drizzle: tabla cctv_maintenance_log (id, tenantId, category, itemId, type, status, title, description, findings, actions, technician, scheduledDate, executedDate, durationHours, cost, nextMaintenanceDate, attachmentUrl, createdByUserId, createdByUserName, createdAt)
+- [x] Migración SQL: CREATE TABLE cctv_maintenance_log aplicada
+- [x] Backend: cctvMaintenanceRouter con endpoints getHistory, getSummary, addEntry, updateEntry, deleteEntry
+- [x] Backend: registrado en appRouter principal como cctvMaintenance
+- [x] Frontend: componente MaintenanceHistorySheet con panel lateral Sheet
+- [x] Frontend: formulario de nueva entrada (tipo, estado, título, descripción, hallazgos, acciones, técnico, fechas, costo, próximo mantenimiento)
+- [x] Frontend: historial con timeline de entradas, badges de tipo/estado, edición y eliminación
+- [x] Frontend: resumen estadístico (total, completados, última fecha, próximo mantenimiento)
+- [x] Frontend: ícono Wrench (amber) en tarjetas de los 7 inventarios CCTV
+- [x] Frontend: botón "Mantenimiento" en panel expandido de vista lista de Servidores, Switches y UPS
+- [x] Frontend: botón "Mantenimiento" en panel expandido de vista lista de Cámaras, IDF, Licencias y Monitores
+- [x] TypeScript: sin errores en todo el proyecto

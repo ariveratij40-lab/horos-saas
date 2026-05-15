@@ -733,3 +733,34 @@ export const rfidRegistry = mysqlTable("rfid_registry", {
 });
 export type RfidRegistry = typeof rfidRegistry.$inferSelect;
 export type InsertRfidRegistry = typeof rfidRegistry.$inferInsert;
+
+// ─── CCTV Maintenance Log ─────────────────────────────────────────────────────
+// Bitácora de mantenimiento específica por equipo CCTV (cualquier categoría)
+export const cctvMaintenanceLog = mysqlTable("cctv_maintenance_log", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  // Referencia al equipo
+  category: mysqlEnum("category", ["cameras", "idfs", "licenses", "monitors", "servers", "switches", "ups"]).notNull(),
+  itemId: int("itemId").notNull(),
+  itemName: varchar("itemName", { length: 255 }), // snapshot del nombre
+  // Datos del mantenimiento
+  type: mysqlEnum("type", ["preventive", "corrective", "predictive", "inspection", "replacement", "upgrade", "other"]).default("preventive").notNull(),
+  status: mysqlEnum("status", ["scheduled", "in_progress", "completed", "cancelled"]).default("completed").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  findings: text("findings"),         // Hallazgos
+  actions: text("actions"),           // Acciones realizadas
+  technician: varchar("technician", { length: 255 }), // Técnico responsable
+  scheduledDate: date("scheduledDate"),
+  executedDate: date("executedDate"),
+  durationHours: decimal("durationHours", { precision: 5, scale: 2 }),
+  cost: decimal("cost", { precision: 12, scale: 2 }),
+  nextMaintenanceDate: date("nextMaintenanceDate"),
+  attachmentUrl: text("attachmentUrl"),
+  createdByUserId: int("createdByUserId"),
+  createdByUserName: varchar("createdByUserName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CctvMaintenanceLog = typeof cctvMaintenanceLog.$inferSelect;
+export type InsertCctvMaintenanceLog = typeof cctvMaintenanceLog.$inferInsert;
