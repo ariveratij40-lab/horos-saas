@@ -1427,10 +1427,13 @@ function IdfsTab() {
 // TAB: LICENCIAS
 // ═══════════════════════════════════════════════════════════════════════════════
 function LicensesTab() {
+  const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
+  const [filterTipo, setFilterTipo] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
     const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
   const [maintOpen, setMaintOpen] = useState(false);
@@ -1441,7 +1444,42 @@ function LicensesTab() {
   const [deleteName, setDeleteName] = useState("");
   const confirmDelete = (id: number, name: string) => { setDeleteId(id); setDeleteName(name); setDeleteOpen(true); };
   const { data: licensesRaw = [], refetch } = trpc.cctv.licenses.list.useQuery(undefined);
-  const licenses = licensesRaw.filter(r => !search || [r.idLicencia, r.marca, r.modelo, r.noContrato, r.equipoAsignado, r.proveedor].some(v => v?.toLowerCase().includes(search.toLowerCase())));
+  const licenses = licensesRaw.filter((r: any) => {
+    if (filterTipo !== "all" && r.tipo !== filterTipo) return false;
+    if (filterStatus !== "all" && r.status !== filterStatus) return false;
+    if (search && ![r.idLicencia, r.marca, r.modelo, r.noContrato, r.equipoAsignado, r.proveedor, r.ubicacion].some((v: any) => v?.toLowerCase().includes(search.toLowerCase()))) return false;
+    return true;
+  });
+
+  function exportCSV() {
+    const cols = ["idLicencia","marca","modelo","tipo","noContrato","fechaInicio","fechaExpiracion","equipoAsignado","ubicacion","proveedor","fechaCompra","ordenCompra","tiempoUso","otro","expirado"];
+    const header = ["ID_LICENCIA","MARCA","MODELO","TIPO","NO CONTRATO","FECHA INICIO","FECHA EXPIRACION","EQUIPO ASIGNADO","UBICACIÓN","PROVEEDOR","FECHA DE COMPRA","ORDEN DE COMPRA","TIEMPO DE USO","OTRO","EXPIRADO"];
+    const rows = licenses.map((r: any) => cols.map(k => {
+      const v = r[k];
+      if (k === "expirado") return v ? "SI" : "NO";
+      if (v instanceof Date || (typeof v === "string" && v.match(/^\d{4}-\d{2}-\d{2}/))) return v ? new Date(v).toLocaleDateString("es-MX") : "";
+      return v ?? "";
+    }).join(","));
+    const csv = [header.join(","), ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `licencias_cctv_${new Date().toISOString().split("T")[0]}.csv`; a.click(); URL.revokeObjectURL(url);
+  }
+  async function exportExcel() {
+    const XLSX = await import("xlsx");
+    const cols = ["idLicencia","marca","modelo","tipo","noContrato","fechaInicio","fechaExpiracion","equipoAsignado","ubicacion","proveedor","fechaCompra","ordenCompra","tiempoUso","otro","expirado"];
+    const header = ["ID_LICENCIA","MARCA","MODELO","TIPO","NO CONTRATO","FECHA INICIO","FECHA EXPIRACION","EQUIPO ASIGNADO","UBICACIÓN","PROVEEDOR","FECHA DE COMPRA","ORDEN DE COMPRA","TIEMPO DE USO","OTRO","EXPIRADO"];
+    const data = [header, ...licenses.map((r: any) => cols.map(k => {
+      const v = r[k];
+      if (k === "expirado") return v ? "SI" : "NO";
+      if (v instanceof Date || (typeof v === "string" && v.match(/^\d{4}-\d{2}-\d{2}/))) return v ? new Date(v).toLocaleDateString("es-MX") : "";
+      return v ?? "";
+    }))];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Licencias");
+    XLSX.writeFile(wb, `licencias_cctv_${new Date().toISOString().split("T")[0]}.xlsx`);
+  }
   const { data: expiring = [] } = trpc.cctv.licenses.expiringSoon.useQuery();
   const createMut = trpc.cctv.licenses.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Licencia registrada"); } });
   const updateMut = trpc.cctv.licenses.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Licencia actualizada"); } });
@@ -1469,13 +1507,51 @@ function LicensesTab() {
           <p className="text-sm text-amber-300">{expiring.length} licencia(s) próximas a vencer en los próximos 90 días.</p>
         </div>
       )}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar licencia..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nueva Licencia</Button>
-        <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
+        {/* Filtro Tipo */}
+        <Select value={filterTipo} onValueChange={setFilterTipo}>
+          <SelectTrigger className="h-9 w-[150px] text-xs">
+            <SelectValue placeholder="Tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los tipos</SelectItem>
+            <SelectItem value="perpetua">Perpetua</SelectItem>
+            <SelectItem value="suscripcion">Suscripción</SelectItem>
+            <SelectItem value="trial">Trial</SelectItem>
+            <SelectItem value="otro">Otro</SelectItem>
+          </SelectContent>
+        </Select>
+        {/* Filtro Estado */}
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="h-9 w-[150px] text-xs">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="active">Activa</SelectItem>
+            <SelectItem value="expired">Expirada</SelectItem>
+            <SelectItem value="pending_renewal">Por Renovar</SelectItem>
+            <SelectItem value="cancelled">Cancelada</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">{licenses.length} licencias</span>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/50 text-xs text-muted-foreground hover:bg-muted/50 transition-colors" title="Exportar CSV">
+            <FileText className="w-3.5 h-3.5" /> CSV
+          </button>
+          <button onClick={exportExcel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/30 text-xs text-emerald-400 hover:bg-emerald-500/10 transition-colors" title="Exportar Excel">
+            <FileText className="w-3.5 h-3.5" /> Excel
+          </button>
+          <Button size="sm" variant="outline" className="gap-1.5 h-9" onClick={() => navigate("/cctv/import?category=licenses")}>
+            <Upload className="w-3.5 h-3.5" />Importar
+          </Button>
+          <Button size="sm" onClick={openCreate} className="gap-1.5 h-9"><Plus className="w-4 h-4" />Nueva Licencia</Button>
+          <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
+        </div>
       </div>
       <ExpandableTable
         rows={licenses}

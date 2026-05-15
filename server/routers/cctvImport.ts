@@ -77,6 +77,8 @@ export const CATEGORY_COLUMNS: Record<string, { key: string; label: string }[]> 
     { key: "fechaCompra", label: "Fecha de Compra" },
     { key: "ordenCompra", label: "Orden de Compra" },
     { key: "tiempoUso", label: "Tiempo de Uso" },
+    { key: "otro", label: "Otro" },
+    { key: "expirado", label: "Expirado" },
     { key: "status", label: "Estado" },
     { key: "observaciones", label: "Observaciones" },
   ],
