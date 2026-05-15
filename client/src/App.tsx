@@ -31,6 +31,8 @@ import CCTVPolicy from "./pages/cctv/CCTVPolicy";
 import CCTVBackup from "./pages/cctv/CCTVBackup";
 import { AccessControlPage, StructuredCablingPage, PagingSystemPage } from "./pages/ComingSoon";
 import ImportInventory from "./pages/ImportInventory";
+import RfidManagement from "./pages/RfidManagement";
+import RfidScanner from "./pages/RfidScanner";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
@@ -70,6 +72,9 @@ function Router() {
       <Route path="/cctv/policy" component={() => <ProtectedRoute component={CCTVPolicy} />} />
       <Route path="/cctv/backup" component={() => <ProtectedRoute component={CCTVBackup} />} />
       <Route path="/cctv/import" component={() => <ProtectedRoute component={ImportInventory} />} />
+      <Route path="/rfid" component={() => <ProtectedRoute component={RfidManagement} />} />
+      {/* Módulo móvil RFID: accesible sin DashboardLayout para mejor UX en móvil */}
+      <Route path="/rfid/scan" component={RfidScanner} />
       <Route path="/access-control" component={AccessControlPage} />
       <Route path="/structured-cabling" component={StructuredCablingPage} />
       <Route path="/paging" component={PagingSystemPage} />

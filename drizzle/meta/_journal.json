@@ -57,6 +57,13 @@
       "when": 1778865899418,
       "tag": "0007_opposite_scarlet_witch",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1778869043681,
+      "tag": "0008_fat_lilandra",
+      "breakpoints": true
     }
   ]
 }

@@ -437,15 +437,16 @@ export const cctvCameras = mysqlTable("cctv_cameras", {
   sceneImageUrl: text("sceneImageUrl"),
   sceneImageKey: text("sceneImageKey"),
   sceneDescription: varchar("sceneDescription", { length: 255 }),
-  // Programa CTPAT (Customs Trade Partnership Against Terrorism)
+    // Programa CTPAT (Customs Trade Partnership Against Terrorism)
   ctpat: boolean("ctpat").default(false),
   // Factura / Monto
   invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // RFID
+  rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type CctvCamera = typeof cctvCameras.$inferSelect;
 export type InsertCctvCamera = typeof cctvCameras.$inferInsert;
 
@@ -482,15 +483,16 @@ export const cctvIdfs = mysqlTable("cctv_idfs", {
   fotoUrl: text("fotoUrl"),
   // Imagen del IDF/MDF (foto del rack/gabinete)
   idfImageUrl: text("idfImageUrl"),
-  idfImageKey: text("idfImageKey"),
+    idfImageKey: text("idfImageKey"),
   status: mysqlEnum("status", ["active", "inactive", "maintenance"]).default("active").notNull(),
   // Factura / Monto
   invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // RFID
+  rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type CctvIdf = typeof cctvIdfs.$inferSelect;
 export type InsertCctvIdf = typeof cctvIdfs.$inferInsert;
 
@@ -532,12 +534,13 @@ export const cctvLicenses = mysqlTable("cctv_licenses", {
   status: mysqlEnum("status", ["active", "expired", "cancelled", "pending_renewal"]).default("active").notNull(),
   observaciones: text("observaciones"),
   // Factura / Monto
-  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+    invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // RFID
+  rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type CctvLicense = typeof cctvLicenses.$inferSelect;
 export type InsertCctvLicense = typeof cctvLicenses.$inferInsert;
 
@@ -567,12 +570,13 @@ export const cctvMonitors = mysqlTable("cctv_monitors", {
   observaciones: text("observaciones"),
   fotoUrl: text("fotoUrl"),
   // Factura / Monto
-  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+    invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // RFID
+  rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type CctvMonitor = typeof cctvMonitors.$inferSelect;
 export type InsertCctvMonitor = typeof cctvMonitors.$inferInsert;
 
@@ -617,13 +621,14 @@ export const cctvServers = mysqlTable("cctv_servers", {
   status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
   observaciones: text("observaciones"),
   fotoUrl: text("fotoUrl"),
-  // Factura / Monto
+    // Factura / Monto
   invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // RFID
+  rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type CctvServer = typeof cctvServers.$inferSelect;
 export type InsertCctvServer = typeof cctvServers.$inferInsert;
 
@@ -659,13 +664,14 @@ export const cctvSwitches = mysqlTable("cctv_switches", {
   status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
   observaciones: text("observaciones"),
   fotoUrl: text("fotoUrl"),
-  // Factura / Monto
+    // Factura / Monto
   invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // RFID
+  rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type CctvSwitch = typeof cctvSwitches.$inferSelect;
 export type InsertCctvSwitch = typeof cctvSwitches.$inferInsert;
 
@@ -697,11 +703,33 @@ export const cctvUps = mysqlTable("cctv_ups", {
   observaciones: text("observaciones"),
   fotoUrl: text("fotoUrl"),
   // Factura / Monto
-  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+    invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // RFID
+  rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type CctvUps = typeof cctvUps.$inferSelect;
 export type InsertCctvUps = typeof cctvUps.$inferInsert;
+
+// ─── RFID Registry ────────────────────────────────────────────────────────────
+// Registro centralizado de todos los tags RFID asignados a equipos CCTV
+export const rfidRegistry = mysqlTable("rfid_registry", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  rfidTag: varchar("rfidTag", { length: 50 }).notNull(),
+  category: mysqlEnum("category", ["cameras", "idfs", "licenses", "monitors", "servers", "switches", "ups"]).notNull(),
+  itemId: int("itemId").notNull(),
+  // Datos del equipo en el momento de generación (snapshot para lectura offline)
+  itemName: varchar("itemName", { length: 255 }),
+  itemBrand: varchar("itemBrand", { length: 100 }),
+  itemModel: varchar("itemModel", { length: 100 }),
+  itemSerial: varchar("itemSerial", { length: 100 }),
+  itemLocation: varchar("itemLocation", { length: 255 }),
+  itemStatus: varchar("itemStatus", { length: 50 }),
+  generatedAt: timestamp("generatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type RfidRegistry = typeof rfidRegistry.$inferSelect;
+export type InsertRfidRegistry = typeof rfidRegistry.$inferInsert;

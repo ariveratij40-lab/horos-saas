@@ -24,6 +24,7 @@ import {
   ChevronDown, ChevronRight,
 } from "lucide-react";
 import CctvTechSheet, { type CctvEquipmentType } from "@/components/CctvTechSheet";
+import { RfidTagField, RfidBadge } from "@/components/RfidTagField";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -861,6 +862,17 @@ function CamerasTab() {
             <Field label="No. Factura"><Input value={form.invoiceNumber ?? ""} onChange={e => f("invoiceNumber", e.target.value)} placeholder="FAC-2024-001" /></Field>
             <Field label="Monto"><Input type="number" step="0.01" value={form.amount ?? ""} onChange={e => f("amount", e.target.value)} placeholder="0.00" /></Field>
           </div>
+          {/* RFID */}
+          {editing && (
+            <div className="pt-2 border-t border-border/50">
+              <RfidTagField
+                category="cameras"
+                itemId={editing?.id}
+                currentTag={editing?.rfidTag}
+                onTagGenerated={(tag) => f("rfidTag", tag)}
+              />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={createMut.isPending || updateMut.isPending}>
@@ -1207,6 +1219,12 @@ function IdfsTab() {
             <div className="col-span-2"><Field label="Observaciones"><Textarea value={form.observaciones ?? ""} onChange={e => f("observaciones", e.target.value)} rows={2} /></Field></div>
             <Field label="No. Factura"><Input value={form.invoiceNumber ?? ""} onChange={e => f("invoiceNumber", e.target.value)} placeholder="FAC-2024-001" /></Field>
             <Field label="Monto"><Input type="number" step="0.01" value={form.amount ?? ""} onChange={e => f("amount", e.target.value)} placeholder="0.00" /></Field>
+            {/* RFID */}
+            {editing && (
+              <div className="col-span-2 pt-2 border-t border-border/50">
+                <RfidTagField category="idfs" itemId={editing?.id} currentTag={editing?.rfidTag} onTagGenerated={(tag) => f("rfidTag", tag)} />
+              </div>
+            )}
             {/* Galería múltiple de imágenes del IDF/MDF */}
             <div className="col-span-2">
               <div className="border-t pt-4">
@@ -1412,6 +1430,11 @@ function LicensesTab() {
             <Field label="No. Factura"><Input value={form.invoiceNumber ?? ""} onChange={e => f("invoiceNumber", e.target.value)} placeholder="FAC-2024-001" /></Field>
             <Field label="Monto"><Input type="number" step="0.01" value={form.amount ?? ""} onChange={e => f("amount", e.target.value)} placeholder="0.00" /></Field>
           </div>
+          {editing && (
+            <div className="pt-2 border-t border-border/50">
+              <RfidTagField category="licenses" itemId={editing?.id} currentTag={editing?.rfidTag} onTagGenerated={(tag) => f("rfidTag", tag)} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>{editing ? "Guardar Cambios" : "Registrar Licencia"}</Button>
@@ -1657,6 +1680,11 @@ function MonitorsTab() {
             <Field label="No. Factura"><Input value={form.invoiceNumber ?? ""} onChange={e => f("invoiceNumber", e.target.value)} placeholder="FAC-2024-001" /></Field>
             <Field label="Monto"><Input type="number" step="0.01" value={form.amount ?? ""} onChange={e => f("amount", e.target.value)} placeholder="0.00" /></Field>
           </div>
+          {editing && (
+            <div className="pt-2 border-t border-border/50">
+              <RfidTagField category="monitors" itemId={editing?.id} currentTag={editing?.rfidTag} onTagGenerated={(tag) => f("rfidTag", tag)} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>{editing ? "Guardar Cambios" : "Registrar Monitor"}</Button>
@@ -1896,6 +1924,11 @@ function ServersTab() {
             <Field label="No. Factura"><Input value={form.invoiceNumber ?? ""} onChange={e => f("invoiceNumber", e.target.value)} placeholder="FAC-2024-001" /></Field>
             <Field label="Monto"><Input type="number" step="0.01" value={form.amount ?? ""} onChange={e => f("amount", e.target.value)} placeholder="0.00" /></Field>
           </div>
+          {editing && (
+            <div className="pt-2 border-t border-border/50">
+              <RfidTagField category="servers" itemId={editing?.id} currentTag={editing?.rfidTag} onTagGenerated={(tag) => f("rfidTag", tag)} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>{editing ? "Guardar Cambios" : "Registrar Servidor"}</Button>
@@ -2135,6 +2168,11 @@ function SwitchesTab() {
             <Field label="No. Factura"><Input value={form.invoiceNumber ?? ""} onChange={e => f("invoiceNumber", e.target.value)} placeholder="FAC-2024-001" /></Field>
             <Field label="Monto"><Input type="number" step="0.01" value={form.amount ?? ""} onChange={e => f("amount", e.target.value)} placeholder="0.00" /></Field>
           </div>
+          {editing && (
+            <div className="pt-2 border-t border-border/50">
+              <RfidTagField category="switches" itemId={editing?.id} currentTag={editing?.rfidTag} onTagGenerated={(tag) => f("rfidTag", tag)} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>{editing ? "Guardar Cambios" : "Registrar Switch"}</Button>
@@ -2366,6 +2404,11 @@ function UpsTab() {
             <Field label="No. Factura"><Input value={form.invoiceNumber ?? ""} onChange={e => f("invoiceNumber", e.target.value)} placeholder="FAC-2024-001" /></Field>
             <Field label="Monto"><Input type="number" step="0.01" value={form.amount ?? ""} onChange={e => f("amount", e.target.value)} placeholder="0.00" /></Field>
           </div>
+          {editing && (
+            <div className="pt-2 border-t border-border/50">
+              <RfidTagField category="ups" itemId={editing?.id} currentTag={editing?.rfidTag} onTagGenerated={(tag) => f("rfidTag", tag)} />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>{editing ? "Guardar Cambios" : "Registrar UPS"}</Button>

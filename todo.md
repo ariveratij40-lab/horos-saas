@@ -232,3 +232,27 @@
 - [x] Frontend: selector en Paso 3 "Omitir duplicados" vs "Actualizar si existe"
 - [x] Backend: importRows soporta modo upsert cuando duplicateMode="update"
 - [x] Frontend: Paso 4 muestra contadores importados/actualizados/omitidos/errores
+
+## CCTV - Sistema de Etiquetas RFID
+- [x] Schema Drizzle: campo rfidTag (varchar 50) en las 7 tablas CCTV
+- [x] Migración SQL: ALTER TABLE para agregar rfidTag a las 7 tablas
+- [x] Schema Drizzle: tabla rfid_registry (id, rfidTag, category, itemId, tenantId, snapshot, generatedAt)
+- [x] Migración SQL: CREATE TABLE rfid_registry
+- [x] Backend: endpoint rfid.generateTag — genera consecutivo HOROS-{CAT}-{NNNNNN} y lo asigna al equipo
+- [x] Backend: endpoint rfid.lookup — busca equipo por rfidTag y devuelve ficha completa
+- [x] Backend: endpoint rfid.listByTenant — lista todos los tags del tenant con info del equipo
+- [x] Backend: endpoint rfid.refreshSnapshot — actualiza snapshot del equipo en rfid_registry
+- [x] Backend: endpoint rfid.deleteTag — elimina tag y limpia campo rfidTag del equipo
+- [x] Frontend: componente RfidTagField (botón generar, badge, copiar, imprimir, refresh)
+- [x] Frontend: campo rfidTag integrado en los 7 formularios de edición CCTV
+- [x] Frontend: página /rfid — gestión centralizada de etiquetas (tabla, filtros, stats por categoría)
+- [x] Frontend: impresión de etiqueta con QR code, datos del equipo y ventana de impresión
+- [x] Frontend: página /rfid/scan — módulo móvil para lectura RFID (sin DashboardLayout)
+- [x] Frontend: módulo móvil con foco automático para lectores que emulan teclado
+- [x] Frontend: ficha completa del equipo en módulo móvil con todos los campos por categoría
+- [x] Sidebar: enlace "Etiquetas RFID" en sección CCTV del DashboardLayout
+- [ ] Frontend: componente RfidLabel — etiqueta imprimible con QR code + código + datos del equipo
+- [ ] Frontend: botón "Imprimir Etiqueta" en ficha técnica y en la página de gestión RFID
+- [ ] Frontend: módulo móvil /rfid/scan — input de código RFID + ficha del equipo encontrado
+- [ ] Frontend: /rfid/scan accesible sin sidebar (layout móvil optimizado)
+- [ ] Agregar ruta /rfid/scan al App.tsx y link desde el sidebar CCTV

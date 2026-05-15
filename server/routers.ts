@@ -11,6 +11,7 @@ import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashb
 import { slaRouter } from "./routers/sla";
 import { cctvRouter } from "./routers/cctv";
 import { cctvImportRouter } from "./routers/cctvImport";
+import { rfidRouter } from "./routers/rfid";
 import { getAllUsers } from "./db";
 import { protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
@@ -41,6 +42,7 @@ export const appRouter = router({
   sla: slaRouter,
   cctv: cctvRouter,
   cctvImport: cctvImportRouter,
+  rfid: rfidRouter,
   audit: auditRouter,
   ai: aiAssistantRouter,
 
