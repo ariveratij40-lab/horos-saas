@@ -294,3 +294,12 @@
 - [ ] Frontend: campo "Fecha de Renovación" en formulario Nueva/Editar Póliza
 - [ ] Frontend: badge de estado automático (Activa/Por Vencer/Expirada) en lista y detalle de póliza
 - [ ] Frontend: indicador visual en lista de pólizas próximas a vencer
+
+## CCTV - Clasificación SLA Tier por Equipo
+- [ ] Schema: campo slaTier (tier1|tier2|tier3) en las 7 tablas CCTV
+- [ ] Migración SQL: ALTER TABLE para agregar slaTier a las 7 tablas
+- [ ] Frontend: selector SLA Tier en los 7 formularios de alta/edición CCTV
+- [ ] Frontend: badge de Tier visible en tarjetas y lista de los 7 inventarios
+- [ ] Backend: endpoint incidentes CCTV lee slaTier del equipo y calcula tiempos SLA
+- [ ] Frontend: formulario de incidente muestra equipo vinculado + Tier + tiempo SLA calculado
+- [ ] Frontend: lista de incidentes muestra badge Tier y countdown SLA

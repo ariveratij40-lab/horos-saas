@@ -42,9 +42,17 @@ export const ticketsRouter = router({
     contractualStatus: z.enum(["covered", "not_covered", "pending_approval", "outside_sla", "billable"]).optional(),
     estimatedCost: z.string().optional(),
     notes: z.string().optional(),
+    slaTier: z.enum(["tier1","tier2","tier3"]).optional(),
+    assetCategory: z.string().optional(),
+    assetName: z.string().optional(),
+    slaDeadlineHours: z.number().optional(),
   })).mutation(async ({ ctx, input }) => {
     const tenantId = ctx.user.tenantId ?? 1;
     const ticketNumber = `TKT-${Date.now().toString(36).toUpperCase()}`;
+    // Calculate SLA deadline based on tier
+    const SLA_HOURS: Record<string, number> = { tier1: 48, tier2: 24, tier3: 4 };
+    const deadlineHours = input.slaDeadlineHours ?? (input.slaTier ? SLA_HOURS[input.slaTier] : undefined);
+    const responseDeadline = deadlineHours ? new Date(Date.now() + deadlineHours * 3600 * 1000) : undefined;
     const result = await createTicket({
       ...input,
       tenantId,
@@ -52,6 +60,7 @@ export const ticketsRouter = router({
       operationalStatus: "open",
       contractualStatus: input.contractualStatus ?? "pending_approval",
       reportedByUserId: ctx.user.id,
+      responseDeadline,
     });
     await createAuditLog({ tenantId, userId: ctx.user.id, userName: ctx.user.name ?? undefined, action: "CREATE", module: "tickets", entityType: "ticket", description: `Ticket creado: ${ticketNumber} - ${input.title}` });
     return result;

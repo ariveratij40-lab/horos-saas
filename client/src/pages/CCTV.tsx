@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { MaintenanceHistorySheet } from "@/components/MaintenanceHistorySheet";
 import { EquipmentQuickView } from "@/components/EquipmentQuickView";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
+import { SlaTierSelector, SlaTierBadge } from "@/components/SlaTierSelector";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -964,6 +965,10 @@ function CamerasTab() {
               />
             </div>
           )}
+          <div className="pt-3 border-t border-border/50">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Clasificación SLA</p>
+            <SlaTierSelector value={form.slaTier} onChange={(t) => f("slaTier", t)} />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={createMut.isPending || updateMut.isPending}>
@@ -1414,6 +1419,10 @@ function IdfsTab() {
               </div>
             )}
           </div>
+          <div className="pt-3 border-t border-border/50">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Clasificación SLA</p>
+            <SlaTierSelector value={form.slaTier} onChange={(t) => f("slaTier", t)} />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>{editing ? "Guardar Cambios" : "Registrar IDF"}</Button>
@@ -1644,6 +1653,10 @@ function LicensesTab() {
               <RfidTagField category="licenses" itemId={editing?.id} currentTag={editing?.rfidTag} onTagGenerated={(tag) => f("rfidTag", tag)} />
             </div>
           )}
+          <div className="pt-3 border-t border-border/50">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Clasificación SLA</p>
+            <SlaTierSelector value={form.slaTier} onChange={(t) => f("slaTier", t)} />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>{editing ? "Guardar Cambios" : "Registrar Licencia"}</Button>
@@ -1916,6 +1929,10 @@ function MonitorsTab() {
               <RfidTagField category="monitors" itemId={editing?.id} currentTag={editing?.rfidTag} onTagGenerated={(tag) => f("rfidTag", tag)} />
             </div>
           )}
+          <div className="pt-3 border-t border-border/50">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Clasificación SLA</p>
+            <SlaTierSelector value={form.slaTier} onChange={(t) => f("slaTier", t)} />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>{editing ? "Guardar Cambios" : "Registrar Monitor"}</Button>
@@ -2183,6 +2200,10 @@ function ServersTab() {
               <RfidTagField category="servers" itemId={editing?.id} currentTag={editing?.rfidTag} onTagGenerated={(tag) => f("rfidTag", tag)} />
             </div>
           )}
+          <div className="pt-3 border-t border-border/50">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Clasificación SLA</p>
+            <SlaTierSelector value={form.slaTier} onChange={(t) => f("slaTier", t)} />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>{editing ? "Guardar Cambios" : "Registrar Servidor"}</Button>
@@ -2450,6 +2471,10 @@ function SwitchesTab() {
               <RfidTagField category="switches" itemId={editing?.id} currentTag={editing?.rfidTag} onTagGenerated={(tag) => f("rfidTag", tag)} />
             </div>
           )}
+          <div className="pt-3 border-t border-border/50">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Clasificación SLA</p>
+            <SlaTierSelector value={form.slaTier} onChange={(t) => f("slaTier", t)} />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>{editing ? "Guardar Cambios" : "Registrar Switch"}</Button>
@@ -2709,6 +2734,10 @@ function UpsTab() {
               <RfidTagField category="ups" itemId={editing?.id} currentTag={editing?.rfidTag} onTagGenerated={(tag) => f("rfidTag", tag)} />
             </div>
           )}
+          <div className="pt-3 border-t border-border/50">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Clasificación SLA</p>
+            <SlaTierSelector value={form.slaTier} onChange={(t) => f("slaTier", t)} />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave}>{editing ? "Guardar Cambios" : "Registrar UPS"}</Button>

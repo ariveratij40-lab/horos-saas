@@ -49,6 +49,7 @@ const cameraSchema = z.object({
   ctpat: z.boolean().nullish(),
   invoiceNumber: z.string().nullish(),
   amount: z.string().nullish(),
+  slaTier: z.enum(["tier1","tier2","tier3"]).optional(),
 });
 
 const idfSchema = z.object({
@@ -79,6 +80,7 @@ const idfSchema = z.object({
   amount: z.string().optional(),
   idfImageUrl: z.string().optional(),
   idfImageKey: z.string().optional(),
+  slaTier: z.enum(["tier1","tier2","tier3"]).optional(),
 });
 
 const licenseSchema = z.object({
@@ -102,6 +104,7 @@ const licenseSchema = z.object({
   branchId: z.number().optional(),
   invoiceNumber: z.string().optional(),
   amount: z.string().optional(),
+  slaTier: z.enum(["tier1","tier2","tier3"]).optional(),
 });
 
 const monitorSchema = z.object({
@@ -128,6 +131,7 @@ const monitorSchema = z.object({
   branchId: z.number().optional(),
   invoiceNumber: z.string().optional(),
   amount: z.string().optional(),
+  slaTier: z.enum(["tier1","tier2","tier3"]).optional(),
 });
 
 const serverSchema = z.object({
@@ -165,6 +169,7 @@ const serverSchema = z.object({
   branchId: z.number().optional(),
   invoiceNumber: z.string().optional(),
   amount: z.string().optional(),
+  slaTier: z.enum(["tier1","tier2","tier3"]).optional(),
 });
 
 const switchSchema = z.object({
@@ -195,6 +200,7 @@ const switchSchema = z.object({
   branchId: z.number().optional(),
   invoiceNumber: z.string().optional(),
   amount: z.string().optional(),
+  slaTier: z.enum(["tier1","tier2","tier3"]).optional(),
 });
 
 const upsSchema = z.object({
@@ -222,6 +228,7 @@ const upsSchema = z.object({
   branchId: z.number().optional(),
   invoiceNumber: z.string().optional(),
   amount: z.string().optional(),
+  slaTier: z.enum(["tier1","tier2","tier3"]).optional(),
 });
 
 const listInput = z.object({

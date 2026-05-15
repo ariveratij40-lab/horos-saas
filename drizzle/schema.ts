@@ -206,11 +206,15 @@ export const tickets = mysqlTable("tickets", {
   estimatedCost: decimal("estimatedCost", { precision: 12, scale: 2 }),
   actualCost: decimal("actualCost", { precision: 12, scale: 2 }),
   isBillable: boolean("isBillable").default(false),
-  notes: text("notes"),
+    notes: text("notes"),
+  // CCTV SLA fields
+  slaTier: mysqlEnum("slaTier", ["tier1", "tier2", "tier3"]),
+  assetCategory: varchar("assetCategory", { length: 50 }),
+  assetName: varchar("assetName", { length: 255 }),
+  slaDeadlineHours: int("slaDeadlineHours"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type Ticket = typeof tickets.$inferSelect;
 export type InsertTicket = typeof tickets.$inferInsert;
 
@@ -442,6 +446,8 @@ export const cctvCameras = mysqlTable("cctv_cameras", {
   // Factura / Monto
   invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // SLA Tier
+  slaTier: varchar("slaTier", { length: 10 }),
   // RFID
   rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -488,6 +494,8 @@ export const cctvIdfs = mysqlTable("cctv_idfs", {
   // Factura / Monto
   invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // SLA Tier
+  slaTier: varchar("slaTier", { length: 10 }),
   // RFID
   rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -536,6 +544,8 @@ export const cctvLicenses = mysqlTable("cctv_licenses", {
   // Factura / Monto
     invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // SLA Tier
+  slaTier: varchar("slaTier", { length: 10 }),
   // RFID
   rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -572,6 +582,8 @@ export const cctvMonitors = mysqlTable("cctv_monitors", {
   // Factura / Monto
     invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // SLA Tier
+  slaTier: varchar("slaTier", { length: 10 }),
   // RFID
   rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -624,6 +636,8 @@ export const cctvServers = mysqlTable("cctv_servers", {
     // Factura / Monto
   invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // SLA Tier
+  slaTier: varchar("slaTier", { length: 10 }),
   // RFID
   rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -667,6 +681,8 @@ export const cctvSwitches = mysqlTable("cctv_switches", {
     // Factura / Monto
   invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // SLA Tier
+  slaTier: varchar("slaTier", { length: 10 }),
   // RFID
   rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -705,6 +721,8 @@ export const cctvUps = mysqlTable("cctv_ups", {
   // Factura / Monto
     invoiceNumber: varchar("invoiceNumber", { length: 100 }),
   amount: decimal("amount", { precision: 12, scale: 2 }),
+  // SLA Tier
+  slaTier: varchar("slaTier", { length: 10 }),
   // RFID
   rfidTag: varchar("rfidTag", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

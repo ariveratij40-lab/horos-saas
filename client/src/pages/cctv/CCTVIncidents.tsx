@@ -1,12 +1,51 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Search, Clock, CheckCircle2, XCircle, TrendingDown, Ticket } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import {
+  AlertTriangle, Search, Clock, CheckCircle2, XCircle, Plus,
+  Shield, Zap, Activity, Timer, ChevronDown, ChevronUp, Ticket,
+} from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+
+// ─── SLA Tier config ─────────────────────────────────────────────────────────
+const SLA_TIERS = {
+  tier1: {
+    label: "Tier 1 — No Crítico",
+    short: "T1",
+    hours: "48–72 hrs",
+    responseHours: 48,
+    color: "bg-blue-100 text-blue-700 border-blue-200",
+    icon: Shield,
+    description: "Elementos no críticos",
+  },
+  tier2: {
+    label: "Tier 2 — Medio Crítico",
+    short: "T2",
+    hours: "24–48 hrs",
+    responseHours: 24,
+    color: "bg-amber-100 text-amber-700 border-amber-200",
+    icon: Activity,
+    description: "Elementos de criticidad media",
+  },
+  tier3: {
+    label: "Tier 3 — Crítico CTPAT",
+    short: "T3",
+    hours: "4–8 hrs",
+    responseHours: 4,
+    color: "bg-red-100 text-red-700 border-red-200",
+    icon: Zap,
+    description: "Elementos críticos CTPAT",
+  },
+} as const;
 
 const OP_STATUS: Record<string, { label: string; color: string }> = {
   open:                { label: "Abierto",          color: "bg-blue-100 text-blue-700" },
@@ -24,63 +63,181 @@ const CONTRACT_STATUS: Record<string, { label: string; color: string }> = {
   billable:         { label: "Facturable",          color: "bg-purple-100 text-purple-700" },
 };
 
+const CHART_COLORS = ["#3b82f6", "#6366f1", "#f59e0b", "#f97316", "#10b981"];
+
+// ─── SLA Tier Badge ───────────────────────────────────────────────────────────
+function TierBadge({ tier }: { tier: string | null | undefined }) {
+  if (!tier || !(tier in SLA_TIERS)) return null;
+  const t = SLA_TIERS[tier as keyof typeof SLA_TIERS];
+  const Icon = t.icon;
+  return (
+    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border", t.color)}>
+      <Icon className="w-3 h-3" />
+      {t.short} · {t.hours}
+    </span>
+  );
+}
+
+// ─── SLA Countdown ───────────────────────────────────────────────────────────
+function SlaCountdown({ deadline }: { deadline: string | null | undefined }) {
+  if (!deadline) return <span className="text-xs text-muted-foreground">—</span>;
+  const diff = new Date(deadline).getTime() - Date.now();
+  const isOverdue = diff < 0;
+  const abs = Math.abs(diff);
+  const hours = Math.floor(abs / 3600000);
+  const mins = Math.floor((abs % 3600000) / 60000);
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-xs font-mono", isOverdue ? "text-red-600 font-semibold" : "text-muted-foreground")}>
+      <Timer className="w-3 h-3" />
+      {isOverdue ? "VENCIDO " : ""}{hours}h {mins}m
+    </span>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function CCTVIncidents() {
   const [search, setSearch] = useState("");
   const [opFilter, setOpFilter] = useState("all");
+  const [tierFilter, setTierFilter] = useState("all");
+  const [open, setOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const { data: tickets = [] } = trpc.tickets.list.useQuery(undefined);
+  // Equipment search
+  const [equipSearch, setEquipSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [equipResults, setEquipResults] = useState<any[]>([]);
+  const [selectedEquip, setSelectedEquip] = useState<any>(null);
 
-  // Filter only CCTV-related tickets (by category or asset type)
-  // Show all tickets when no CCTV-specific category exists yet (system is new)
-  const hasCctvTickets = tickets.some((t: any) => t.category === "cctv" || t.assetType === "cctv");
-  const cctvTickets = hasCctvTickets
-    ? tickets.filter((t: any) => t.category === "cctv" || t.assetType === "cctv")
-    : tickets; // fallback: show all when no CCTV-tagged tickets exist yet
+  // Form state
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    priority: "medium" as "critical" | "high" | "medium" | "low",
+    category: "corrective" as "corrective" | "preventive" | "emergency" | "installation" | "inspection",
+    notes: "",
+  });
+  const f = (k: string, v: any) => setForm(p => ({ ...p, [k]: v }));
 
-  const showingAll = !hasCctvTickets && tickets.length > 0;
+  const { data: tickets = [], refetch } = trpc.tickets.list.useQuery(undefined);
+  const { data: lookupResult, isFetching: lookupFetching } = trpc.cctv.lookupEquipo.useQuery(
+    { query: debouncedSearch },
+    { enabled: debouncedSearch.length >= 2 && !selectedEquip }
+  );
+  const createMut = trpc.tickets.create.useMutation({
+    onSuccess: () => {
+      toast.success("Incidente registrado correctamente");
+      setOpen(false);
+      setForm({ title: "", description: "", priority: "medium", category: "corrective", notes: "" });
+      setSelectedEquip(null);
+      setEquipSearch("");
+      refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
-  const filtered = cctvTickets.filter((t: any) => {
-    const matchSearch = !search || t.title?.toLowerCase().includes(search.toLowerCase()) || t.ticketNumber?.includes(search);
+  // Debounce: update debouncedSearch after 400ms
+  useEffect(() => {
+    if (equipSearch.length < 2 || selectedEquip) {
+      setDebouncedSearch("");
+      return;
+    }
+    const t = setTimeout(() => setDebouncedSearch(equipSearch), 400);
+    return () => clearTimeout(t);
+  }, [equipSearch, selectedEquip]);
+
+  // Sync lookup results
+  useEffect(() => {
+    if (lookupResult) setEquipResults([lookupResult]);
+    else setEquipResults([]);
+  }, [lookupResult]);
+
+  const handleSelectEquip = (eq: any) => {
+    setSelectedEquip(eq);
+    const label = [eq.idCode, eq.marca, eq.modelo].filter(Boolean).join(" — ");
+    setEquipSearch(label);
+    setEquipResults([]);
+    if (!form.title) {
+      f("title", `Incidente: ${eq.marca ?? ""} ${eq.modelo ?? ""}`.trim());
+    }
+  };
+
+  const handleCreate = () => {
+    if (!form.title.trim()) { toast.error("El título es obligatorio"); return; }
+    createMut.mutate({
+      ...form,
+      slaTier: selectedEquip?.slaTier ?? undefined,
+      assetCategory: selectedEquip?.category ?? undefined,
+      assetName: selectedEquip ? `${selectedEquip.marca ?? ""} ${selectedEquip.modelo ?? ""}`.trim() : undefined,
+      slaDeadlineHours: selectedEquip?.slaTier
+        ? SLA_TIERS[selectedEquip.slaTier as keyof typeof SLA_TIERS]?.responseHours
+        : undefined,
+    });
+  };
+
+  // Filter tickets
+  const hasCctvTickets = tickets.some((t: any) => t.assetCategory || t.slaTier);
+  const baseTickets = hasCctvTickets
+    ? tickets.filter((t: any) => t.assetCategory || t.slaTier)
+    : tickets;
+
+  const filtered = baseTickets.filter((t: any) => {
+    const matchSearch = !search
+      || t.title?.toLowerCase().includes(search.toLowerCase())
+      || t.ticketNumber?.includes(search)
+      || t.assetName?.toLowerCase().includes(search.toLowerCase());
     const matchOp = opFilter === "all" || t.operationalStatus === opFilter;
-    return matchSearch && matchOp;
+    const matchTier = tierFilter === "all" || t.slaTier === tierFilter;
+    return matchSearch && matchOp && matchTier;
   });
 
   const stats = {
-    total: cctvTickets.length,
-    open: cctvTickets.filter((t: any) => t.operationalStatus !== "resolved").length,
-    outsideSla: cctvTickets.filter((t: any) => t.contractualStatus === "outside_sla").length,
-    resolved: cctvTickets.filter((t: any) => t.operationalStatus === "resolved").length,
+    total: baseTickets.length,
+    open: baseTickets.filter((t: any) => t.operationalStatus !== "resolved").length,
+    outsideSla: baseTickets.filter((t: any) => t.contractualStatus === "outside_sla").length,
+    resolved: baseTickets.filter((t: any) => t.operationalStatus === "resolved").length,
   };
 
-  // Chart data: tickets by operational status
   const chartData = Object.entries(OP_STATUS).map(([key, val]) => ({
     name: val.label,
-    count: cctvTickets.filter((t: any) => t.operationalStatus === key).length,
+    count: baseTickets.filter((t: any) => t.operationalStatus === key).length,
   }));
-
-  const CHART_COLORS = ["#3b82f6", "#6366f1", "#f59e0b", "#f97316", "#10b981"];
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold font-display text-foreground flex items-center gap-2">
-          <AlertTriangle className="w-6 h-6 text-blue-500" />
-          Incidentes y SLA — CCTV
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">Monitoreo de incidentes y cumplimiento de SLA del sistema CCTV</p>
-      </div>
-
-      {/* Banner: showing all tickets as fallback */}
-      {showingAll && (
-        <div className="flex items-start gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50/60 text-sm">
-          <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-          <p className="text-amber-800">
-            <span className="font-semibold">Mostrando todos los tickets del sistema</span> — aún no existen tickets etiquetados como CCTV.
-            Al crear tickets desde el módulo CCTV, aparecerán aquí filtrados automáticamente.
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold font-display text-foreground flex items-center gap-2">
+            <AlertTriangle className="w-6 h-6 text-blue-500" />
+            Incidentes y SLA — CCTV
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Monitoreo de incidentes y cumplimiento de SLA del sistema CCTV
           </p>
         </div>
-      )}
+        <Button onClick={() => setOpen(true)} className="gap-2">
+          <Plus className="w-4 h-4" />
+          Nuevo Incidente
+        </Button>
+      </div>
+
+      {/* SLA Tier Legend */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {Object.entries(SLA_TIERS).map(([key, t]) => {
+          const Icon = t.icon;
+          const count = baseTickets.filter((tk: any) => tk.slaTier === key).length;
+          return (
+            <div key={key} className={cn("flex items-start gap-3 p-3 rounded-lg border", t.color)}>
+              <Icon className="w-5 h-5 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">{t.label}</p>
+                <p className="text-xs opacity-80">{t.description} · Respuesta: {t.hours}</p>
+              </div>
+              <span className="text-lg font-bold">{count}</span>
+            </div>
+          );
+        })}
+      </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -127,19 +284,31 @@ export default function CCTVIncidents() {
       </Card>
 
       {/* Filters */}
-      <div className="flex gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar incidente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input
+            placeholder="Buscar incidente o equipo..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
         </div>
         <Select value={opFilter} onValueChange={setOpFilter}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Estado operativo" />
-          </SelectTrigger>
+          <SelectTrigger className="w-48"><SelectValue placeholder="Estado operativo" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="all">Todos los estados</SelectItem>
             {Object.entries(OP_STATUS).map(([k, v]) => (
               <SelectItem key={k} value={k}>{v.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={tierFilter} onValueChange={setTierFilter}>
+          <SelectTrigger className="w-44"><SelectValue placeholder="SLA Tier" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los Tiers</SelectItem>
+            {Object.entries(SLA_TIERS).map(([k, t]) => (
+              <SelectItem key={k} value={k}>{t.short} — {t.description}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -152,30 +321,53 @@ export default function CCTVIncidents() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/50 bg-muted/30">
+                  <th className="w-8 px-4 py-3"></th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">#</th>
-                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Título</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Título / Equipo</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">SLA Tier</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Estado Op.</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Estado Cont.</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Prioridad</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Tiempo SLA</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Creado</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
                       <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No hay incidentes registrados para CCTV</p>
+                      <p className="text-sm">No hay incidentes registrados</p>
+                      <Button variant="outline" size="sm" className="mt-3" onClick={() => setOpen(true)}>
+                        <Plus className="w-3 h-3 mr-1" /> Registrar primer incidente
+                      </Button>
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((t: any) => {
+                  filtered.flatMap((t: any) => {
                     const op = OP_STATUS[t.operationalStatus] ?? { label: t.operationalStatus, color: "bg-gray-100 text-gray-600" };
                     const ct = CONTRACT_STATUS[t.contractualStatus] ?? { label: t.contractualStatus, color: "bg-gray-100 text-gray-600" };
-                    return (
-                      <tr key={t.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+                    const isExpanded = expandedId === t.id;
+                    return [
+                      <tr
+                        key={t.id}
+                        className="border-b border-border/30 hover:bg-muted/20 transition-colors cursor-pointer"
+                        onClick={() => setExpandedId(isExpanded ? null : t.id)}
+                      >
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </td>
                         <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{t.ticketNumber ?? `#${t.id}`}</td>
-                        <td className="px-4 py-3 font-medium text-foreground">{t.title}</td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-foreground">{t.title}</p>
+                          {t.assetName && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {t.assetCategory && <span className="capitalize">{t.assetCategory} · </span>}
+                              {t.assetName}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3"><TierBadge tier={t.slaTier} /></td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${op.color}`}>{op.label}</span>
                         </td>
@@ -183,11 +375,44 @@ export default function CCTVIncidents() {
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ct.color}`}>{ct.label}</span>
                         </td>
                         <td className="px-4 py-3 capitalize text-muted-foreground text-xs">{t.priority ?? "—"}</td>
+                        <td className="px-4 py-3"><SlaCountdown deadline={t.responseDeadline} /></td>
                         <td className="px-4 py-3 text-muted-foreground text-xs">
                           {t.createdAt ? new Date(t.createdAt).toLocaleDateString("es-MX") : "—"}
                         </td>
-                      </tr>
-                    );
+                      </tr>,
+                      isExpanded && (
+                        <tr key={`${t.id}-exp`} className="bg-muted/10 border-b border-border/30">
+                          <td colSpan={9} className="px-6 py-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                              {t.description && (
+                                <div>
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Descripción</p>
+                                  <p className="text-foreground">{t.description}</p>
+                                </div>
+                              )}
+                              {t.notes && (
+                                <div>
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Notas</p>
+                                  <p className="text-foreground">{t.notes}</p>
+                                </div>
+                              )}
+                              {t.slaTier && (
+                                <div>
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">SLA Comprometido</p>
+                                  <p className="text-foreground">{SLA_TIERS[t.slaTier as keyof typeof SLA_TIERS]?.label}</p>
+                                  <p className="text-xs text-muted-foreground">Tiempo de respuesta: {SLA_TIERS[t.slaTier as keyof typeof SLA_TIERS]?.hours}</p>
+                                  {t.responseDeadline && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      Vence: {new Date(t.responseDeadline).toLocaleString("es-MX")}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ),
+                    ].filter(Boolean);
                   })
                 )}
               </tbody>
@@ -195,6 +420,169 @@ export default function CCTVIncidents() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── New Incident Dialog ─────────────────────────────────────────────── */}
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSelectedEquip(null); setEquipSearch(""); setEquipResults([]); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Registrar Nuevo Incidente CCTV
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            {/* Equipment search */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Equipo Afectado (Inventario CCTV)</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por ID, marca, modelo, zona..."
+                  value={equipSearch}
+                  onChange={(e) => { setEquipSearch(e.target.value); if (selectedEquip) setSelectedEquip(null); }}
+                  className="pl-9"
+                />
+              </div>
+
+              {/* Results dropdown */}
+              {equipResults.length > 0 && !selectedEquip && (
+                <div className="border border-border rounded-lg overflow-hidden shadow-sm">
+                  {equipResults.map((eq, i) => (
+                    <button
+                      key={i}
+                      className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border/30 last:border-0"
+                      onClick={() => handleSelectEquip(eq)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-sm">
+                            {eq.idCode && <span className="font-mono text-xs text-muted-foreground mr-2">{eq.idCode}</span>}
+                            {eq.marca} {eq.modelo}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{eq.categoryLabel} · {eq.ubicacion ?? "Sin ubicación"}</p>
+                        </div>
+                        {eq.slaTier && <TierBadge tier={eq.slaTier} />}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Selected equipment card */}
+              {selectedEquip && (
+                <div className="p-3 rounded-lg border border-border bg-muted/20">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">{selectedEquip.marca} {selectedEquip.modelo}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedEquip.categoryLabel} · {selectedEquip.ubicacion ?? "Sin ubicación"} · IP: {selectedEquip.ip ?? "—"}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      {selectedEquip.slaTier ? (
+                        <>
+                          <TierBadge tier={selectedEquip.slaTier} />
+                          <p className="text-xs text-muted-foreground">
+                            Respuesta máx: {SLA_TIERS[selectedEquip.slaTier as keyof typeof SLA_TIERS]?.hours}
+                          </p>
+                        </>
+                      ) : (
+                        <Badge variant="outline" className="text-xs text-muted-foreground">Sin SLA asignado</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!selectedEquip && equipSearch.length >= 2 && equipResults.length === 0 && !lookupFetching && (
+                <p className="text-xs text-muted-foreground px-1">No se encontró ningún equipo con ese criterio.</p>
+              )}
+            </div>
+
+            {/* Title */}
+            <div className="space-y-1.5">
+              <Label>Título del Incidente *</Label>
+              <Input
+                placeholder="Ej: Cámara sin imagen en Recepción"
+                value={form.title}
+                onChange={(e) => f("title", e.target.value)}
+              />
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <Label>Descripción</Label>
+              <Textarea
+                placeholder="Describe el problema observado..."
+                value={form.description}
+                onChange={(e) => f("description", e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            {/* Priority & Category */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Prioridad</Label>
+                <Select value={form.priority} onValueChange={(v) => f("priority", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="critical">Crítica</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="medium">Media</SelectItem>
+                    <SelectItem value="low">Baja</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Categoría</Label>
+                <Select value={form.category} onValueChange={(v) => f("category", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="corrective">Correctivo</SelectItem>
+                    <SelectItem value="preventive">Preventivo</SelectItem>
+                    <SelectItem value="emergency">Emergencia</SelectItem>
+                    <SelectItem value="installation">Instalación</SelectItem>
+                    <SelectItem value="inspection">Inspección</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <Label>Notas adicionales</Label>
+              <Textarea
+                placeholder="Observaciones, acciones tomadas..."
+                value={form.notes}
+                onChange={(e) => f("notes", e.target.value)}
+                rows={2}
+              />
+            </div>
+
+            {/* SLA summary banner */}
+            {selectedEquip?.slaTier && (
+              <div className={cn("p-3 rounded-lg border text-sm", SLA_TIERS[selectedEquip.slaTier as keyof typeof SLA_TIERS]?.color)}>
+                <p className="font-semibold flex items-center gap-2">
+                  <Timer className="w-4 h-4" />
+                  SLA Comprometido: {SLA_TIERS[selectedEquip.slaTier as keyof typeof SLA_TIERS]?.label}
+                </p>
+                <p className="text-xs mt-0.5 opacity-80">
+                  Tiempo de respuesta máximo: {SLA_TIERS[selectedEquip.slaTier as keyof typeof SLA_TIERS]?.hours} · La fecha límite se calculará automáticamente al guardar.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreate} disabled={createMut.isPending}>
+              {createMut.isPending ? "Registrando..." : "Registrar Incidente"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
