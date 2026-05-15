@@ -94,10 +94,17 @@
 - [x] Sub-secciones colapsables con ícono y etiqueta de sistema
 
 ## CCTV - Sub-menús del Sidebar
-- [ ] Sidebar: 7 sub-ítems en CCTV (Inventario, Mantenimiento, Calendario, Incidentes y SLA, Capex, Póliza, Respaldo BD)
-- [ ] Página /cctv/maintenance - Mantenimiento preventivo/correctivo de equipos CCTV
-- [ ] Página /cctv/calendar - Calendario de actividades de mantenimiento CCTV
-- [ ] Página /cctv/incidents - Incidentes y SLA específicos de CCTV
-- [ ] Página /cctv/capex - Análisis CAPEX/OPEX de activos CCTV
-- [ ] Página /cctv/policy - Póliza de servicio asociada a CCTV
-- [ ] Página /cctv/backup - Respaldo de base de datos CCTV
+- [x] Sidebar: 7 sub-ítems en CCTV (Inventario, Mantenimiento, Calendario, Incidentes y SLA, Capex, Póliza, Respaldo BD)
+- [x] Página /cctv/maintenance - Mantenimiento preventivo/correctivo de equipos CCTV
+- [x] Página /cctv/calendar - Calendario de actividades de mantenimiento CCTV
+- [x] Página /cctv/incidents - Incidentes y SLA específicos de CCTV
+- [x] Página /cctv/capex - Análisis CAPEX/OPEX de activos CCTV
+- [x] Página /cctv/policy - Póliza de servicio asociada a CCTV
+- [x] Página /cctv/backup - Respaldo de base de datos CCTV
+
+## CCTV - Correcciones de Calidad
+- [x] Corregir /cctv/calendar para renderizar nombre del evento (name en lugar de title)
+- [x] Corregir /cctv/incidents para filtrar solo tickets CCTV reales (sin el || !t.category)
+- [x] Corregir /cctv/policy para mostrar solo pólizas CCTV (eliminar || true del filtro)
+- [x] Agregar análisis OPEX a /cctv/capex (costos operativos: mantenimiento, licencias)
+- [x] Reemplazar respaldo simulado en /cctv/backup con exportación real JSON sin mock

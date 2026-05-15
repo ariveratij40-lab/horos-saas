@@ -1,41 +1,37 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
-  Database, Download, CheckCircle2, AlertTriangle, Clock,
-  HardDrive, RefreshCw, Shield, Calendar, FileArchive
+  Database, Download, CheckCircle2, Clock,
+  HardDrive, RefreshCw, Shield, FileArchive, FileJson, FileText
 } from "lucide-react";
 
-// Simulated backup history (in a real system this would come from a backup service)
-const MOCK_BACKUPS = [
-  { id: 1, date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), type: "Automático", size: "2.4 MB", status: "success", tables: 7, records: 156 },
-  { id: 2, date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), type: "Automático", size: "2.3 MB", status: "success", tables: 7, records: 148 },
-  { id: 3, date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), type: "Manual",     size: "2.3 MB", status: "success", tables: 7, records: 148 },
-  { id: 4, date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000), type: "Automático", size: "2.1 MB", status: "success", tables: 7, records: 132 },
-  { id: 5, date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), type: "Automático", size: "2.1 MB", status: "warning", tables: 7, records: 132 },
-  { id: 6, date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), type: "Automático", size: "1.9 MB", status: "success", tables: 7, records: 120 },
-];
-
-const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  success: { label: "Exitoso",   color: "bg-emerald-100 text-emerald-700", icon: CheckCircle2 },
-  warning: { label: "Advertencia", color: "bg-amber-100 text-amber-700",  icon: AlertTriangle },
-  error:   { label: "Error",     color: "bg-red-100 text-red-700",         icon: AlertTriangle },
+type ExportEntry = {
+  id: number;
+  date: Date;
+  type: string;
+  tables: number;
+  records: number;
+  filename: string;
 };
 
 export default function CCTVBackup() {
-  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportHistory, setExportHistory] = useState<ExportEntry[]>([]);
+  const exportDataRef = useRef<Record<string, unknown> | null>(null);
 
-  // Get real counts from each CCTV table
-  const { data: cameras = [] } = trpc.cctv.cameras.list.useQuery(undefined);
-  const { data: idfs = [] } = trpc.cctv.idfs.list.useQuery(undefined);
-  const { data: licenses = [] } = trpc.cctv.licenses.list.useQuery(undefined);
-  const { data: monitors = [] } = trpc.cctv.monitors.list.useQuery(undefined);
-  const { data: servers = [] } = trpc.cctv.servers.list.useQuery(undefined);
-  const { data: switches = [] } = trpc.cctv.switches.list.useQuery(undefined);
-  const { data: ups = [] } = trpc.cctv.ups.list.useQuery(undefined);
+  // Real data from all 7 CCTV tables
+  const { data: cameras = [], isLoading: loadingCameras } = trpc.cctv.cameras.list.useQuery(undefined);
+  const { data: idfs = [], isLoading: loadingIdfs } = trpc.cctv.idfs.list.useQuery(undefined);
+  const { data: licenses = [], isLoading: loadingLicenses } = trpc.cctv.licenses.list.useQuery(undefined);
+  const { data: monitors = [], isLoading: loadingMonitors } = trpc.cctv.monitors.list.useQuery(undefined);
+  const { data: servers = [], isLoading: loadingServers } = trpc.cctv.servers.list.useQuery(undefined);
+  const { data: switches = [], isLoading: loadingSwitches } = trpc.cctv.switches.list.useQuery(undefined);
+  const { data: ups = [], isLoading: loadingUps } = trpc.cctv.ups.list.useQuery(undefined);
+
+  const isLoading = loadingCameras || loadingIdfs || loadingLicenses || loadingMonitors || loadingServers || loadingSwitches || loadingUps;
 
   const tables = [
     { name: "cctv_cameras",  label: "Cámaras",    count: cameras.length,  icon: "📷" },
@@ -48,79 +44,153 @@ export default function CCTVBackup() {
   ];
 
   const totalRecords = tables.reduce((s, t) => s + t.count, 0);
-  const lastBackup = MOCK_BACKUPS[0];
 
-  const handleManualBackup = () => {
-    setIsBackingUp(true);
-    setTimeout(() => {
-      setIsBackingUp(false);
-      toast.success("Respaldo generado exitosamente", {
-        description: `${totalRecords} registros exportados de 7 tablas CCTV`,
-      });
-    }, 2500);
-  };
+  const buildExportPayload = () => ({
+    metadata: {
+      system: "HOROS CCTV",
+      version: "1.0",
+      exportDate: new Date().toISOString(),
+      tables: tables.length,
+      totalRecords,
+      generatedBy: "HOROS SaaS - Respaldo de Datos",
+    },
+    tables: {
+      cameras,
+      idfs,
+      licenses,
+      monitors,
+      servers,
+      switches,
+      ups,
+    },
+  });
 
-  const handleDownload = (backup: typeof MOCK_BACKUPS[0]) => {
-    // Generate a JSON export of current data
-    const exportData = {
-      metadata: {
-        system: "HOROS CCTV",
-        exportDate: new Date().toISOString(),
-        backupId: backup.id,
-        tables: 7,
-        totalRecords,
-      },
-      tables: {
-        cameras: cameras,
-        idfs: idfs,
-        licenses: licenses,
-        monitors: monitors,
-        servers: servers,
-        switches: switches,
-        ups: ups,
-      },
-    };
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+  const triggerDownload = (content: string, filename: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `horos_cctv_backup_${new Date().toISOString().split("T")[0]}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Archivo de respaldo descargado");
   };
+
+  const handleExportJSON = () => {
+    setIsExporting(true);
+    try {
+      const payload = buildExportPayload();
+      const dateStr = new Date().toISOString().split("T")[0];
+      const filename = `horos_cctv_backup_${dateStr}.json`;
+      triggerDownload(JSON.stringify(payload, null, 2), filename, "application/json");
+      const entry: ExportEntry = {
+        id: Date.now(),
+        date: new Date(),
+        type: "JSON",
+        tables: tables.length,
+        records: totalRecords,
+        filename,
+      };
+      setExportHistory(prev => [entry, ...prev.slice(0, 9)]);
+      exportDataRef.current = payload;
+      toast.success("Respaldo JSON generado y descargado", {
+        description: `${totalRecords} registros exportados de ${tables.length} tablas CCTV`,
+      });
+    } catch {
+      toast.error("Error al generar el respaldo");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportCSV = () => {
+    setIsExporting(true);
+    try {
+      const dateStr = new Date().toISOString().split("T")[0];
+      // Export cameras as CSV (main table)
+      if (cameras.length > 0) {
+        const headers = Object.keys(cameras[0] as object).join(",");
+        const rows = cameras.map((c: any) =>
+          Object.values(c).map((v: any) =>
+            typeof v === "string" && v.includes(",") ? `"${v}"` : String(v ?? "")
+          ).join(",")
+        );
+        const csv = [headers, ...rows].join("\n");
+        const filename = `horos_cctv_cameras_${dateStr}.csv`;
+        triggerDownload(csv, filename, "text/csv");
+        const entry: ExportEntry = {
+          id: Date.now(),
+          date: new Date(),
+          type: "CSV (Cámaras)",
+          tables: 1,
+          records: cameras.length,
+          filename,
+        };
+        setExportHistory(prev => [entry, ...prev.slice(0, 9)]);
+        toast.success("CSV de cámaras descargado", { description: `${cameras.length} registros exportados` });
+      } else {
+        toast.info("No hay cámaras registradas para exportar");
+      }
+    } catch {
+      toast.error("Error al generar el CSV");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleReDownload = (entry: ExportEntry) => {
+    if (exportDataRef.current && entry.type === "JSON") {
+      triggerDownload(JSON.stringify(exportDataRef.current, null, 2), entry.filename, "application/json");
+      toast.success("Archivo re-descargado");
+    } else {
+      toast.info("Solo se pueden re-descargar exportaciones de la sesión actual");
+    }
+  };
+
+  const lastExport = exportHistory[0];
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold font-display text-foreground flex items-center gap-2">
             <Database className="w-6 h-6 text-blue-500" />
-            Respaldo de Base de Datos — CCTV
+            Respaldo de Datos — CCTV
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Gestión y descarga de respaldos del inventario CCTV</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Exportación del inventario CCTV en formato JSON o CSV
+          </p>
         </div>
-        <Button
-          onClick={handleManualBackup}
-          disabled={isBackingUp}
-          className="gap-2 gradient-horos text-white"
-        >
-          {isBackingUp ? (
-            <><RefreshCw className="w-4 h-4 animate-spin" /> Generando...</>
-          ) : (
-            <><Database className="w-4 h-4" /> Generar Respaldo</>
-          )}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExportCSV}
+            disabled={isExporting || isLoading}
+            className="gap-2"
+          >
+            <FileText className="w-4 h-4" /> Exportar CSV
+          </Button>
+          <Button
+            onClick={handleExportJSON}
+            disabled={isExporting || isLoading}
+            className="gap-2 gradient-horos text-white"
+          >
+            {isExporting ? (
+              <><RefreshCw className="w-4 h-4 animate-spin" /> Exportando...</>
+            ) : (
+              <><FileJson className="w-4 h-4" /> Exportar JSON</>
+            )}
+          </Button>
+        </div>
       </div>
 
-      {/* Status cards */}
+      {/* Status KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Tablas CCTV", value: "7", icon: HardDrive, color: "text-blue-500", bg: "bg-blue-50" },
-          { label: "Total Registros", value: totalRecords, icon: Database, color: "text-indigo-500", bg: "bg-indigo-50" },
-          { label: "Último Respaldo", value: "Hace 1 día", icon: Clock, color: "text-emerald-500", bg: "bg-emerald-50" },
-          { label: "Estado", value: "Saludable", icon: Shield, color: "text-emerald-500", bg: "bg-emerald-50" },
+          { label: "Tablas CCTV",      value: "7",                                         icon: HardDrive,   color: "text-blue-500",    bg: "bg-blue-50" },
+          { label: "Total Registros",  value: isLoading ? "..." : String(totalRecords),     icon: Database,    color: "text-indigo-500",  bg: "bg-indigo-50" },
+          { label: "Último Respaldo",  value: lastExport ? "Esta sesión" : "Sin respaldos", icon: Clock,       color: "text-emerald-500", bg: "bg-emerald-50" },
+          { label: "Estado",           value: isLoading ? "Cargando" : "Listo",             icon: Shield,      color: "text-emerald-500", bg: "bg-emerald-50" },
         ].map((kpi) => (
           <Card key={kpi.label} className="border-border/50">
             <CardContent className="p-4 flex items-center gap-3">
@@ -141,7 +211,7 @@ export default function CCTVBackup() {
         <Card className="border-border/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <HardDrive className="w-4 h-4" /> Tablas en la Base de Datos
+              <HardDrive className="w-4 h-4" /> Tablas del Módulo CCTV
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -165,7 +235,9 @@ export default function CCTVBackup() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5 text-right font-semibold text-foreground">{t.count}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-foreground">
+                      {isLoading ? <span className="animate-pulse">...</span> : t.count}
+                    </td>
                     <td className="px-4 py-2.5 text-right">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
                         <CheckCircle2 className="w-3 h-3" /> OK
@@ -175,7 +247,9 @@ export default function CCTVBackup() {
                 ))}
                 <tr className="bg-muted/20 font-semibold">
                   <td className="px-4 py-2.5 text-foreground text-sm">Total</td>
-                  <td className="px-4 py-2.5 text-right text-foreground">{totalRecords}</td>
+                  <td className="px-4 py-2.5 text-right text-foreground">
+                    {isLoading ? "..." : totalRecords}
+                  </td>
                   <td />
                 </tr>
               </tbody>
@@ -183,52 +257,74 @@ export default function CCTVBackup() {
           </CardContent>
         </Card>
 
-        {/* Backup history */}
+        {/* Export history (session-based) */}
         <Card className="border-border/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <FileArchive className="w-4 h-4" /> Historial de Respaldos
+              <FileArchive className="w-4 h-4" /> Historial de Exportaciones (Sesión)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/50 bg-muted/30">
-                  <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Fecha</th>
-                  <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Tipo</th>
-                  <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Estado</th>
-                  <th className="text-right px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {MOCK_BACKUPS.map((b) => {
-                  const st = STATUS_MAP[b.status];
-                  const StatusIcon = st.icon;
-                  return (
-                    <tr key={b.id} className="border-b border-border/30 hover:bg-muted/20">
+            {exportHistory.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <FileArchive className="w-8 h-8 mb-2 opacity-30" />
+                <p className="text-sm">Sin exportaciones en esta sesión</p>
+                <p className="text-xs mt-1">Usa los botones de arriba para generar un respaldo</p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/50 bg-muted/30">
+                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Fecha/Hora</th>
+                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Tipo</th>
+                    <th className="text-right px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Registros</th>
+                    <th className="text-right px-4 py-2.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exportHistory.map((entry) => (
+                    <tr key={entry.id} className="border-b border-border/30 hover:bg-muted/20">
                       <td className="px-4 py-2.5">
-                        <div className="text-xs font-medium text-foreground">{b.date.toLocaleDateString("es-MX")}</div>
-                        <div className="text-[10px] text-muted-foreground">{b.size} · {b.records} reg.</div>
+                        <div className="text-xs font-medium text-foreground">
+                          {entry.date.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {entry.date.toLocaleDateString("es-MX")}
+                        </div>
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-muted-foreground">{b.type}</td>
-                      <td className="px-4 py-2.5">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
-                          <StatusIcon className="w-3 h-3" /> {st.label}
-                        </span>
-                      </td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">{entry.type}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-foreground">{entry.records}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <Button variant="ghost" size="sm" onClick={() => handleDownload(b)} className="h-7 text-xs gap-1">
-                          <Download className="w-3.5 h-3.5" /> JSON
+                        <Button
+                          variant="ghost" size="sm"
+                          onClick={() => handleReDownload(entry)}
+                          className="h-7 text-xs gap-1"
+                        >
+                          <Download className="w-3.5 h-3.5" /> Descargar
                         </Button>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Info note */}
+      <Card className="border-blue-200 bg-blue-50/50">
+        <CardContent className="p-4 flex items-start gap-3">
+          <Shield className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-blue-800">Acerca de los respaldos</p>
+            <p className="text-xs text-blue-700 mt-0.5">
+              Los respaldos JSON contienen todos los registros actuales de las 7 tablas del módulo CCTV con sus datos completos.
+              El historial se mantiene durante la sesión activa. Para respaldos automáticos programados, contacta al administrador del sistema.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -31,9 +31,13 @@ export default function CCTVIncidents() {
   const { data: tickets = [] } = trpc.tickets.list.useQuery(undefined);
 
   // Filter only CCTV-related tickets (by category or asset type)
-  const cctvTickets = tickets.filter((t: any) =>
-    t.category === "cctv" || t.assetType === "cctv" || !t.category
-  );
+  // Show all tickets when no CCTV-specific category exists yet (system is new)
+  const hasCctvTickets = tickets.some((t: any) => t.category === "cctv" || t.assetType === "cctv");
+  const cctvTickets = hasCctvTickets
+    ? tickets.filter((t: any) => t.category === "cctv" || t.assetType === "cctv")
+    : tickets; // fallback: show all when no CCTV-tagged tickets exist yet
+
+  const showingAll = !hasCctvTickets && tickets.length > 0;
 
   const filtered = cctvTickets.filter((t: any) => {
     const matchSearch = !search || t.title?.toLowerCase().includes(search.toLowerCase()) || t.ticketNumber?.includes(search);
@@ -66,6 +70,17 @@ export default function CCTVIncidents() {
         </h1>
         <p className="text-sm text-muted-foreground mt-1">Monitoreo de incidentes y cumplimiento de SLA del sistema CCTV</p>
       </div>
+
+      {/* Banner: showing all tickets as fallback */}
+      {showingAll && (
+        <div className="flex items-start gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50/60 text-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+          <p className="text-amber-800">
+            <span className="font-semibold">Mostrando todos los tickets del sistema</span> — aún no existen tickets etiquetados como CCTV.
+            Al crear tickets desde el módulo CCTV, aparecerán aquí filtrados automáticamente.
+          </p>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

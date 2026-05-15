@@ -17,12 +17,14 @@ export default function CCTVPolicy() {
   const { data: policies = [] } = trpc.policies.list.useQuery();
 
   // Filter policies that cover CCTV systems
-  const cctvPolicies = policies.filter((p: any) =>
+  // If no CCTV-specific policies exist, show all policies as context
+  const strictCctvPolicies = policies.filter((p: any) =>
     p.name?.toLowerCase().includes("cctv") ||
     p.description?.toLowerCase().includes("cctv") ||
-    p.systemType === "cctv" ||
-    true // Show all if no specific filter
+    p.systemType === "cctv"
   );
+  const cctvPolicies = strictCctvPolicies.length > 0 ? strictCctvPolicies : policies;
+  const showingAll = strictCctvPolicies.length === 0 && policies.length > 0;
 
   const stats = {
     total: cctvPolicies.length,
@@ -50,6 +52,17 @@ export default function CCTVPolicy() {
           <ExternalLink className="w-4 h-4" /> Ver todas las pólizas
         </Button>
       </div>
+
+      {/* Banner: showing all policies as fallback */}
+      {showingAll && (
+        <div className="flex items-start gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50/60 text-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+          <p className="text-amber-800">
+            <span className="font-semibold">Mostrando todas las pólizas del sistema</span> — aún no existen pólizas etiquetadas como CCTV.
+            Al crear una póliza con el tipo de sistema &quot;CCTV&quot; o con &quot;CCTV&quot; en el nombre, aparecerá aquí filtrada automáticamente.
+          </p>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

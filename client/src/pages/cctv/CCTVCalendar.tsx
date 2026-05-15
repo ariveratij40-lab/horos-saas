@@ -146,9 +146,9 @@ export default function CCTVCalendar() {
                               "text-[10px] font-medium px-1 py-0.5 rounded truncate text-white",
                               TYPE_COLOR[ev.type] ?? "bg-gray-400"
                             )}
-                            title={ev.title}
+                            title={ev.name}
                           >
-                            {ev.title}
+                            {ev.name}
                           </div>
                         ))}
                         {events.length > 3 && (
