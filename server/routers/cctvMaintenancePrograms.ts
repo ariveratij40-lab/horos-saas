@@ -1,0 +1,530 @@
+import { z } from "zod";
+import { protectedProcedure, router } from "../_core/trpc";
+import { getDb } from "../db";
+import { and, eq, desc, sql } from "drizzle-orm";
+import {
+  cctvMaintenancePrograms,
+  cctvMaintenanceProgramItems,
+  cctvMaintenanceLog,
+  policies,
+  policyCoverages,
+  policyServices,
+  cctvCameras,
+  cctvIdfs,
+  cctvMonitors,
+  cctvServers,
+  cctvSwitches,
+  cctvUps,
+} from "../../drizzle/schema";
+import { storagePut } from "../storage";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function toDate(v: string | Date | null | undefined): Date | null {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Calcular fechas de visitas según frecuencia
+function generateVisitDates(
+  startDate: Date,
+  endDate: Date,
+  totalVisits: number,
+  frequency: string,
+): Date[] {
+  const dates: Date[] = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (frequency === "custom") {
+    // Distribuir uniformemente en el rango
+    const totalMs = end.getTime() - start.getTime();
+    const interval = totalMs / (totalVisits - 1 || 1);
+    for (let i = 0; i < totalVisits; i++) {
+      const d = new Date(start.getTime() + interval * i);
+      if (d <= end) dates.push(d);
+    }
+    return dates;
+  }
+
+  const monthsMap: Record<string, number> = {
+    monthly: 1,
+    bimonthly: 2,
+    quarterly: 3,
+    biannual: 6,
+    annual: 12,
+  };
+  const monthsInterval = monthsMap[frequency] ?? 3;
+  let current = new Date(start);
+  while (current <= end && dates.length < totalVisits) {
+    dates.push(new Date(current));
+    current = new Date(current);
+    current.setMonth(current.getMonth() + monthsInterval);
+  }
+  return dates.slice(0, totalVisits);
+}
+
+// Obtener nombre de tabla para lookup de equipo
+async function getItemName(
+  db: any,
+  category: string,
+  itemId: number,
+  tenantId: number,
+): Promise<{ name: string; location: string }> {
+  try {
+    const tableMap: Record<string, any> = {
+      cameras: cctvCameras,
+      idfs: cctvIdfs,
+      monitors: cctvMonitors,
+      servers: cctvServers,
+      switches: cctvSwitches,
+      ups: cctvUps,
+    };
+    const table = tableMap[category];
+    if (!table) return { name: `${category} #${itemId}`, location: "" };
+    const [row] = await db
+      .select()
+      .from(table)
+      .where(and(eq(table.id, itemId), eq(table.tenantId, tenantId)))
+      .limit(1);
+    if (!row) return { name: `${category} #${itemId}`, location: "" };
+    const name = [row.marca, row.modelo].filter(Boolean).join(" ") || `${category} #${itemId}`;
+    const location = row.ubicacion ?? row.zona ?? row.area ?? "";
+    return { name, location };
+  } catch {
+    return { name: `${category} #${itemId}`, location: "" };
+  }
+}
+
+// ─── Router ───────────────────────────────────────────────────────────────────
+export const cctvMaintenanceProgramsRouter = router({
+
+  // ── LIST PROGRAMS ──────────────────────────────────────────────────────────
+  list: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const tenantId = ctx.user.tenantId ?? 1;
+    const programs = await db
+      .select()
+      .from(cctvMaintenancePrograms)
+      .where(eq(cctvMaintenancePrograms.tenantId, tenantId))
+      .orderBy(desc(cctvMaintenancePrograms.createdAt));
+
+    // For each program, attach items and policy name
+    const result = await Promise.all(
+      programs.map(async (prog) => {
+        const items = await db
+          .select()
+          .from(cctvMaintenanceProgramItems)
+          .where(
+            and(
+              eq(cctvMaintenanceProgramItems.programId, prog.id),
+              eq(cctvMaintenanceProgramItems.tenantId, tenantId),
+            ),
+          );
+        let policyName: string | null = null;
+        let policyNumber: string | null = null;
+        if (prog.policyId) {
+          const [pol] = await db
+            .select({ name: policies.name, policyNumber: policies.policyNumber })
+            .from(policies)
+            .where(and(eq(policies.id, prog.policyId), eq(policies.tenantId, tenantId)))
+            .limit(1);
+          policyName = pol?.name ?? null;
+          policyNumber = pol?.policyNumber ?? null;
+        }
+        // Count completed visits from log
+        const [logCount] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(cctvMaintenanceLog)
+          .where(
+            and(
+              eq(cctvMaintenanceLog.programId, prog.id),
+              eq(cctvMaintenanceLog.tenantId, tenantId),
+              eq(cctvMaintenanceLog.status, "completed"),
+            ),
+          );
+        return {
+          ...prog,
+          items,
+          policyName,
+          policyNumber,
+          completedVisits: Number(logCount?.count ?? 0),
+          remainingVisits: prog.totalVisits - Number(logCount?.count ?? 0),
+        };
+      }),
+    );
+    return result;
+  }),
+
+  // ── GET PROGRAM BY ID ──────────────────────────────────────────────────────
+  getById: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const tenantId = ctx.user.tenantId ?? 1;
+      const [prog] = await db
+        .select()
+        .from(cctvMaintenancePrograms)
+        .where(and(eq(cctvMaintenancePrograms.id, input.id), eq(cctvMaintenancePrograms.tenantId, tenantId)))
+        .limit(1);
+      if (!prog) return null;
+
+      const items = await db
+        .select()
+        .from(cctvMaintenanceProgramItems)
+        .where(and(eq(cctvMaintenanceProgramItems.programId, prog.id), eq(cctvMaintenanceProgramItems.tenantId, tenantId)));
+
+      const logs = await db
+        .select()
+        .from(cctvMaintenanceLog)
+        .where(and(eq(cctvMaintenanceLog.programId, prog.id), eq(cctvMaintenanceLog.tenantId, tenantId)))
+        .orderBy(desc(cctvMaintenanceLog.scheduledDate));
+
+      let policy = null;
+      if (prog.policyId) {
+        const [pol] = await db
+          .select()
+          .from(policies)
+          .where(and(eq(policies.id, prog.policyId), eq(policies.tenantId, tenantId)))
+          .limit(1);
+        if (pol) {
+          const coverages = await db
+            .select()
+            .from(policyCoverages)
+            .where(and(eq(policyCoverages.policyId, pol.id), eq(policyCoverages.tenantId, tenantId)));
+          const services = await db
+            .select()
+            .from(policyServices)
+            .where(and(eq(policyServices.policyId, pol.id), eq(policyServices.tenantId, tenantId)));
+          policy = { ...pol, coverages, services };
+        }
+      }
+
+      return { ...prog, items, logs, policy };
+    }),
+
+  // ── CREATE PROGRAM ─────────────────────────────────────────────────────────
+  create: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        policyId: z.number().optional(),
+        totalVisits: z.number().int().min(1),
+        frequency: z.enum(["monthly", "bimonthly", "quarterly", "biannual", "annual", "custom"]),
+        startDate: z.string(),
+        endDate: z.string(),
+        technician: z.string().optional(),
+        // Equipment items to include
+        items: z.array(
+          z.object({
+            category: z.enum(["cameras", "idfs", "licenses", "monitors", "servers", "switches", "ups"]),
+            itemId: z.number(),
+            itemName: z.string().optional(),
+            itemLocation: z.string().optional(),
+          }),
+        ),
+        // Whether to auto-generate scheduled log entries
+        generateSchedule: z.boolean().default(true),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const tenantId = ctx.user.tenantId ?? 1;
+
+      // Create program
+      const [progResult] = await db.insert(cctvMaintenancePrograms).values({
+        tenantId,
+        policyId: input.policyId ?? null,
+        name: input.name,
+        description: input.description ?? null,
+        totalVisits: input.totalVisits,
+        completedVisits: 0,
+        frequency: input.frequency,
+        startDate: toDate(input.startDate) as Date,
+        endDate: toDate(input.endDate) as Date,
+        technician: input.technician ?? null,
+        status: "active",
+        createdByUserId: ctx.user.id,
+        createdByUserName: ctx.user.name ?? ctx.user.email ?? null,
+      });
+      const programId = (progResult as any).insertId as number;
+
+      // Insert items
+      if (input.items.length > 0) {
+        await db.insert(cctvMaintenanceProgramItems).values(
+          input.items.map((item) => ({
+            programId,
+            tenantId,
+            category: item.category,
+            itemId: item.itemId,
+            itemName: item.itemName ?? null,
+            itemLocation: item.itemLocation ?? null,
+          })),
+        );
+      }
+
+      // Auto-generate scheduled maintenance log entries
+      if (input.generateSchedule && input.items.length > 0) {
+        const visitDates = generateVisitDates(
+          toDate(input.startDate) as Date,
+          toDate(input.endDate) as Date,
+          input.totalVisits,
+          input.frequency,
+        );
+
+        const logEntries: any[] = [];
+        for (const visitDate of visitDates) {
+          for (const item of input.items) {
+            const itemInfo = item.itemName
+              ? { name: item.itemName, location: item.itemLocation ?? "" }
+              : await getItemName(db, item.category, item.itemId, tenantId);
+            logEntries.push({
+              tenantId,
+              category: item.category,
+              itemId: item.itemId,
+              itemName: itemInfo.name,
+              type: "preventive" as const,
+              status: "scheduled" as const,
+              title: `Mantenimiento preventivo — ${itemInfo.name}`,
+              description: input.description ?? null,
+              technician: input.technician ?? null,
+              scheduledDate: visitDate,
+              policyId: input.policyId ?? null,
+              programId,
+              createdByUserId: ctx.user.id,
+              createdByUserName: ctx.user.name ?? ctx.user.email ?? null,
+            });
+          }
+        }
+        if (logEntries.length > 0) {
+          // Insert in batches of 50
+          for (let i = 0; i < logEntries.length; i += 50) {
+            await db.insert(cctvMaintenanceLog).values(logEntries.slice(i, i + 50));
+          }
+        }
+      }
+
+      return { success: true, id: programId };
+    }),
+
+  // ── UPDATE PROGRAM ─────────────────────────────────────────────────────────
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        technician: z.string().optional(),
+        status: z.enum(["active", "completed", "cancelled"]).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const tenantId = ctx.user.tenantId ?? 1;
+      const { id, ...rest } = input;
+      const updateData: Record<string, unknown> = {};
+      if (rest.name !== undefined) updateData.name = rest.name;
+      if (rest.description !== undefined) updateData.description = rest.description;
+      if (rest.technician !== undefined) updateData.technician = rest.technician;
+      if (rest.status !== undefined) updateData.status = rest.status;
+      await db
+        .update(cctvMaintenancePrograms)
+        .set(updateData)
+        .where(and(eq(cctvMaintenancePrograms.id, id), eq(cctvMaintenancePrograms.tenantId, tenantId)));
+      return { success: true };
+    }),
+
+  // ── DELETE PROGRAM ─────────────────────────────────────────────────────────
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const tenantId = ctx.user.tenantId ?? 1;
+      await db
+        .delete(cctvMaintenanceProgramItems)
+        .where(and(eq(cctvMaintenanceProgramItems.programId, input.id), eq(cctvMaintenanceProgramItems.tenantId, tenantId)));
+      await db
+        .delete(cctvMaintenancePrograms)
+        .where(and(eq(cctvMaintenancePrograms.id, input.id), eq(cctvMaintenancePrograms.tenantId, tenantId)));
+      return { success: true };
+    }),
+
+  // ── GET POLICY COVERAGE SUMMARY ────────────────────────────────────────────
+  // Returns how many maintenances are covered by a policy and how many have been used
+  getPolicyCoverage: protectedProcedure
+    .input(z.object({ policyId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const tenantId = ctx.user.tenantId ?? 1;
+
+      const [pol] = await db
+        .select()
+        .from(policies)
+        .where(and(eq(policies.id, input.policyId), eq(policies.tenantId, tenantId)))
+        .limit(1);
+      if (!pol) return null;
+
+      const coverages = await db
+        .select()
+        .from(policyCoverages)
+        .where(and(eq(policyCoverages.policyId, input.policyId), eq(policyCoverages.tenantId, tenantId)));
+
+      const services = await db
+        .select()
+        .from(policyServices)
+        .where(and(eq(policyServices.policyId, input.policyId), eq(policyServices.tenantId, tenantId)));
+
+      // Count completed maintenances linked to this policy
+      const [usedCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(cctvMaintenanceLog)
+        .where(
+          and(
+            eq(cctvMaintenanceLog.policyId, input.policyId),
+            eq(cctvMaintenanceLog.tenantId, tenantId),
+            eq(cctvMaintenanceLog.status, "completed"),
+          ),
+        );
+
+      // Count programs linked to this policy
+      const programs = await db
+        .select()
+        .from(cctvMaintenancePrograms)
+        .where(and(eq(cctvMaintenancePrograms.policyId, input.policyId), eq(cctvMaintenancePrograms.tenantId, tenantId)));
+
+      const preventiveCoverage = coverages.find((c) => c.coverageType === "preventive");
+      const totalCovered = preventiveCoverage?.maxIncidents ?? null;
+      const isUnlimited = preventiveCoverage?.isUnlimited ?? false;
+      const usedMaintenances = Number(usedCount?.count ?? 0);
+
+      return {
+        policy: pol,
+        coverages,
+        services,
+        programs,
+        totalCovered,
+        isUnlimited,
+        usedMaintenances,
+        remainingMaintenances: isUnlimited ? null : (totalCovered != null ? totalCovered - usedMaintenances : null),
+      };
+    }),
+
+  // ── UPLOAD PHOTO (before/after) ────────────────────────────────────────────
+  uploadPhoto: protectedProcedure
+    .input(
+      z.object({
+        logId: z.number(),
+        photoType: z.enum(["before", "after"]),
+        imageBase64: z.string(),
+        mimeType: z.string().default("image/jpeg"),
+        fileName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const tenantId = ctx.user.tenantId ?? 1;
+
+      const [log] = await db
+        .select()
+        .from(cctvMaintenanceLog)
+        .where(and(eq(cctvMaintenanceLog.id, input.logId), eq(cctvMaintenanceLog.tenantId, tenantId)))
+        .limit(1);
+      if (!log) throw new Error("Registro no encontrado");
+
+      const ext = input.mimeType.split("/")[1] ?? "jpg";
+      const fileName = input.fileName ?? `maintenance-${input.photoType}-${input.logId}.${ext}`;
+      const key = `maintenance/${tenantId}/${input.photoType}/${Date.now()}-${fileName}`;
+      const buffer = Buffer.from(input.imageBase64, "base64");
+      const { url } = await storagePut(key, buffer, input.mimeType);
+
+      const updateData =
+        input.photoType === "before"
+          ? { beforePhotoUrl: url, beforePhotoKey: key }
+          : { afterPhotoUrl: url, afterPhotoKey: key };
+
+      await db
+        .update(cctvMaintenanceLog)
+        .set(updateData)
+        .where(and(eq(cctvMaintenanceLog.id, input.logId), eq(cctvMaintenanceLog.tenantId, tenantId)));
+
+      return { success: true, url, key };
+    }),
+
+  // ── SAVE CLIENT SIGNATURE ──────────────────────────────────────────────────
+  saveSignature: protectedProcedure
+    .input(
+      z.object({
+        logId: z.number(),
+        signatureBase64: z.string(), // PNG data URL or base64
+        clientName: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const tenantId = ctx.user.tenantId ?? 1;
+
+      const [log] = await db
+        .select()
+        .from(cctvMaintenanceLog)
+        .where(and(eq(cctvMaintenanceLog.id, input.logId), eq(cctvMaintenanceLog.tenantId, tenantId)))
+        .limit(1);
+      if (!log) throw new Error("Registro no encontrado");
+
+      // Strip data URL prefix if present
+      const base64Data = input.signatureBase64.replace(/^data:image\/\w+;base64,/, "");
+      const key = `maintenance/${tenantId}/signatures/${Date.now()}-sig-${input.logId}.png`;
+      const buffer = Buffer.from(base64Data, "base64");
+      const { url } = await storagePut(key, buffer, "image/png");
+
+      await db
+        .update(cctvMaintenanceLog)
+        .set({ clientSignatureUrl: url, clientSignatureKey: key, clientName: input.clientName, reportGenerated: true })
+        .where(and(eq(cctvMaintenanceLog.id, input.logId), eq(cctvMaintenanceLog.tenantId, tenantId)));
+
+      // Update completedVisits in program if linked
+      if (log.programId) {
+        await db
+          .update(cctvMaintenancePrograms)
+          .set({ completedVisits: sql`completedVisits + 1` })
+          .where(and(eq(cctvMaintenancePrograms.id, log.programId), eq(cctvMaintenancePrograms.tenantId, tenantId)));
+      }
+
+      return { success: true, url };
+    }),
+
+  // ── GET CALENDAR EVENTS (for CCTVCalendar) ─────────────────────────────────
+  getCalendarEvents: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const tenantId = ctx.user.tenantId ?? 1;
+    const logs = await db
+      .select()
+      .from(cctvMaintenanceLog)
+      .where(eq(cctvMaintenanceLog.tenantId, tenantId))
+      .orderBy(desc(cctvMaintenanceLog.scheduledDate));
+    return logs.map((l) => ({
+      id: l.id,
+      title: l.title,
+      date: l.scheduledDate,
+      executedDate: l.executedDate,
+      status: l.status,
+      type: l.type,
+      category: l.category,
+      itemName: l.itemName,
+      technician: l.technician,
+      programId: l.programId,
+      policyId: l.policyId,
+      reportGenerated: l.reportGenerated,
+    }));
+  }),
+});

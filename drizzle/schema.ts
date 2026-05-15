@@ -777,6 +777,18 @@ export const cctvMaintenanceLog = mysqlTable("cctv_maintenance_log", {
   cost: decimal("cost", { precision: 12, scale: 2 }),
   nextMaintenanceDate: date("nextMaintenanceDate"),
   attachmentUrl: text("attachmentUrl"),
+  // Fotos antes/después y firma del cliente
+  beforePhotoUrl: text("beforePhotoUrl"),
+  beforePhotoKey: varchar("beforePhotoKey", { length: 500 }),
+  afterPhotoUrl: text("afterPhotoUrl"),
+  afterPhotoKey: varchar("afterPhotoKey", { length: 500 }),
+  clientSignatureUrl: text("clientSignatureUrl"),
+  clientSignatureKey: varchar("clientSignatureKey", { length: 500 }),
+  clientName: varchar("clientName", { length: 255 }),   // Nombre del firmante
+  reportGenerated: boolean("reportGenerated").default(false),
+  // Vinculación a póliza y programa
+  policyId: int("policyId"),
+  programId: int("programId"),
   createdByUserId: int("createdByUserId"),
   createdByUserName: varchar("createdByUserName", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -784,3 +796,42 @@ export const cctvMaintenanceLog = mysqlTable("cctv_maintenance_log", {
 });
 export type CctvMaintenanceLog = typeof cctvMaintenanceLog.$inferSelect;
 export type InsertCctvMaintenanceLog = typeof cctvMaintenanceLog.$inferInsert;
+
+// ─── CCTV Maintenance Programs ────────────────────────────────────────────────
+// Programa de mantenimiento generado a partir de una póliza
+export const cctvMaintenancePrograms = mysqlTable("cctv_maintenance_programs", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  policyId: int("policyId"),                     // Póliza vinculada (opcional)
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  // Cobertura de la póliza
+  totalVisits: int("totalVisits").notNull(),      // Total de visitas cubiertas por la póliza
+  completedVisits: int("completedVisits").default(0).notNull(),
+  frequency: mysqlEnum("frequency", ["monthly", "bimonthly", "quarterly", "biannual", "annual", "custom"]).default("quarterly").notNull(),
+  startDate: date("startDate").notNull(),
+  endDate: date("endDate").notNull(),
+  technician: varchar("technician", { length: 255 }),
+  status: mysqlEnum("status", ["active", "completed", "cancelled"]).default("active").notNull(),
+  createdByUserId: int("createdByUserId"),
+  createdByUserName: varchar("createdByUserName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CctvMaintenanceProgram = typeof cctvMaintenancePrograms.$inferSelect;
+export type InsertCctvMaintenanceProgram = typeof cctvMaintenancePrograms.$inferInsert;
+
+// ─── CCTV Maintenance Program Items ──────────────────────────────────────────
+// Equipos incluidos en un programa de mantenimiento
+export const cctvMaintenanceProgramItems = mysqlTable("cctv_maintenance_program_items", {
+  id: int("id").autoincrement().primaryKey(),
+  programId: int("programId").notNull(),
+  tenantId: int("tenantId").notNull(),
+  category: mysqlEnum("category", ["cameras", "idfs", "licenses", "monitors", "servers", "switches", "ups"]).notNull(),
+  itemId: int("itemId").notNull(),
+  itemName: varchar("itemName", { length: 255 }),
+  itemLocation: varchar("itemLocation", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type CctvMaintenanceProgramItem = typeof cctvMaintenanceProgramItems.$inferSelect;
+export type InsertCctvMaintenanceProgramItem = typeof cctvMaintenanceProgramItems.$inferInsert;

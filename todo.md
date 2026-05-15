@@ -313,3 +313,21 @@
 - [x] Frontend: mostrar imagen de evidencia en el panel expandido de la lista de incidentes
 - [x] Frontend: enlace para ver imagen en tamaño completo al hacer clic
 - [x] Backend: createTicket en db.ts retorna el ID del ticket insertado (insertId)
+
+## Mantenimiento CCTV - Programas, Pólizas, Fotos y Reportes
+- [x] Schema BD: nuevas tablas cctv_maintenance_programs y cctv_maintenance_program_items
+- [x] Schema BD: campos beforePhotoUrl/Key, afterPhotoUrl/Key, clientSignatureUrl/Key, clientName, reportGenerated, policyId, programId en cctv_maintenance_log
+- [x] Migración SQL 0014 aplicada
+- [x] Backend: router cctvMaintenanceProgramsRouter con endpoints list, getById, create, update, delete, getPolicyCoverage, uploadPhoto, saveSignature, getCalendarEvents
+- [x] Backend: create genera automáticamente visitas programadas en cctv_maintenance_log distribuidas por frecuencia
+- [x] Backend: getPolicyCoverage calcula mantenimientos cubiertos, usados y restantes de la póliza
+- [x] Frontend: CCTVMaintenance.tsx rediseñado con tabs Programas / Visitas Programadas
+- [x] Frontend: barra de cobertura de póliza vinculada (usado/total/restante)
+- [x] Frontend: diálogo de nuevo programa con búsqueda de equipos, frecuencia, fechas, técnico
+- [x] Frontend: tabla de visitas programadas con estado, fecha, técnico y botón de reporte
+- [x] Frontend: CCTVCalendar.tsx actualizado para mostrar visitas de programas (getCalendarEvents)
+- [x] Frontend: panel lateral en calendario con detalle de visitas del día seleccionado
+- [x] Frontend: componente MaintenanceReportDialog con 4 tabs (Info, Fotos, Firma, Reporte)
+- [x] Frontend: subida de fotos antes/después con preview
+- [x] Frontend: canvas de firma digital del cliente
+- [x] Frontend: generación de reporte HTML imprimible/PDF con fotos, firma y observaciones

@@ -2,25 +2,39 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { CalendarDays, ChevronLeft, ChevronRight, Wrench, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Wrench, CheckCircle2, Clock, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
+import MaintenanceReportDialog from "@/components/MaintenanceReportDialog";
 
 const DAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
+const STATUS_COLOR: Record<string, string> = {
+  scheduled:   "bg-blue-500",
+  in_progress: "bg-amber-500",
+  completed:   "bg-emerald-500",
+  cancelled:   "bg-gray-400",
+};
+
 const TYPE_COLOR: Record<string, string> = {
-  preventive: "bg-blue-500",
-  corrective: "bg-red-500",
-  inspection: "bg-amber-500",
+  preventive:  "bg-blue-500",
+  corrective:  "bg-red-500",
+  inspection:  "bg-amber-500",
+  predictive:  "bg-purple-500",
+  replacement: "bg-orange-500",
+  upgrade:     "bg-indigo-500",
+  other:       "bg-gray-500",
 };
 
 export default function CCTVCalendar() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [reportLogId, setReportLogId] = useState<number | null>(null);
 
-  const { data: plans = [] } = trpc.maintenance.listPlans.useQuery();
+  // Use the new calendar events endpoint that includes program-linked visits
+  const { data: events = [], refetch } = trpc.cctvPrograms.getCalendarEvents.useQuery();
 
   // Build calendar grid
   const firstDay = new Date(year, month, 1).getDay();
@@ -30,15 +44,16 @@ export default function CCTVCalendar() {
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
 
-  // Group events by day
+  // Group events by day (use scheduledDate = date field)
   const eventsByDay: Record<number, any[]> = {};
-  plans.forEach((p: any) => {
-    if (!p.startDate) return;
-    const d = new Date(p.startDate);
+  events.forEach((ev: any) => {
+    const dateStr = ev.date;
+    if (!dateStr) return;
+    const d = new Date(dateStr);
     if (d.getFullYear() === year && d.getMonth() === month) {
       const day = d.getDate();
       if (!eventsByDay[day]) eventsByDay[day] = [];
-      eventsByDay[day].push(p);
+      eventsByDay[day].push(ev);
     }
   });
 
@@ -51,9 +66,12 @@ export default function CCTVCalendar() {
     else setMonth(m => m + 1);
   };
 
-  const totalEvents = plans.length;
+  const totalEvents = events.length;
   const thisMonthEvents = Object.values(eventsByDay).flat().length;
   const completedThisMonth = Object.values(eventsByDay).flat().filter((e: any) => e.status === "completed").length;
+  const pendingThisMonth = Object.values(eventsByDay).flat().filter((e: any) => e.status === "scheduled").length;
+
+  const selectedDayEvents = selectedDay ? (eventsByDay[selectedDay] ?? []) : [];
 
   return (
     <div className="space-y-6">
@@ -64,16 +82,17 @@ export default function CCTVCalendar() {
             <CalendarDays className="w-6 h-6 text-blue-500" />
             Calendario CCTV
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Programación de actividades de mantenimiento del sistema CCTV</p>
+          <p className="text-sm text-muted-foreground mt-1">Programación de visitas de mantenimiento del sistema CCTV</p>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total programadas", value: totalEvents, icon: Wrench, color: "text-blue-500", bg: "bg-blue-50" },
-          { label: "Este mes", value: thisMonthEvents, icon: CalendarDays, color: "text-amber-500", bg: "bg-amber-50" },
-          { label: "Completadas este mes", value: completedThisMonth, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-50" },
+          { label: "Total visitas", value: totalEvents, icon: Wrench, color: "text-blue-500", bg: "bg-blue-50" },
+          { label: "Este mes", value: thisMonthEvents, icon: CalendarDays, color: "text-indigo-500", bg: "bg-indigo-50" },
+          { label: "Pendientes", value: pendingThisMonth, icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
+          { label: "Completadas", value: completedThisMonth, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-50" },
         ].map((s) => (
           <Card key={s.label} className="border-border/50">
             <CardContent className="p-4 flex items-center gap-3">
@@ -89,95 +108,179 @@ export default function CCTVCalendar() {
         ))}
       </div>
 
-      {/* Calendar */}
-      <Card className="border-border/50">
-        <CardHeader className="pb-3 border-b border-border/50">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold">
-              {MONTHS[month]} {year}
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" className="w-8 h-8" onClick={prevMonth}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => { setMonth(today.getMonth()); setYear(today.getFullYear()); }}>
-                Hoy
-              </Button>
-              <Button variant="outline" size="icon" className="w-8 h-8" onClick={nextMonth}>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-4">
-          {/* Day headers */}
-          <div className="grid grid-cols-7 mb-2">
-            {DAYS.map((d) => (
-              <div key={d} className="text-center text-xs font-semibold text-muted-foreground py-2">{d}</div>
-            ))}
-          </div>
-          {/* Calendar cells */}
-          <div className="grid grid-cols-7 gap-1">
-            {cells.map((day, idx) => {
-              const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-              const events = day ? (eventsByDay[day] ?? []) : [];
-              return (
-                <div
-                  key={idx}
-                  className={cn(
-                    "min-h-[80px] rounded-lg p-1.5 border transition-colors",
-                    day ? "border-border/30 hover:border-primary/30 hover:bg-muted/20 cursor-pointer" : "border-transparent",
-                    isToday ? "border-primary/50 bg-primary/5" : ""
-                  )}
-                >
-                  {day && (
-                    <>
-                      <span className={cn(
-                        "text-xs font-semibold block text-right mb-1",
-                        isToday ? "text-primary" : "text-muted-foreground"
-                      )}>
-                        {day}
-                      </span>
-                      <div className="space-y-0.5">
-                        {events.slice(0, 3).map((ev: any, i: number) => (
-                          <div
-                            key={i}
-                            className={cn(
-                              "text-[10px] font-medium px-1 py-0.5 rounded truncate text-white",
-                              TYPE_COLOR[ev.type] ?? "bg-gray-400"
-                            )}
-                            title={ev.name}
-                          >
-                            {ev.name}
-                          </div>
-                        ))}
-                        {events.length > 3 && (
-                          <div className="text-[10px] text-muted-foreground pl-1">+{events.length - 3} más</div>
-                        )}
-                      </div>
-                    </>
-                  )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Calendar */}
+        <div className="lg:col-span-2">
+          <Card className="border-border/50">
+            <CardHeader className="pb-3 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold">
+                  {MONTHS[month]} {year}
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="icon" className="w-8 h-8" onClick={prevMonth}>
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => { setMonth(today.getMonth()); setYear(today.getFullYear()); }}>
+                    Hoy
+                  </Button>
+                  <Button variant="outline" size="icon" className="w-8 h-8" onClick={nextMonth}>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Legend */}
-          <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border/30">
-            <span className="text-xs text-muted-foreground font-medium">Leyenda:</span>
-            {[
-              { color: "bg-blue-500", label: "Preventivo" },
-              { color: "bg-red-500", label: "Correctivo" },
-              { color: "bg-amber-500", label: "Inspección" },
-            ].map((l) => (
-              <div key={l.label} className="flex items-center gap-1.5">
-                <div className={`w-3 h-3 rounded ${l.color}`} />
-                <span className="text-xs text-muted-foreground">{l.label}</span>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </CardHeader>
+            <CardContent className="p-4">
+              {/* Day headers */}
+              <div className="grid grid-cols-7 mb-2">
+                {DAYS.map((d) => (
+                  <div key={d} className="text-center text-xs font-semibold text-muted-foreground py-2">{d}</div>
+                ))}
+              </div>
+              {/* Calendar cells */}
+              <div className="grid grid-cols-7 gap-1">
+                {cells.map((day, idx) => {
+                  const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+                  const isSelected = day === selectedDay;
+                  const dayEvents = day ? (eventsByDay[day] ?? []) : [];
+                  const hasCompleted = dayEvents.some((e: any) => e.status === "completed");
+                  const hasPending = dayEvents.some((e: any) => e.status === "scheduled");
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => day && setSelectedDay(day === selectedDay ? null : day)}
+                      className={cn(
+                        "min-h-[80px] rounded-lg p-1.5 border transition-colors",
+                        day ? "cursor-pointer" : "border-transparent",
+                        isToday ? "border-primary/50 bg-primary/5" : "border-border/30",
+                        isSelected ? "border-primary bg-primary/10 ring-1 ring-primary/30" : day ? "hover:border-primary/30 hover:bg-muted/20" : "",
+                      )}
+                    >
+                      {day && (
+                        <>
+                          <span className={cn(
+                            "text-xs font-semibold block text-right mb-1",
+                            isToday ? "text-primary" : "text-muted-foreground"
+                          )}>
+                            {day}
+                          </span>
+                          <div className="space-y-0.5">
+                            {dayEvents.slice(0, 2).map((ev: any, i: number) => (
+                              <div
+                                key={i}
+                                className={cn(
+                                  "text-[10px] font-medium px-1 py-0.5 rounded truncate text-white",
+                                  STATUS_COLOR[ev.status] ?? TYPE_COLOR[ev.type] ?? "bg-gray-400"
+                                )}
+                                title={ev.title}
+                              >
+                                {ev.itemName ?? ev.title}
+                              </div>
+                            ))}
+                            {dayEvents.length > 2 && (
+                              <div className="text-[10px] text-muted-foreground pl-1">+{dayEvents.length - 2} más</div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center flex-wrap gap-4 mt-4 pt-4 border-t border-border/30">
+                <span className="text-xs text-muted-foreground font-medium">Estado:</span>
+                {[
+                  { color: "bg-blue-500", label: "Programado" },
+                  { color: "bg-amber-500", label: "En progreso" },
+                  { color: "bg-emerald-500", label: "Completado" },
+                  { color: "bg-gray-400", label: "Cancelado" },
+                ].map((l) => (
+                  <div key={l.label} className="flex items-center gap-1.5">
+                    <div className={`w-3 h-3 rounded ${l.color}`} />
+                    <span className="text-xs text-muted-foreground">{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Day detail panel */}
+        <div>
+          <Card className="border-border/50 h-full">
+            <CardHeader className="pb-3 border-b border-border/50">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                {selectedDay
+                  ? `${selectedDay} de ${MONTHS[month]} ${year}`
+                  : "Selecciona un día"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3">
+              {!selectedDay ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Haz clic en un día del calendario para ver las visitas programadas
+                </p>
+              ) : selectedDayEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Sin visitas para este día
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {selectedDayEvents.map((ev: any) => {
+                    const statusColor = STATUS_COLOR[ev.status] ?? "bg-gray-400";
+                    return (
+                      <div key={ev.id} className="p-3 rounded-lg border border-border/50 bg-muted/20 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">{ev.title}</p>
+                            {ev.itemName && <p className="text-xs text-muted-foreground">{ev.itemName}</p>}
+                          </div>
+                          <span className={cn("w-2 h-2 rounded-full mt-1.5 flex-shrink-0", statusColor)} />
+                        </div>
+                        {ev.technician && (
+                          <p className="text-xs text-muted-foreground">Técnico: {ev.technician}</p>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className={cn(
+                            "text-xs px-2 py-0.5 rounded-full font-medium",
+                            ev.status === "completed" ? "bg-emerald-100 text-emerald-700" :
+                            ev.status === "in_progress" ? "bg-amber-100 text-amber-700" :
+                            ev.status === "cancelled" ? "bg-red-100 text-red-700" :
+                            "bg-blue-100 text-blue-700"
+                          )}>
+                            {ev.status === "completed" ? "Completado" :
+                             ev.status === "in_progress" ? "En progreso" :
+                             ev.status === "cancelled" ? "Cancelado" : "Programado"}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-xs gap-1"
+                            onClick={() => setReportLogId(ev.id)}
+                          >
+                            <FileText className="w-3 h-3" />
+                            {ev.reportGenerated ? "Ver" : "Registrar"}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Maintenance Report Dialog */}
+      {reportLogId != null && (
+        <MaintenanceReportDialog
+          logId={reportLogId}
+          onClose={() => { setReportLogId(null); refetch(); }}
+        />
+      )}
     </div>
   );
 }
