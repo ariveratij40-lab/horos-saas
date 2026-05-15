@@ -909,16 +909,81 @@ function IdfImagesMini({ idfId }: { idfId: number; onOpenLightbox?: (url: string
   );
 }
 
+// ─── IdfCard ────────────────────────────────────────────────────────────────
+function IdfCard({ idf, onEdit, onDelete, onSheet }: { idf: any; onEdit: (r: any) => void; onDelete: (id: number) => void; onSheet: (r: any) => void }) {
+  const { data: images = [] } = trpc.cctv.idfs.listImages.useQuery({ idfId: idf.id }, { enabled: !!idf.id });
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const mainImg = images[0] as any;
+  const st = STATUS_LABEL[idf.status] ?? STATUS_LABEL.inactive;
+  return (
+    <div className="rounded-xl border border-border/50 bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow group">
+      {/* Imagen principal */}
+      <div className="relative aspect-video bg-muted/30 overflow-hidden">
+        {mainImg ? (
+          <img src={mainImg.url} alt={mainImg.label ?? "Foto"} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground/40">
+            <Network className="w-10 h-10" />
+            <span className="text-xs">Sin imagen</span>
+          </div>
+        )}
+        <span className={`absolute top-2 right-2 text-xs font-semibold px-2 py-0.5 rounded-full ${st.cls}`}>{st.text}</span>
+        {images.length > 1 && (
+          <span className="absolute bottom-2 left-2 text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-full">{images.length} fotos</span>
+        )}
+      </div>
+      {/* Info */}
+      <div className="p-3 space-y-1">
+        <p className="text-xs font-mono text-primary font-semibold">{idf.idIdf ?? "SIN ID"}</p>
+        <p className="font-semibold text-sm text-foreground leading-tight truncate">{idf.nombre ?? "Sin nombre"}</p>
+        <p className="text-xs text-muted-foreground truncate">{idf.tipo ?? "IDF"} — {idf.ubicacion ?? "Sin ubicación"}</p>
+        {idf.numeroRacks && <p className="text-xs text-blue-400 font-medium">{idf.numeroRacks} racks · {idf.noSwitches ?? 0} switches</p>}
+      </div>
+      {/* Acciones */}
+      <div className="px-3 pb-3 flex items-center gap-1.5">
+        <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 flex-1" onClick={() => onSheet(idf)}><FileText className="w-3 h-3" /> Ficha</Button>
+        <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 flex-1" onClick={() => onEdit(idf)}><Pencil className="w-3 h-3" /> Editar</Button>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => onDelete(idf.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+      </div>
+      {lightbox && (
+        <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="Vista completa" className="max-w-full max-h-full rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
+          <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 text-white text-xl hover:bg-white/30 flex items-center justify-center" onClick={() => setLightbox(null)}>×</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IdfsTab() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
+  const [filterTipo, setFilterTipo] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [sortKey, setSortKey] = useState("idIdf");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const toggleSort = (key: string) => { if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(key); setSortDir("asc"); } };
+  const toggleRow = (id: number) => setExpandedRows(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
 
   const { data: idfsRaw = [], refetch } = trpc.cctv.idfs.list.useQuery(undefined);
-  const idfs = idfsRaw.filter(r => !search || [r.idIdf, r.nombre, r.ubicacion, r.tipo].some(v => v?.toLowerCase().includes(search.toLowerCase())));
+  const filtered = idfsRaw.filter(r => {
+    if (filterTipo !== "all" && r.tipo !== filterTipo) return false;
+    if (filterStatus !== "all" && r.status !== filterStatus) return false;
+    if (search && ![r.idIdf, r.nombre, r.ubicacion, r.tipo].some(v => v?.toLowerCase().includes(search.toLowerCase()))) return false;
+    return true;
+  });
+  const sortedFiltered = [...filtered].sort((a: any, b: any) => {
+    const av = a[sortKey] ?? ""; const bv = b[sortKey] ?? "";
+    const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+  const idfs = sortedFiltered;
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
   const [uploadLabel, setUploadLabel] = useState("Frontal");
 
@@ -961,43 +1026,139 @@ function IdfsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-xs">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar IDF/MDF..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        {/* Filtro Tipo */}
+        <Select value={filterTipo} onValueChange={setFilterTipo}>
+          <SelectTrigger className="h-9 w-36 text-xs"><SelectValue placeholder="Todos los tipos" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los tipos</SelectItem>
+            {["IDF","MDF","gabinete"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {/* Filtro Estado */}
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="h-9 w-36 text-xs"><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="active">Operativo</SelectItem>
+            <SelectItem value="inactive">Inactivo</SelectItem>
+            <SelectItem value="maintenance">Mantenimiento</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">{idfs.length} registros</span>
+        {/* Toggle vista */}
+        <div className="flex items-center border border-border/50 rounded-lg overflow-hidden ml-auto">
+          <button onClick={() => setViewMode("cards")} className={`px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${viewMode === "cards" ? "bg-primary text-primary-foreground" : "hover:bg-muted/50 text-muted-foreground"}`}>
+            <LayoutGrid className="w-3.5 h-3.5" /> Tarjetas
+          </button>
+          <button onClick={() => setViewMode("list")} className={`px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted/50 text-muted-foreground"}`}>
+            <List className="w-3.5 h-3.5" /> Lista
+          </button>
         </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nuevo IDF/MDF</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <ExpandableTable
-        rows={idfs}
-        idKey="id"
-        columns={[
-          { key: "idIdf", label: "ID" },
-          { key: "nombre", label: "Nombre" },
-          { key: "tipo", label: "Tipo" },
-          { key: "ubicacion", label: "Ubicación" },
-          { key: "numeroRacks", label: "Racks" },
-          { key: "noSwitches", label: "Switches" },
-          { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
-        ]}
-        detailFields={[
-          { label: "FOTOS", render: (r: any) => (
-            <IdfImagesMini idfId={r.id} onOpenLightbox={(url: string) => { /* handled inline */ }} />
-          )},
-          { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idIdf ?? "—"}</p><p className="text-foreground/60 capitalize">{r.tipo ?? "—"}</p></> },
-          { label: "Nombre", render: (r: any) => <><p>{r.nombre ?? "—"}</p><p className="text-foreground/60">{r.ubicacion ?? "—"}</p></> },
-          { label: "Racks / Gabinetes", render: (r: any) => <><p>{r.numeroRacks ?? 0} racks</p><p className="text-foreground/60">{r.numGabinetes ?? 0} gabinetes</p></> },
-          { label: "Switches / Servidores", render: (r: any) => <><p>{r.noSwitches ?? 0} switches</p><p className="text-foreground/60">{r.noServidores ?? 0} servidores</p></> },
-          { label: "UPS / Fibra", render: (r: any) => <><p>{r.noUps ?? 0} UPS</p><p className="text-foreground/60">{r.fibraOptica ? "Con fibra óptica" : "Sin fibra"}</p></> },
-          { label: "Capacidad", render: (r: any) => <><p>{r.capacidadRacks ?? "—"} U racks</p><p className="text-foreground/60">{r.capacidadGabinetes ?? "—"} gabinetes</p></> },
-        ]}
-        onEdit={openEdit}
-        onDelete={(id: number) => deleteMut.mutate({ id })}
-        onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); }}
-        emptyIcon={<Network className="w-10 h-10 mx-auto mb-2 opacity-20" />}
-        emptyText="No hay IDF/MDF registrados."
-      />
+
+      {/* Vista tarjetas */}
+      {viewMode === "cards" ? (
+        idfs.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground">
+            <Network className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p className="text-sm">No hay IDF/MDF registrados. Agrega el primero.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {idfs.map(idf => (
+              <IdfCard
+                key={idf.id}
+                idf={idf}
+                onEdit={openEdit}
+                onDelete={id => deleteMut.mutate({ id })}
+                onSheet={row => { setSheetId(row.id); setSheetName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); }}
+              />
+            ))}
+          </div>
+        )
+      ) : (
+        /* Vista lista expandible */
+        <div className="rounded-xl border border-border/50 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border/30 bg-muted/20">
+            <span className="text-xs text-muted-foreground font-medium">{idfs.length} registros</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setExpandedRows(new Set(idfs.map((r: any) => r.id)))} className="text-xs text-primary hover:underline">Expandir todo</button>
+              <span className="text-muted-foreground/40">|</span>
+              <button onClick={() => setExpandedRows(new Set())} className="text-xs text-muted-foreground hover:underline">Colapsar todo</button>
+            </div>
+          </div>
+          {/* Encabezados */}
+          <div className="grid grid-cols-[2rem_1fr_1fr_1fr_1fr_1fr_1fr_6rem_4rem] gap-x-3 px-4 py-2 border-b border-border/30 bg-muted/10 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+            <span></span>
+            {(["idIdf","nombre","tipo","ubicacion","numeroRacks","noSwitches"] as const).map((col, i) => (
+              <button key={col} onClick={() => toggleSort(col)} className="flex items-center gap-1 hover:text-foreground transition-colors text-left">
+                {["ID","Nombre","Tipo","Ubicación","Racks","Switches"][i]}
+                {sortKey === col ? (sortDir === "asc" ? " ▲" : " ▼") : " ▵"}
+              </button>
+            ))}
+            <button onClick={() => toggleSort("status")} className="flex items-center gap-1 hover:text-foreground transition-colors text-left">
+              Estado {sortKey === "status" ? (sortDir === "asc" ? " ▲" : " ▼") : " ▵"}
+            </button>
+            <span>Acciones</span>
+          </div>
+          {idfs.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Network className="w-10 h-10 mx-auto mb-2 opacity-20" />
+              <p className="text-sm">No hay IDF/MDF registrados.</p>
+            </div>
+          ) : idfs.map((row: any) => {
+            const isExp = expandedRows.has(row.id);
+            const st = STATUS_LABEL[row.status] ?? STATUS_LABEL.inactive;
+            return (
+              <React.Fragment key={row.id}>
+                <div
+                  className="grid grid-cols-[2rem_1fr_1fr_1fr_1fr_1fr_1fr_6rem_4rem] gap-x-3 px-4 py-2.5 border-b border-border/20 hover:bg-muted/10 transition-colors cursor-pointer items-center"
+                  onClick={() => toggleRow(row.id)}
+                >
+                  <span className="text-muted-foreground/60">{isExp ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}</span>
+                  <span className="text-xs font-mono text-primary truncate">{row.idIdf ?? "—"}</span>
+                  <span className="text-xs truncate">{row.nombre ?? "—"}</span>
+                  <span className="text-xs truncate capitalize">{row.tipo ?? "—"}</span>
+                  <span className="text-xs truncate text-muted-foreground">{row.ubicacion ?? "—"}</span>
+                  <span className="text-xs">{row.numeroRacks ?? 0}</span>
+                  <span className="text-xs">{row.noSwitches ?? 0}</span>
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${st.cls}`}>{st.text}</span>
+                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    <button className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors" title="Editar" onClick={() => openEdit(row)}><Pencil className="w-3.5 h-3.5" /></button>
+                    <button className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Eliminar" onClick={() => deleteMut.mutate({ id: row.id })}><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+                {isExp && (
+                  <div className="px-6 py-4 border-b border-border/20 bg-muted/5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4">
+                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">ID / Tipo</p><p className="text-sm font-mono text-primary">{row.idIdf ?? "—"}</p><p className="text-xs text-muted-foreground capitalize">{row.tipo ?? "—"}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Nombre</p><p className="text-sm">{row.nombre ?? "—"}</p><p className="text-xs text-muted-foreground">{row.ubicacion ?? "—"}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Racks / Gabinetes</p><p className="text-sm">{row.numeroRacks ?? 0} racks</p><p className="text-xs text-muted-foreground">{row.numGabinetes ?? 0} gabinetes</p></div>
+                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Switches / Servidores</p><p className="text-sm">{row.noSwitches ?? 0} switches</p><p className="text-xs text-muted-foreground">{row.noServidores ?? 0} servidores</p></div>
+                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">UPS / Fibra</p><p className="text-sm">{row.noUps ?? 0} UPS</p><p className="text-xs text-muted-foreground">{row.fibraOptica ? "Con fibra óptica" : "Sin fibra"}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Factura / Monto</p><p className="text-sm">{row.invoiceNumber ?? "—"}</p><p className="text-xs text-muted-foreground">{row.amount ? `$${Number(row.amount).toLocaleString()}` : "—"}</p></div>
+                    </div>
+                    <IdfImagesMini idfId={row.id} />
+                    <div className="flex items-center gap-2 mt-4">
+                      <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1" onClick={e => { e.stopPropagation(); setSheetId(row.id); setSheetName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); }}><FileText className="w-3 h-3" /> Ficha Técnica</Button>
+                      <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1" onClick={e => { e.stopPropagation(); openEdit(row); }}><Pencil className="w-3 h-3" /> Editar</Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-3 text-xs gap-1 text-destructive hover:text-destructive" onClick={e => { e.stopPropagation(); deleteMut.mutate({ id: row.id }); }}><Trash2 className="w-3 h-3" /> Eliminar</Button>
+                    </div>
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
 
       {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="idf" equipmentId={sheetId} equipmentName={sheetName} />

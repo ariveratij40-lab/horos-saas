@@ -194,10 +194,21 @@
 - [x] Frontend: lightbox para ver imagen en tamaño completo al hacer clic
 
 ## CCTV - Vaciar Inventario y Anti-duplicados
-- [ ] Router CCTV: endpoint clearAll por categoría (cameras/idfs/licenses/monitors/servers/switches/ups)
-- [ ] Frontend: botón "Vaciar Inventario" en el header del módulo CCTV con diálogo de confirmación
-- [ ] Frontend: el diálogo pide escribir "CONFIRMAR" antes de borrar para evitar accidentes
-- [ ] Frontend: el botón Vaciar solo borra la categoría activa (pestaña seleccionada)
-- [ ] Importación: validación anti-duplicados por idCamera/idIdf/idLicencia/etc. antes de insertar
-- [ ] Importación: mostrar en el Paso 4 los registros omitidos por duplicado (nombre + motivo)
+- [x] Router CCTV: endpoint clearAll por categoría (cameras/idfs/licenses/monitors/servers/switches/ups)
+- [x] Frontend: botón "Vaciar Inventario" en el header del módulo CCTV con diálogo de confirmación
+- [x] Frontend: el diálogo pide escribir "CONFIRMAR" antes de borrar para evitar accidentes
+- [x] Frontend: el botón Vaciar solo borra la categoría activa (pestaña seleccionada)
+- [x] Importación: validación anti-duplicados por idCamera/idIdf/idLicencia/etc. antes de insertar
+- [x] Importación: mostrar en el Paso 4 los registros omitidos por duplicado (nombre + motivo)
 - [ ] Importación: opción "Actualizar si existe" vs "Omitir si existe" en el Paso 3
+
+## CCTV - Rediseño IdfsTab (vista tarjetas/lista + búsqueda + filtros)
+- [x] IdfsTab: vista de tarjetas IdfCard con imagen principal de la galería, nombre, tipo, estado, racks/switches
+- [x] IdfsTab: vista de lista expandible con panel de detalle y galería IdfImagesMini
+- [x] IdfsTab: barra de búsqueda por nombre, ID o ubicación
+- [x] IdfsTab: filtros por tipo (IDF/MDF/gabinete) y estado (Operativo/Inactivo/Mantenimiento)
+- [x] IdfsTab: toggle Lista/Tarjetas en toolbar
+- [x] IdfsTab: galería de imágenes en la tarjeta (imagen principal + contador de fotos)
+- [x] IdfsTab: galería de imágenes en el panel expandido de la lista
+- [x] IdfsTab: botones Ficha Técnica, Editar, Eliminar en tarjeta y panel expandido
+- [x] IdfsTab: ordenamiento por columna en vista lista (ID, Nombre, Tipo, Ubicación, Racks, Switches, Estado)
