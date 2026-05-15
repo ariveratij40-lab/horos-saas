@@ -359,7 +359,7 @@ function CamerasTab() {
   const [maintOpen, setMaintOpen] = useState(false);
   const [maintId, setMaintId] = useState<number | null>(null);
   const [maintName, setMaintName] = useState("");
-  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("list");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [sortKey, setSortKey] = useState<string>("idCamera");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -1011,7 +1011,7 @@ function IdfsTab() {
   const [search, setSearch] = useState("");
   const [filterTipo, setFilterTipo] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("list");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [sortKey, setSortKey] = useState("idIdf");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -1535,7 +1535,7 @@ function MonitorsTab() {
   const [search, setSearch] = useState("");
   const [filterTipo, setFilterTipo] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("list");
   const [sortKey, setSortKey] = useState("idMonitor");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -1796,7 +1796,7 @@ function ServersTab() {
   const [search, setSearch] = useState("");
   const [filterTipo, setFilterTipo] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("list");
   const [sortKey, setSortKey] = useState("idServer");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -2059,7 +2059,7 @@ function SwitchesTab() {
   const [search, setSearch] = useState("");
   const [filterTipo, setFilterTipo] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("list");
   const [sortKey, setSortKey] = useState("idSwitch");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -2305,7 +2305,7 @@ function UpsTab() {
   const [search, setSearch] = useState("");
   const [filterTipo, setFilterTipo] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("list");
   const [sortKey, setSortKey] = useState("idUps");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
