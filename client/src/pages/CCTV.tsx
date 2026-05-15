@@ -30,13 +30,15 @@ import { RfidTagField, RfidBadge } from "@/components/RfidTagField";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  active:      { label: "Activo",        color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: <CheckCircle2 className="w-3 h-3" /> },
-  inactive:    { label: "Inactivo",      color: "bg-slate-500/15 text-slate-400 border-slate-500/30",       icon: <XCircle className="w-3 h-3" /> },
-  maintenance: { label: "Mantenimiento", color: "bg-amber-500/15 text-amber-400 border-amber-500/30",       icon: <AlertTriangle className="w-3 h-3" /> },
-  retired:     { label: "Retirado",      color: "bg-red-500/15 text-red-400 border-red-500/30",             icon: <XCircle className="w-3 h-3" /> },
-  expired:     { label: "Expirado",      color: "bg-red-500/15 text-red-400 border-red-500/30",             icon: <Clock className="w-3 h-3" /> },
-  pending_renewal: { label: "Por Renovar", color: "bg-orange-500/15 text-orange-400 border-orange-500/30", icon: <AlertTriangle className="w-3 h-3" /> },
-  cancelled:   { label: "Cancelado",     color: "bg-red-500/15 text-red-400 border-red-500/30",             icon: <XCircle className="w-3 h-3" /> },
+  active:      { label: "Operativa",        color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: <CheckCircle2 className="w-3 h-3" /> },
+  inactive:    { label: "Inactiva",         color: "bg-slate-500/15 text-slate-400 border-slate-500/30",       icon: <XCircle className="w-3 h-3" /> },
+  maintenance: { label: "En Mantenimiento", color: "bg-amber-500/15 text-amber-400 border-amber-500/30",       icon: <AlertTriangle className="w-3 h-3" /> },
+  retired:     { label: "Retirada",         color: "bg-red-500/15 text-red-400 border-red-500/30",             icon: <XCircle className="w-3 h-3" /> },
+  damaged:     { label: "Dañada",           color: "bg-rose-500/15 text-rose-400 border-rose-500/30",           icon: <AlertTriangle className="w-3 h-3" /> },
+  warranty:    { label: "En Garantía",      color: "bg-blue-500/15 text-blue-400 border-blue-500/30",           icon: <CheckCircle2 className="w-3 h-3" /> },
+  expired:     { label: "Expirado",         color: "bg-red-500/15 text-red-400 border-red-500/30",             icon: <Clock className="w-3 h-3" /> },
+  pending_renewal: { label: "Por Renovar",  color: "bg-orange-500/15 text-orange-400 border-orange-500/30", icon: <AlertTriangle className="w-3 h-3" /> },
+  cancelled:   { label: "Cancelado",        color: "bg-red-500/15 text-red-400 border-red-500/30",             icon: <XCircle className="w-3 h-3" /> },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -272,10 +274,12 @@ function ExpandableTable({
 
 // ─── Tarjeta de cámara ────────────────────────────────────────────────────────
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
-  active:      { text: "Operativa",      cls: "bg-emerald-500 text-white" },
-  inactive:    { text: "Inactiva",       cls: "bg-slate-500 text-white" },
-  maintenance: { text: "Mantenimiento",  cls: "bg-amber-500 text-white" },
-  retired:     { text: "Retirada",       cls: "bg-red-500 text-white" },
+  active:      { text: "Operativa",         cls: "bg-emerald-500 text-white" },
+  inactive:    { text: "Inactiva",          cls: "bg-slate-500 text-white" },
+  maintenance: { text: "En Mantenimiento",  cls: "bg-amber-500 text-white" },
+  retired:     { text: "Retirada",          cls: "bg-red-500 text-white" },
+  damaged:     { text: "Dañada",            cls: "bg-rose-600 text-white" },
+  warranty:    { text: "En Garantía",       cls: "bg-blue-500 text-white" },
 };
 
 function CameraCard({ cam, onEdit, onDelete, onSheet, onUploadScene, onMaintenance }: {
@@ -354,6 +358,8 @@ function CamerasTab() {
   const [editing, setEditing] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [filterCtpat, setFilterCtpat] = useState(false);
+  const [filterZona, setFilterZona] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
   const [form, setForm] = useState<any>({});
   const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
@@ -392,9 +398,13 @@ function CamerasTab() {
     onError: (e) => toast.error(e.message),
   });
 
-  const filtered = cameras.filter(c => {
+  // Zonas únicas extraídas de los datos reales
+  const zonas = Array.from(new Set(cameras.map((c: any) => c.area).filter(Boolean))).sort() as string[];
+  const filtered = cameras.filter((c: any) => {
     if (filterCtpat && !c.ctpat) return false;
-    if (search && ![c.idCamera, c.marca, c.modelo, c.serie, c.area, c.edificio, c.ip].some(v => v?.toLowerCase().includes(search.toLowerCase()))) return false;
+    if (filterZona !== "all" && c.area !== filterZona) return false;
+    if (filterStatus !== "all" && c.status !== filterStatus) return false;
+    if (search && ![c.idCamera, c.marca, c.modelo, c.serie, c.area, c.edificio, c.ip].some((v: any) => v?.toLowerCase().includes(search.toLowerCase()))) return false;
     return true;
   });
 
@@ -493,6 +503,33 @@ function CamerasTab() {
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar cámara..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        {/* Filtro Zona/Área */}
+        <Select value={filterZona} onValueChange={setFilterZona}>
+          <SelectTrigger className="h-9 w-[150px] text-xs">
+            <SelectValue placeholder="Zona / Área" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las zonas</SelectItem>
+            {zonas.map((z: string) => (
+              <SelectItem key={z} value={z}>{z}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {/* Filtro Estado */}
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="h-9 w-[160px] text-xs">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="active">Operativa</SelectItem>
+            <SelectItem value="maintenance">En Mantenimiento</SelectItem>
+            <SelectItem value="damaged">Dañada</SelectItem>
+            <SelectItem value="warranty">En Garantía</SelectItem>
+            <SelectItem value="inactive">Inactiva</SelectItem>
+            <SelectItem value="retired">Retirada</SelectItem>
+          </SelectContent>
+        </Select>
         <button
           onClick={() => setFilterCtpat(v => !v)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
@@ -842,7 +879,7 @@ function CamerasTab() {
               <Select value={form.status ?? "active"} onValueChange={v => f("status", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {["active", "inactive", "maintenance", "retired"].map(s => <SelectItem key={s} value={s}>{STATUS_CONFIG[s]?.label}</SelectItem>)}
+                  {["active", "maintenance", "damaged", "warranty", "inactive", "retired"].map(s => <SelectItem key={s} value={s}>{STATUS_CONFIG[s]?.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </Field>

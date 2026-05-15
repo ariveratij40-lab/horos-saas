@@ -1,0 +1,1 @@
+ALTER TABLE `cctv_cameras` MODIFY COLUMN `status` enum('active','inactive','maintenance','retired','damaged','warranty') NOT NULL DEFAULT 'active';
