@@ -375,3 +375,238 @@ export async function getDashboardKpis(tenantId: number) {
     totalBranches: Number(totalBranches?.count ?? 0),
   };
 }
+
+// ─── DASHBOARD KPIs POR CATEGORÍA ────────────────────────────────────────────
+export async function getDashboardKpisByCategory(tenantId: number, category: string) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Mapeo de categorías de UI a categorías de activos en la base de datos
+  const categoryMap: Record<string, string[]> = {
+    cctv:             ["camera", "nvr_dvr"],
+    access_control:   ["access_control"],
+    voceo:            ["alarm", "sensor"],
+    cableado:         ["network", "server", "ups"],
+  };
+
+  const assetCategories = categoryMap[category] ?? [];
+
+  // Activos totales de la categoría
+  const totalAssetsRows = await Promise.all(
+    assetCategories.map((cat) =>
+      db.select({ count: sql<number>`count(*)` })
+        .from(assets)
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.category, cat as any)))
+    )
+  );
+  const totalAssets = totalAssetsRows.reduce((acc, rows) => acc + Number(rows[0]?.count ?? 0), 0);
+
+  // Activos activos de la categoría
+  const activeAssetsRows = await Promise.all(
+    assetCategories.map((cat) =>
+      db.select({ count: sql<number>`count(*)` })
+        .from(assets)
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.category, cat as any), eq(assets.status, "active")))
+    )
+  );
+  const activeAssets = activeAssetsRows.reduce((acc, rows) => acc + Number(rows[0]?.count ?? 0), 0);
+
+  // Activos críticos de la categoría
+  const criticalAssetsRows = await Promise.all(
+    assetCategories.map((cat) =>
+      db.select({ count: sql<number>`count(*)` })
+        .from(assets)
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.category, cat as any), eq(assets.criticality, "critical"), eq(assets.status, "active")))
+    )
+  );
+  const criticalAssets = criticalAssetsRows.reduce((acc, rows) => acc + Number(rows[0]?.count ?? 0), 0);
+
+  // Activos en mantenimiento
+  const maintenanceAssetsRows = await Promise.all(
+    assetCategories.map((cat) =>
+      db.select({ count: sql<number>`count(*)` })
+        .from(assets)
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.category, cat as any), eq(assets.status, "maintenance")))
+    )
+  );
+  const maintenanceAssets = maintenanceAssetsRows.reduce((acc, rows) => acc + Number(rows[0]?.count ?? 0), 0);
+
+  // Activos obsoletos
+  const obsoleteAssetsRows = await Promise.all(
+    assetCategories.map((cat) =>
+      db.select({ count: sql<number>`count(*)` })
+        .from(assets)
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.category, cat as any), eq(assets.status, "obsolete")))
+    )
+  );
+  const obsoleteAssets = obsoleteAssetsRows.reduce((acc, rows) => acc + Number(rows[0]?.count ?? 0), 0);
+
+  // Tickets abiertos relacionados con activos de la categoría (via category en el asset)
+  // Se obtienen todos los tickets del tenant y se filtra por activos de la categoría
+  const assetIdsRows = await Promise.all(
+    assetCategories.map((cat) =>
+      db.select({ id: assets.id })
+        .from(assets)
+        .where(and(eq(assets.tenantId, tenantId), eq(assets.category, cat as any)))
+    )
+  );
+  const assetIds = assetIdsRows.flat().map((r) => r.id);
+
+  let openTickets = 0;
+  let resolvedTickets = 0;
+  let outsideSla = 0;
+
+  if (assetIds.length > 0) {
+    const ticketRows = await db.select().from(tickets)
+      .where(and(eq(tickets.tenantId, tenantId), sql`${tickets.assetId} IN (${sql.join(assetIds.map((id) => sql`${id}`), sql`, `)})`));
+    openTickets = ticketRows.filter((t) => t.operationalStatus !== "resolved").length;
+    resolvedTickets = ticketRows.filter((t) => t.operationalStatus === "resolved").length;
+    outsideSla = ticketRows.filter((t) => t.contractualStatus === "outside_sla").length;
+  }
+
+  return {
+    totalAssets,
+    activeAssets,
+    criticalAssets,
+    maintenanceAssets,
+    obsoleteAssets,
+    openTickets,
+    resolvedTickets,
+    outsideSla,
+  };
+}
+
+// ─── DASHBOARD KPIs DETALLADOS POR SUB-CATEGORÍA ─────────────────────────────
+export async function getDashboardKpisDetailed(tenantId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const safeDb = db!;
+
+  // Helper: contar activos por categoría y estado
+  async function countAssets(category: string, status?: string, criticality?: string) {
+    const conditions = [eq(assets.tenantId, tenantId), eq(assets.category, category as any)];
+    if (status) conditions.push(eq(assets.status, status as any));
+    if (criticality) conditions.push(eq(assets.criticality, criticality as any));
+    const [row] = await safeDb.select({ count: sql<number>`count(*)` }).from(assets).where(and(...conditions));
+    return Number(row?.count ?? 0);
+  }
+
+  // Helper: contar tickets por categorías de activos
+  async function countTicketsByCategories(categories: string[], operationalStatus?: string, contractualStatus?: string) {
+    const assetRows = await safeDb.select({ id: assets.id }).from(assets)
+      .where(and(eq(assets.tenantId, tenantId), sql`${assets.category} IN (${sql.join(categories.map((c) => sql`${c}`), sql`, `)})`));
+    const ids = assetRows.map((r) => r.id);
+    if (ids.length === 0) return 0;
+    const conditions = [eq(tickets.tenantId, tenantId), sql`${tickets.assetId} IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`];
+    if (operationalStatus) conditions.push(eq(tickets.operationalStatus, operationalStatus as any));
+    if (contractualStatus) conditions.push(eq(tickets.contractualStatus, contractualStatus as any));
+    const [row] = await safeDb.select({ count: sql<number>`count(*)` }).from(tickets).where(and(...conditions));
+    return Number(row?.count ?? 0);
+  }
+
+  // ── CCTV ──────────────────────────────────────────────────────────────────
+  const [
+    camarasTotal, camarasActivas, camarasCriticas,
+    nvrTotal, nvrActivos, nvrCriticos,
+    ticketsCctvAbiertos, ticketsCctvResueltos, ticketsCctvFueraSla,
+  ] = await Promise.all([
+    countAssets("camera"),
+    countAssets("camera", "active"),
+    countAssets("camera", "active", "critical"),
+    countAssets("nvr_dvr"),
+    countAssets("nvr_dvr", "active"),
+    countAssets("nvr_dvr", "active", "critical"),
+    countTicketsByCategories(["camera", "nvr_dvr"], undefined, undefined),
+    countTicketsByCategories(["camera", "nvr_dvr"], "resolved"),
+    countTicketsByCategories(["camera", "nvr_dvr"], undefined, "outside_sla"),
+  ]);
+
+  // ── CONTROL DE ACCESO ─────────────────────────────────────────────────────
+  const [
+    lectoresTotal, lectoresActivos, lectoresCriticos,
+    ticketsAccesoAbiertos, ticketsAccesoResueltos, ticketsAccesoFueraSla,
+  ] = await Promise.all([
+    countAssets("access_control"),
+    countAssets("access_control", "active"),
+    countAssets("access_control", "active", "critical"),
+    countTicketsByCategories(["access_control"]),
+    countTicketsByCategories(["access_control"], "resolved"),
+    countTicketsByCategories(["access_control"], undefined, "outside_sla"),
+  ]);
+
+  // ── VOCEO ─────────────────────────────────────────────────────────────────
+  const [
+    alarmasTotal, alarmasActivas, alarmasCriticas,
+    sensoresTotal, sensoresActivos,
+    ticketsVoceoAbiertos, ticketsVoceoResueltos, ticketsVoceoFueraSla,
+  ] = await Promise.all([
+    countAssets("alarm"),
+    countAssets("alarm", "active"),
+    countAssets("alarm", "active", "critical"),
+    countAssets("sensor"),
+    countAssets("sensor", "active"),
+    countTicketsByCategories(["alarm", "sensor"]),
+    countTicketsByCategories(["alarm", "sensor"], "resolved"),
+    countTicketsByCategories(["alarm", "sensor"], undefined, "outside_sla"),
+  ]);
+
+  // ── CABLEADO ESTRUCTURADO ─────────────────────────────────────────────────
+  const [
+    switchesTotal, switchesActivos, switchesCriticos,
+    servidoresTotal, servidoresActivos,
+    upsTotal, upsActivos,
+    ticketsRedAbiertos, ticketsRedResueltos, ticketsRedFueraSla,
+  ] = await Promise.all([
+    countAssets("network"),
+    countAssets("network", "active"),
+    countAssets("network", "active", "critical"),
+    countAssets("server"),
+    countAssets("server", "active"),
+    countAssets("ups"),
+    countAssets("ups", "active"),
+    countTicketsByCategories(["network", "server", "ups"]),
+    countTicketsByCategories(["network", "server", "ups"], "resolved"),
+    countTicketsByCategories(["network", "server", "ups"], undefined, "outside_sla"),
+  ]);
+
+  return {
+    cctv: {
+      camarasTotal, camarasActivas, camarasCriticas,
+      nvrTotal, nvrActivos, nvrCriticos,
+      ticketsAbiertos: ticketsCctvAbiertos,
+      ticketsResueltos: ticketsCctvResueltos,
+      ticketsFueraSla: ticketsCctvFueraSla,
+    },
+    accessControl: {
+      lectoresTotal, lectoresActivos, lectoresCriticos,
+      // Puertas controladas = activos de access_control activos (cada lector controla una puerta)
+      puertasControladas: lectoresActivos,
+      ticketsAbiertos: ticketsAccesoAbiertos,
+      ticketsResueltos: ticketsAccesoResueltos,
+      ticketsFueraSla: ticketsAccesoFueraSla,
+    },
+    voceo: {
+      equiposTotal: alarmasTotal + sensoresTotal,
+      equiposActivos: alarmasActivas + sensoresActivos,
+      altavocesTotal: alarmasTotal,
+      altavocesActivos: alarmasActivas,
+      amplificadoresTotal: sensoresTotal,
+      amplificadoresActivos: sensoresActivos,
+      criticos: alarmasCriticas,
+      ticketsAbiertos: ticketsVoceoAbiertos,
+      ticketsResueltos: ticketsVoceoResueltos,
+      ticketsFueraSla: ticketsVoceoFueraSla,
+    },
+    cableado: {
+      switchesTotal, switchesActivos, switchesCriticos,
+      servidoresTotal, servidoresActivos,
+      upsTotal, upsActivos,
+      // Puertos activos = activos de red activos (representación lógica)
+      puertosActivos: switchesActivos,
+      ticketsAbiertos: ticketsRedAbiertos,
+      ticketsResueltos: ticketsRedResueltos,
+      ticketsFueraSla: ticketsRedFueraSla,
+    },
+  };
+}

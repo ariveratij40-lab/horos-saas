@@ -1,12 +1,24 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getDashboardKpis, getAuditLogs, getAiChatSessions, createAiChatSession, getAiChatMessages, addAiChatMessage } from "../db";
+import { getDashboardKpis, getDashboardKpisByCategory, getDashboardKpisDetailed, getAuditLogs, getAiChatSessions, createAiChatSession, getAiChatMessages, addAiChatMessage } from "../db";
 import { invokeLLM } from "../_core/llm";
 
 export const dashboardRouter = router({
   kpis: protectedProcedure.query(async ({ ctx }) => {
     const tenantId = ctx.user.tenantId ?? 1;
     return getDashboardKpis(tenantId);
+  }),
+
+  kpisByCategory: protectedProcedure
+    .input(z.object({ category: z.enum(["cctv", "access_control", "voceo", "cableado"]) }))
+    .query(async ({ ctx, input }) => {
+      const tenantId = ctx.user.tenantId ?? 1;
+      return getDashboardKpisByCategory(tenantId, input.category);
+    }),
+
+  kpisDetailed: protectedProcedure.query(async ({ ctx }) => {
+    const tenantId = ctx.user.tenantId ?? 1;
+    return getDashboardKpisDetailed(tenantId);
   }),
 });
 

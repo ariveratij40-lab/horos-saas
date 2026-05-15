@@ -48,3 +48,19 @@
 - [x] Tests unitarios para routers principales (17 tests)
 - [x] Verificación de aislamiento multi-tenant
 - [x] Verificación de modelo dual de estados de tickets
+
+## Dashboard - Pestañas por Categoría de Servicio
+- [x] Pestaña "Resumen": KPIs globales actuales del dashboard
+- [x] Pestaña "CCTV": fichas de cámaras activas, grabadores NVR/DVR, tickets CCTV, activos CCTV críticos
+- [x] Pestaña "Control de Acceso": lectores activos, puertas controladas, tickets de acceso, activos de control de acceso
+- [x] Pestaña "Voceo": equipos de voceo activos, amplificadores, tickets de voceo, activos de voceo
+- [x] Pestaña "Cableado Estructurado": puertos activos, switches/routers, tickets de red, activos de red
+- [x] Backend: router de KPIs filtrados por categoría de activo (camera, nvr_dvr, access_control, alarm, network)
+
+## Dashboard - KPIs Granulares por Sub-categoría
+- [ ] Backend: endpoint kpisByCategoryDetailed con fichas por sub-categoría (camera, nvr_dvr, access_control, alarm, network, server, ups)
+- [ ] CCTV: fichas separadas para Cámaras activas y Grabadores NVR/DVR
+- [ ] Control de Acceso: fichas separadas para Lectores activos y Puertas controladas
+- [ ] Voceo: fichas separadas para Altavoces/Equipos activos y Amplificadores
+- [ ] Cableado Estructurado: fichas separadas para Switches/Routers, Servidores y UPS
+- [ ] Pruebas unitarias para los nuevos KPIs granulares
