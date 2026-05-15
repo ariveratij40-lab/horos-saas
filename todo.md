@@ -92,3 +92,12 @@
 ## Sidebar - Reorganización Infraestructura
 - [x] Agrupar módulos de Infraestructura por sistema: CCTV, Control de Acceso, Cableado Estructurado, Voceo
 - [x] Sub-secciones colapsables con ícono y etiqueta de sistema
+
+## CCTV - Sub-menús del Sidebar
+- [ ] Sidebar: 7 sub-ítems en CCTV (Inventario, Mantenimiento, Calendario, Incidentes y SLA, Capex, Póliza, Respaldo BD)
+- [ ] Página /cctv/maintenance - Mantenimiento preventivo/correctivo de equipos CCTV
+- [ ] Página /cctv/calendar - Calendario de actividades de mantenimiento CCTV
+- [ ] Página /cctv/incidents - Incidentes y SLA específicos de CCTV
+- [ ] Página /cctv/capex - Análisis CAPEX/OPEX de activos CCTV
+- [ ] Página /cctv/policy - Póliza de servicio asociada a CCTV
+- [ ] Página /cctv/backup - Respaldo de base de datos CCTV

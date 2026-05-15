@@ -23,6 +23,12 @@ import Audit from "./pages/Audit";
 import AIAssistant from "./pages/AIAssistant";
 import Users from "./pages/Users";
 import CCTV from "./pages/CCTV";
+import CCTVMaintenance from "./pages/cctv/CCTVMaintenance";
+import CCTVCalendar from "./pages/cctv/CCTVCalendar";
+import CCTVIncidents from "./pages/cctv/CCTVIncidents";
+import CCTVCapex from "./pages/cctv/CCTVCapex";
+import CCTVPolicy from "./pages/cctv/CCTVPolicy";
+import CCTVBackup from "./pages/cctv/CCTVBackup";
 import { AccessControlPage, StructuredCablingPage, PagingSystemPage } from "./pages/ComingSoon";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -56,6 +62,12 @@ function Router() {
       <Route path="/ai" component={() => <ProtectedRoute component={AIAssistant} />} />
       <Route path="/users" component={() => <ProtectedRoute component={Users} />} />
       <Route path="/cctv" component={() => <ProtectedRoute component={CCTV} />} />
+      <Route path="/cctv/maintenance" component={() => <ProtectedRoute component={CCTVMaintenance} />} />
+      <Route path="/cctv/calendar" component={() => <ProtectedRoute component={CCTVCalendar} />} />
+      <Route path="/cctv/incidents" component={() => <ProtectedRoute component={CCTVIncidents} />} />
+      <Route path="/cctv/capex" component={() => <ProtectedRoute component={CCTVCapex} />} />
+      <Route path="/cctv/policy" component={() => <ProtectedRoute component={CCTVPolicy} />} />
+      <Route path="/cctv/backup" component={() => <ProtectedRoute component={CCTVBackup} />} />
       <Route path="/access-control" component={AccessControlPage} />
       <Route path="/structured-cabling" component={StructuredCablingPage} />
       <Route path="/paging" component={PagingSystemPage} />

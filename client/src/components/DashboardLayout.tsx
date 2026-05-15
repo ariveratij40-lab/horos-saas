@@ -25,7 +25,8 @@ import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard, FileText, Ticket, Package, Shield, Building2,
   Wrench, ClipboardList, Bot, Users, LogOut, ChevronDown, ChevronRight,
-  Bell, Settings, Camera, Network, Volume2, Lock, Cable,
+  Bell, Settings, Camera, Volume2, Lock, Cable,
+  CalendarDays, AlertTriangle, TrendingUp, ScrollText, Database,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -84,7 +85,13 @@ const menuGroups: NavGroup[] = [
         label: "CCTV",
         color: "text-blue-500",
         items: [
-          { icon: Camera, label: "Inventario CCTV", path: "/cctv" },
+          { icon: Package,       label: "Inventario",     path: "/cctv" },
+          { icon: Wrench,        label: "Mantenimiento",  path: "/cctv/maintenance" },
+          { icon: CalendarDays,  label: "Calendario",     path: "/cctv/calendar" },
+          { icon: AlertTriangle, label: "Incidentes y SLA", path: "/cctv/incidents" },
+          { icon: TrendingUp,    label: "Capex",          path: "/cctv/capex" },
+          { icon: ScrollText,    label: "Póliza",         path: "/cctv/policy" },
+          { icon: Database,      label: "Respaldo BD",    path: "/cctv/backup" },
         ],
       },
       {
