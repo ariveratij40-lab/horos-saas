@@ -129,3 +129,12 @@
 - [x] Pestaña Resumen: KPIs globales (total equipos, activos, mantenimiento, licencias expiradas)
 - [x] Mover las fichas de totales globales (actualmente sobre las pestañas) a la pestaña Resumen
 - [x] Limpiar las fichas de totales individuales de CamerasTab para que no se vean saturadas
+
+## CCTV - Campo CTPAT en Cámaras
+- [x] Schema Drizzle: agregar campo ctpat (boolean) a cctvCameras
+- [x] Migración SQL: ALTER TABLE cctv_cameras ADD COLUMN ctpat
+- [x] Router CCTV: incluir ctpat en cameraSchema y en stats
+- [x] Frontend: switch CTPAT en formulario de alta/edición de cámara
+- [x] Frontend: filtro CTPAT en la lista de cámaras (botón toggle en toolbar)
+- [x] Frontend: badge CTPAT en tarjeta y columna en vista lista
+- [x] Frontend: contador de cámaras CTPAT en la pestaña Resumen (KPI)

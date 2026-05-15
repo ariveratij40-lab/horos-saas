@@ -177,6 +177,9 @@ function CameraCard({ cam, onEdit, onDelete, onSheet, onUploadScene }: {
         <p className="text-xs text-muted-foreground truncate">{[cam.marca, cam.modelo].filter(Boolean).join(" ") || "Sin modelo"}</p>
         {cam.conexion && <p className="text-xs text-blue-400 font-medium">{cam.conexion}</p>}
         {cam.branchId && <p className="text-xs text-muted-foreground/60">Sucursal #{cam.branchId}</p>}
+        {cam.ctpat && (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase tracking-wide">CTPAT</span>
+        )}
       </div>
       {/* Acciones */}
       <div className="px-3 pb-3 flex items-center gap-1.5 flex-wrap">
@@ -204,6 +207,7 @@ function CamerasTab() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [search, setSearch] = useState("");
+  const [filterCtpat, setFilterCtpat] = useState(false);
   const [form, setForm] = useState<any>({});
   const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
@@ -228,9 +232,11 @@ function CamerasTab() {
     onError: (e) => toast.error(e.message),
   });
 
-  const filtered = cameras.filter(c =>
-    !search || [c.idCamera, c.marca, c.modelo, c.serie, c.area, c.edificio, c.ip].some(v => v?.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = cameras.filter(c => {
+    if (filterCtpat && !c.ctpat) return false;
+    if (search && ![c.idCamera, c.marca, c.modelo, c.serie, c.area, c.edificio, c.ip].some(v => v?.toLowerCase().includes(search.toLowerCase()))) return false;
+    return true;
+  });
 
   function openCreate() { setEditing(null); setForm({}); setFormScenePreview(null); setFormSceneBase64(null); setOpen(true); }
   function openEdit(row: any) {
@@ -299,6 +305,17 @@ function CamerasTab() {
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar cámara..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        <button
+          onClick={() => setFilterCtpat(v => !v)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+            filterCtpat
+              ? "bg-amber-500/20 border-amber-500/40 text-amber-400"
+              : "border-border/50 text-muted-foreground hover:bg-muted/50"
+          }`}
+          title={filterCtpat ? "Mostrando solo CTPAT" : "Filtrar por CTPAT"}
+        >
+          CTPAT {filterCtpat && `(${filtered.length})`}
+        </button>
         <span className="text-xs text-muted-foreground ml-1">{filtered.length} cámaras</span>
         {/* Toggle vista */}
         <div className="flex items-center border border-border/50 rounded-lg overflow-hidden ml-auto">
@@ -359,6 +376,7 @@ function CamerasTab() {
             { key: "area", label: "Área" },
             { key: "ip", label: "IP" },
             { key: "status", label: "Estado", render: r => <StatusBadge status={r.status} /> },
+            { key: "ctpat", label: "CTPAT", render: r => r.ctpat ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase">CTPAT</span> : <span className="text-muted-foreground/30">—</span> },
           ]}
           rows={filtered}
           onEdit={openEdit}
@@ -479,6 +497,16 @@ function CamerasTab() {
             <div className="flex items-center gap-4">
               <Field label="PoE"><div className="flex items-center gap-2 pt-1"><Switch checked={!!form.poe} onCheckedChange={v => f("poe", v)} /><span className="text-sm">{form.poe ? "Sí" : "No"}</span></div></Field>
               <Field label="Internet"><div className="flex items-center gap-2 pt-1"><Switch checked={!!form.internet} onCheckedChange={v => f("internet", v)} /><span className="text-sm">{form.internet ? "Sí" : "No"}</span></div></Field>
+            </div>
+            {/* CTPAT */}
+            <div className="col-span-2">
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                <Switch checked={!!form.ctpat} onCheckedChange={v => f("ctpat", v)} id="ctpat-switch" />
+                <div>
+                  <label htmlFor="ctpat-switch" className="text-sm font-semibold text-amber-400 cursor-pointer">Programa CTPAT</label>
+                  <p className="text-xs text-muted-foreground">Customs-Trade Partnership Against Terrorism — marcar si esta cámara forma parte del programa CTPAT.</p>
+                </div>
+              </div>
             </div>
             <div className="col-span-2">
               <Field label="Observaciones"><Textarea value={form.observaciones ?? ""} onChange={e => f("observaciones", e.target.value)} rows={2} /></Field>
@@ -1223,7 +1251,7 @@ function ResumenCCTVTab() {
   return (
     <div className="space-y-6 animate-fade-up">
       {/* KPIs globales */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="rounded-xl border border-border/50 bg-card p-4 text-center shadow-sm">
           <p className="text-3xl font-bold text-foreground">{isLoading ? "—" : totalEquipos}</p>
           <p className="text-xs text-muted-foreground mt-0.5">Total equipos</p>
@@ -1239,6 +1267,11 @@ function ResumenCCTVTab() {
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-center shadow-sm">
           <p className="text-3xl font-bold text-red-400">{isLoading ? "—" : (summary?.licenses.expired ?? 0)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">Licencias expiradas</p>
+        </div>
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center shadow-sm">
+          <p className="text-3xl font-bold text-amber-400">{isLoading ? "—" : (stats?.ctpat ?? 0)}</p>
+          <p className="text-xs font-bold text-amber-400/80 mt-0.5 uppercase tracking-wide">CTPAT</p>
+          <p className="text-[10px] text-muted-foreground">cámaras en programa</p>
         </div>
       </div>
 

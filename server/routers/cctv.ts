@@ -46,6 +46,7 @@ const cameraSchema = z.object({
   sceneImageKey: z.string().optional(),
   sceneDescription: z.string().optional(),
   branchId: z.number().optional(),
+  ctpat: z.boolean().optional(),
 });
 
 const idfSchema = z.object({
@@ -283,6 +284,7 @@ export const cctvCamerasRouter = router({
       maintenance: rows.filter(r => r.status === "maintenance").length,
       retired: rows.filter(r => r.status === "retired").length,
       poe: rows.filter(r => r.poe).length,
+      ctpat: rows.filter(r => r.ctpat).length,
       domo: rows.filter(r => r.tipo === "domo").length,
       bala: rows.filter(r => r.tipo === "bala").length,
       ptz: rows.filter(r => r.tipo === "ptz").length,
