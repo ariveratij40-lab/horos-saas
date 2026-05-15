@@ -25,7 +25,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard, FileText, Ticket, Package, Shield, Building2,
   Wrench, ClipboardList, Bot, Users, LogOut, ChevronDown,
-  Bell, Settings, Activity, PanelLeft,
+  Bell, Settings, Activity, PanelLeft, Camera,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -55,6 +55,7 @@ const menuGroups = [
     label: "Infraestructura",
     items: [
       { icon: Package, label: "Inventario", path: "/assets" },
+      { icon: Camera, label: "CCTV", path: "/cctv" },
       { icon: Building2, label: "Sucursales", path: "/branches" },
       { icon: Wrench, label: "Mantenimiento", path: "/maintenance" },
     ],

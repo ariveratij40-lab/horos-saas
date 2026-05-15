@@ -64,3 +64,18 @@
 - [x] Voceo: fichas separadas para Altavoces/Equipos activos y Amplificadores
 - [x] Cableado Estructurado: fichas separadas para Switches/Routers, Servidores y UPS
 - [x] Pruebas unitarias para los nuevos KPIs granulares
+
+## Módulo Inventario CCTV - 7 Tipos de Equipo
+- [ ] Schema BD: tabla cctv_cameras con todos los campos de la plantilla CSV
+- [ ] Schema BD: tabla cctv_idfs (IDF/MDF con racks, gabinetes, fibra, switches, etc.)
+- [ ] Schema BD: tabla cctv_licenses (tipo, contrato, fechas, equipo asignado)
+- [ ] Schema BD: tabla cctv_monitors (tipo, tamaño, resolución, tecnología, puerto)
+- [ ] Schema BD: tabla cctv_servers (tipo VMS, versión, licencias, SO, hardware, red)
+- [ ] Schema BD: tabla cctv_switches (tipo, firmware, puertos, PoE, cámaras conectadas)
+- [ ] Schema BD: tabla cctv_ups (tipo, capacidad, autonomía, equipos conectados)
+- [ ] Backend: routers tRPC CRUD para los 7 tipos de equipo CCTV
+- [ ] Frontend: módulo /cctv con 7 pestañas (Cámaras, IDF, Licencias, Pantallas, Servidores, Switches, UPS)
+- [ ] Frontend: formularios de alta/edición con todos los campos de cada plantilla
+- [ ] Frontend: tablas de listado con filtros y búsqueda por tipo de equipo
+- [ ] Frontend: navegación desde Dashboard pestaña CCTV hacia el módulo
+- [ ] Pruebas unitarias para los nuevos routers CCTV

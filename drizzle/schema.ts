@@ -391,3 +391,272 @@ export const aiChatMessages = mysqlTable("ai_chat_messages", {
 });
 
 export type AiChatMessage = typeof aiChatMessages.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MÓDULO INVENTARIO CCTV
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── CCTV: CÁMARAS ────────────────────────────────────────────────────────────
+export const cctvCameras = mysqlTable("cctv_cameras", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  // Identificación
+  idCamera: varchar("idCamera", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  familia: varchar("familia", { length: 100 }),       // H4, H6, VALUE, etc.
+  // Características técnicas
+  resolucion: varchar("resolucion", { length: 50 }),  // 2MPX, 8MPX, etc.
+  tipo: mysqlEnum("tipo", ["bala", "domo", "ptz", "fisheye", "panoramica", "otro"]).default("domo"),
+  poe: boolean("poe").default(false),
+  // Ubicación
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  // Red
+  ip: varchar("ip", { length: 45 }),
+  mascara: varchar("mascara", { length: 45 }),
+  gateway: varchar("gateway", { length: 45 }),
+  mac: varchar("mac", { length: 30 }),
+  internet: boolean("internet").default(false),
+  conexion: varchar("conexion", { length: 100 }),     // IDF1, MDF, etc.
+  switchId: int("switchId"),                          // FK a cctv_switches
+  puertoSw: varchar("puertoSw", { length: 20 }),
+  // Compra / Garantía
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  po: varchar("po", { length: 100 }),                 // Purchase Order
+  tiempoUso: varchar("tiempoUso", { length: 50 }),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  // Estado
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CctvCamera = typeof cctvCameras.$inferSelect;
+export type InsertCctvCamera = typeof cctvCameras.$inferInsert;
+
+// ─── CCTV: IDF / MDF ─────────────────────────────────────────────────────────
+export const cctvIdfs = mysqlTable("cctv_idfs", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idIdf: varchar("idIdf", { length: 100 }),
+  nombre: varchar("nombre", { length: 255 }),
+  ubicacion: varchar("ubicacion", { length: 255 }),
+  tipo: mysqlEnum("tipo", ["IDF", "MDF", "gabinete"]).default("IDF").notNull(),
+  // Racks y gabinetes
+  numeroRacks: int("numeroRacks"),
+  numGabinetes: int("numGabinetes"),
+  capacidadRacks: int("capacidadRacks"),              // unidades U
+  capacidadGabinetes: int("capacidadGabinetes"),
+  // Fibra óptica
+  fibraOptica: boolean("fibraOptica").default(false),
+  tipoFibra: varchar("tipoFibra", { length: 100 }),   // OM4/6 HILOS, etc.
+  // Compartido
+  idfCompartido: boolean("idfCompartido").default(false),
+  compartidoCon: varchar("compartidoCon", { length: 255 }),
+  // Equipos instalados
+  noSwitches: int("noSwitches"),
+  noServidores: int("noServidores"),
+  noUps: int("noUps"),
+  // Condiciones
+  refrigerado: boolean("refrigerado").default(false),
+  controlAcceso: boolean("controlAcceso").default(false),
+  tipoControlAcceso: varchar("tipoControlAcceso", { length: 100 }), // llave, CA, etc.
+  comentarios: text("comentarios"),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CctvIdf = typeof cctvIdfs.$inferSelect;
+export type InsertCctvIdf = typeof cctvIdfs.$inferInsert;
+
+// ─── CCTV: LICENCIAS ─────────────────────────────────────────────────────────
+export const cctvLicenses = mysqlTable("cctv_licenses", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idLicencia: varchar("idLicencia", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["perpetua", "suscripcion", "trial", "otro"]).default("suscripcion").notNull(),
+  noContrato: varchar("noContrato", { length: 100 }),
+  fechaInicio: date("fechaInicio"),
+  fechaExpiracion: date("fechaExpiracion"),
+  equipoAsignado: varchar("equipoAsignado", { length: 255 }), // SERVER 1, etc.
+  ubicacion: varchar("ubicacion", { length: 255 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  ordenCompra: varchar("ordenCompra", { length: 100 }),
+  tiempoUso: varchar("tiempoUso", { length: 50 }),
+  otro: text("otro"),
+  expirado: boolean("expirado").default(false),
+  status: mysqlEnum("status", ["active", "expired", "cancelled", "pending_renewal"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CctvLicense = typeof cctvLicenses.$inferSelect;
+export type InsertCctvLicense = typeof cctvLicenses.$inferInsert;
+
+// ─── CCTV: MONITORES / PANTALLAS ─────────────────────────────────────────────
+export const cctvMonitors = mysqlTable("cctv_monitors", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idMonitor: varchar("idMonitor", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["monitor", "pantalla", "videowall", "otro"]).default("monitor").notNull(),
+  tamano: varchar("tamano", { length: 20 }),           // 24", 65", etc.
+  resolucion: mysqlEnum("resolucion", ["HD 720p", "Full HD 1K", "QHD 2K", "UHD 4K", "8K", "otro"]).default("Full HD 1K"),
+  tecnologia: mysqlEnum("tecnologia", ["LED", "QLED", "OLED", "LCD", "IPS", "otro"]).default("LED"),
+  puerto: mysqlEnum("puerto", ["HDMI", "VGA", "DVI", "DisplayPort", "USB-C", "otro"]).default("HDMI"),
+  ubicacion: varchar("ubicacion", { length: 255 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  ordenCompra: varchar("ordenCompra", { length: 100 }),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  tiempoUso: varchar("tiempoUso", { length: 50 }),
+  ups: boolean("ups").default(false),                  // conectado a UPS
+  conexion: varchar("conexion", { length: 100 }),      // WORKSTATION1, APPLIANCE1, etc.
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CctvMonitor = typeof cctvMonitors.$inferSelect;
+export type InsertCctvMonitor = typeof cctvMonitors.$inferInsert;
+
+// ─── CCTV: SERVIDORES / NVR / WORKSTATIONS ───────────────────────────────────
+export const cctvServers = mysqlTable("cctv_servers", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idServer: varchar("idServer", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["nvr", "workstation", "appliance", "servidor", "otro"]).default("nvr").notNull(),
+  // VMS
+  versionVms: varchar("versionVms", { length: 100 }),  // UNITY, ALTA, ACC7, etc.
+  licencias: int("licencias"),
+  licenciasLibres: int("licenciasLibres"),
+  versionLic: varchar("versionLic", { length: 100 }),  // ENTERPRISE, PROFESIONAL, etc.
+  numCamaras: int("numCamaras"),
+  // Sistema operativo y hardware
+  so: varchar("so", { length: 100 }),                  // WINDOWS, LINUX, etc.
+  memoria: varchar("memoria", { length: 50 }),
+  procesador: varchar("procesador", { length: 100 }),
+  storage: varchar("storage", { length: 100 }),
+  // Red
+  ip: varchar("ip", { length: 45 }),
+  mascara: varchar("mascara", { length: 45 }),
+  gateway: varchar("gateway", { length: 45 }),
+  dns: varchar("dns", { length: 45 }),
+  nic: varchar("nic", { length: 50 }),                 // 1GB, 10GB, etc.
+  mac: varchar("mac", { length: 30 }),
+  // Ubicación y acceso
+  ubicacion: varchar("ubicacion", { length: 255 }),
+  usuario: varchar("usuario", { length: 100 }),
+  contrasena: varchar("contrasena", { length: 255 }),  // cifrada en producción
+  // Compra / Garantía
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  ordenCompra: varchar("ordenCompra", { length: 100 }),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  tiempoUso: varchar("tiempoUso", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CctvServer = typeof cctvServers.$inferSelect;
+export type InsertCctvServer = typeof cctvServers.$inferInsert;
+
+// ─── CCTV: SWITCHES ──────────────────────────────────────────────────────────
+export const cctvSwitches = mysqlTable("cctv_switches", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idfId: int("idfId"),                                 // FK a cctv_idfs
+  idSwitch: varchar("idSwitch", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["poe", "standard", "appliance", "core", "acceso", "otro"]).default("poe").notNull(),
+  firmware: varchar("firmware", { length: 100 }),
+  // Puertos
+  puertos: int("puertos"),
+  puertosPoe: int("puertosPoe"),
+  capacidadPto: varchar("capacidadPto", { length: 50 }), // 1GB, 10GB, etc.
+  numCamaras: int("numCamaras"),
+  puertosLibres: int("puertosLibres"),
+  // Red
+  ip: varchar("ip", { length: 45 }),
+  ubicacion: varchar("ubicacion", { length: 255 }),
+  usuario: varchar("usuario", { length: 100 }),
+  contrasena: varchar("contrasena", { length: 255 }),
+  // Compra / Garantía
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  ordenCompra: varchar("ordenCompra", { length: 100 }),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  tiempoUso: varchar("tiempoUso", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CctvSwitch = typeof cctvSwitches.$inferSelect;
+export type InsertCctvSwitch = typeof cctvSwitches.$inferInsert;
+
+// ─── CCTV: UPS ───────────────────────────────────────────────────────────────
+export const cctvUps = mysqlTable("cctv_ups", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idfId: int("idfId"),                                 // FK a cctv_idfs
+  idUps: varchar("idUps", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["torre", "rack", "online", "interactivo", "otro"]).default("rack").notNull(),
+  capacidad: varchar("capacidad", { length: 50 }),     // 3 KVAs, 2Kvas, etc.
+  autonomia: varchar("autonomia", { length: 50 }),     // 5 MIN, 30 MIN, etc.
+  equiposConectados: int("equiposConectados"),
+  consumoActual: varchar("consumoActual", { length: 50 }), // 2.8 KVAS, etc.
+  tarjetaRed: boolean("tarjetaRed").default(false),
+  ip: varchar("ip", { length: 45 }),
+  ubicacion: varchar("ubicacion", { length: 255 }),
+  // Compra / Garantía
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  ordenCompra: varchar("ordenCompra", { length: 100 }),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  tiempoUso: varchar("tiempoUso", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CctvUps = typeof cctvUps.$inferSelect;
+export type InsertCctvUps = typeof cctvUps.$inferInsert;
