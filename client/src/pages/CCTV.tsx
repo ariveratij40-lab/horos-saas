@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { MaintenanceHistorySheet } from "@/components/MaintenanceHistorySheet";
+import { EquipmentQuickView } from "@/components/EquipmentQuickView";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1568,7 +1569,7 @@ function LicensesTab() {
         detailFields={[
           { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idLicencia ?? "—"}</p><p className="text-foreground/60 capitalize">{r.tipo ?? "—"}</p></> },
           { label: "Marca / Modelo", render: (r: any) => <><p>{r.marca ?? "—"}</p><p className="text-foreground/60">{r.modelo ?? "—"}</p></> },
-          { label: "Contrato / Equipo", render: (r: any) => <><p>{r.noContrato ?? "—"}</p><p className="text-foreground/60">{r.equipoAsignado ?? "—"}</p></> },
+          { label: "Contrato / Equipo", render: (r: any) => <><p>{r.noContrato ?? "—"}</p><div className="mt-0.5">{r.equipoAsignado ? <EquipmentQuickView value={r.equipoAsignado} /> : <span className="text-foreground/60">—</span>}</div></> },
           { label: "Proveedor", render: (r: any) => <><p>{r.proveedor ?? "—"}</p><p className="text-foreground/60">{r.ubicacion ?? "—"}</p></> },
           { label: "Inicio / Expiración", render: (r: any) => <><p>{r.fechaInicio ? new Date(r.fechaInicio).toLocaleDateString("es-MX") : "—"}</p><p className="text-foreground/60">{r.fechaExpiracion ? new Date(r.fechaExpiracion).toLocaleDateString("es-MX") : "—"}</p></> },
           { label: "Observaciones", render: (r: any) => <p className="text-foreground/70 text-xs">{r.observaciones ?? "—"}</p> },
@@ -2864,7 +2865,7 @@ function ResumenCCTVTab() {
                   <tr key={lic.id} className="border-b border-amber-500/10 last:border-0">
                     <td className="px-4 py-2 font-mono text-xs text-primary">{lic.idLicencia ?? "—"}</td>
                     <td className="px-4 py-2 text-xs">{[lic.marca, lic.modelo].filter(Boolean).join(" ") || "—"}</td>
-                    <td className="px-4 py-2 text-xs text-muted-foreground">{lic.equipoAsignado ?? "—"}</td>
+                    <td className="px-4 py-2 text-xs">{lic.equipoAsignado ? <EquipmentQuickView value={lic.equipoAsignado} /> : <span className="text-muted-foreground">—</span>}</td>
                     <td className="px-4 py-2 text-xs text-amber-400">
                       {lic.fechaExpiracion ? new Date(lic.fechaExpiracion).toLocaleDateString("es-MX") : "—"}
                     </td>

@@ -280,3 +280,8 @@
 - [x] Frontend: botón "Mantenimiento" en panel expandido de vista lista de Servidores, Switches y UPS
 - [x] Frontend: botón "Mantenimiento" en panel expandido de vista lista de Cámaras, IDF, Licencias y Monitores
 - [x] TypeScript: sin errores en todo el proyecto
+
+## Licencias - Equipo Asignado como enlace rápido
+- [ ] Backend: endpoint cctvLicenses.lookupEquipo — busca equipo por nombre/ID en las 7 tablas CCTV
+- [ ] Frontend: componente EquipmentQuickView — sheet lateral con detalles del equipo vinculado
+- [ ] Frontend: campo Equipo Asignado en LicensesTab muestra enlace que abre EquipmentQuickView

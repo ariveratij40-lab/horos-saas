@@ -928,6 +928,54 @@ export const cctvRouter = router({
       };
     }),
 
+  // Buscar equipo por nombre/ID en todas las tablas CCTV (para enlace en Equipo Asignado)
+  lookupEquipo: protectedProcedure
+    .input(z.object({ query: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const tenantId = ctx.user.tenantId ?? 1;
+      const q = input.query.toLowerCase().trim();
+
+      const [cameras, idfs, licenses, monitors, servers, switches, ups] = await Promise.all([
+        db.select().from(cctvCameras).where(eq(cctvCameras.tenantId, tenantId)),
+        db.select().from(cctvIdfs).where(eq(cctvIdfs.tenantId, tenantId)),
+        db.select().from(cctvLicenses).where(eq(cctvLicenses.tenantId, tenantId)),
+        db.select().from(cctvMonitors).where(eq(cctvMonitors.tenantId, tenantId)),
+        db.select().from(cctvServers).where(eq(cctvServers.tenantId, tenantId)),
+        db.select().from(cctvSwitches).where(eq(cctvSwitches.tenantId, tenantId)),
+        db.select().from(cctvUps).where(eq(cctvUps.tenantId, tenantId)),
+      ]);
+
+      const matches = (rec: Record<string, any>) =>
+        Object.values(rec).some(v =>
+          v !== null && v !== undefined && String(v).toLowerCase().includes(q)
+        );
+
+      const cam = cameras.find(matches);
+      if (cam) return { category: "cameras" as const, categoryLabel: "Cámara", id: cam.id, idCode: cam.idCamera ?? null, marca: cam.marca ?? null, modelo: cam.modelo ?? null, status: cam.status ?? null, ubicacion: cam.area ?? null, ip: cam.ip ?? null, serie: cam.serie ?? null, tipo: cam.tipo ?? null, rfidTag: cam.rfidTag ?? null, observaciones: cam.observaciones ?? null };
+
+      const idf = idfs.find(matches);
+      if (idf) return { category: "idfs" as const, categoryLabel: "IDF/MDF", id: idf.id, idCode: idf.idIdf ?? null, marca: idf.nombre ?? null, modelo: idf.tipo ?? null, status: idf.status ?? null, ubicacion: idf.ubicacion ?? null, ip: null, serie: null, tipo: idf.tipo ?? null, rfidTag: idf.rfidTag ?? null, observaciones: idf.observaciones ?? null };
+
+      const lic = licenses.find(matches);
+      if (lic) return { category: "licenses" as const, categoryLabel: "Licencia", id: lic.id, idCode: lic.idLicencia ?? null, marca: lic.marca ?? null, modelo: lic.modelo ?? null, status: lic.status ?? null, ubicacion: lic.ubicacion ?? null, ip: null, serie: null, tipo: lic.tipo ?? null, rfidTag: lic.rfidTag ?? null, observaciones: lic.observaciones ?? null };
+
+      const mon = monitors.find(matches);
+      if (mon) return { category: "monitors" as const, categoryLabel: "Monitor", id: mon.id, idCode: mon.idMonitor ?? null, marca: mon.marca ?? null, modelo: mon.modelo ?? null, status: mon.status ?? null, ubicacion: mon.ubicacion ?? null, ip: null, serie: mon.serie ?? null, tipo: mon.tipo ?? null, rfidTag: mon.rfidTag ?? null, observaciones: mon.observaciones ?? null };
+
+      const srv = servers.find(matches);
+      if (srv) return { category: "servers" as const, categoryLabel: "Servidor", id: srv.id, idCode: srv.idServer ?? null, marca: srv.marca ?? null, modelo: srv.modelo ?? null, status: srv.status ?? null, ubicacion: srv.ubicacion ?? null, ip: srv.ip ?? null, serie: srv.serie ?? null, tipo: srv.tipo ?? null, rfidTag: srv.rfidTag ?? null, observaciones: srv.observaciones ?? null };
+
+      const sw = switches.find(matches);
+      if (sw) return { category: "switches" as const, categoryLabel: "Switch", id: sw.id, idCode: sw.idSwitch ?? null, marca: sw.marca ?? null, modelo: sw.modelo ?? null, status: sw.status ?? null, ubicacion: sw.ubicacion ?? null, ip: sw.ip ?? null, serie: sw.serie ?? null, tipo: sw.tipo ?? null, rfidTag: sw.rfidTag ?? null, observaciones: sw.observaciones ?? null };
+
+      const u = ups.find(matches);
+      if (u) return { category: "ups" as const, categoryLabel: "UPS", id: u.id, idCode: u.idUps ?? null, marca: u.marca ?? null, modelo: u.modelo ?? null, status: u.status ?? null, ubicacion: u.ubicacion ?? null, ip: u.ip ?? null, serie: u.serie ?? null, tipo: u.tipo ?? null, rfidTag: u.rfidTag ?? null, observaciones: u.observaciones ?? null };
+
+      return null;
+    }),
+
   // Resumen global del módulo CCTV
   summary: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
