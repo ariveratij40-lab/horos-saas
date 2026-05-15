@@ -1907,6 +1907,53 @@ function ResumenCCTVTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function CCTVPage() {
   const [, navigate] = useLocation();
+  const [activeTab, setActiveTab] = React.useState("resumen");
+  const [clearOpen, setClearOpen] = React.useState(false);
+  const [clearConfirm, setClearConfirm] = React.useState("");
+  const utils = trpc.useUtils();
+
+  const TAB_LABELS: Record<string, string> = {
+    cameras: "Cámaras", idfs: "IDF/MDF", licenses: "Licencias",
+    monitors: "Pantallas", servers: "Servidores", switches: "Switches", ups: "UPS",
+  };
+
+  const clearCamerasMut   = trpc.cctv.cameras.clearAll.useMutation();
+  const clearIdfsMut      = trpc.cctv.idfs.clearAll.useMutation();
+  const clearLicensesMut  = trpc.cctv.licenses.clearAll.useMutation();
+  const clearMonitorsMut  = trpc.cctv.monitors.clearAll.useMutation();
+  const clearServersMut   = trpc.cctv.servers.clearAll.useMutation();
+  const clearSwitchesMut  = trpc.cctv.switches.clearAll.useMutation();
+  const clearUpsMut       = trpc.cctv.ups.clearAll.useMutation();
+
+  const CLEAR_MUTS: Record<string, { mutateAsync: () => Promise<any> }> = {
+    cameras: clearCamerasMut, idfs: clearIdfsMut, licenses: clearLicensesMut,
+    monitors: clearMonitorsMut, servers: clearServersMut,
+    switches: clearSwitchesMut, ups: clearUpsMut,
+  };
+
+  async function handleClearAll() {
+    if (clearConfirm !== "CONFIRMAR") return;
+    const mut = CLEAR_MUTS[activeTab];
+    if (!mut) return;
+    try {
+      await mut.mutateAsync();
+      const tab = activeTab as "cameras" | "idfs" | "licenses" | "monitors" | "servers" | "switches" | "ups";
+      if (tab === "cameras") await utils.cctv.cameras.invalidate();
+      else if (tab === "idfs") await utils.cctv.idfs.invalidate();
+      else if (tab === "licenses") await utils.cctv.licenses.invalidate();
+      else if (tab === "monitors") await utils.cctv.monitors.invalidate();
+      else if (tab === "servers") await utils.cctv.servers.invalidate();
+      else if (tab === "switches") await utils.cctv.switches.invalidate();
+      else if (tab === "ups") await utils.cctv.ups.invalidate();
+      toast.success(`Inventario de ${TAB_LABELS[activeTab]} vaciado correctamente`);
+    } catch {
+      toast.error("Error al vaciar el inventario");
+    } finally {
+      setClearOpen(false);
+      setClearConfirm("");
+    }
+  }
+
   return (
     <div>
       <div className="space-y-5">
@@ -1921,13 +1968,20 @@ export default function CCTVPage() {
               Gestión completa de equipos del sistema de videovigilancia
             </p>
           </div>
-          <Button size="sm" variant="outline" onClick={() => navigate("/cctv/import")} className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10">
-            <Upload className="w-4 h-4" /> Importar Inventario
-          </Button>
+          <div className="flex items-center gap-2">
+            {activeTab !== "resumen" && (
+              <Button size="sm" variant="outline" onClick={() => { setClearConfirm(""); setClearOpen(true); }} className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10">
+                <Trash2 className="w-4 h-4" /> Vaciar Inventario
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => navigate("/cctv/import")} className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10">
+              <Upload className="w-4 h-4" /> Importar Inventario
+            </Button>
+          </div>
         </div>
 
         {/* Tabs de equipos — Resumen primero */}
-        <Tabs defaultValue="resumen" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid grid-cols-8 h-10 bg-muted/50">
             <TabsTrigger value="resumen"   className="gap-1.5 text-xs"><Activity className="w-3.5 h-3.5" />Resumen</TabsTrigger>
             <TabsTrigger value="cameras"   className="gap-1.5 text-xs"><Camera className="w-3.5 h-3.5" />Cámaras</TabsTrigger>
@@ -1949,6 +2003,42 @@ export default function CCTVPage() {
           <TabsContent value="ups"><UpsTab /></TabsContent>
         </Tabs>
       </div>
+
+      {/* Diálogo de confirmación para Vaciar Inventario */}
+      <Dialog open={clearOpen} onOpenChange={setClearOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" />
+              Vaciar Inventario: {TAB_LABELS[activeTab]}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              <strong>Advertencia:</strong> Esta acción eliminará permanentemente <strong>todos los registros</strong> de {TAB_LABELS[activeTab]}. Esta operación no se puede deshacer.
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Escribe <strong>CONFIRMAR</strong> para continuar:</Label>
+              <Input
+                value={clearConfirm}
+                onChange={e => setClearConfirm(e.target.value)}
+                placeholder="CONFIRMAR"
+                className="font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClearOpen(false)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              disabled={clearConfirm !== "CONFIRMAR"}
+              onClick={handleClearAll}
+            >
+              <Trash2 className="w-4 h-4 mr-1" /> Vaciar Inventario
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

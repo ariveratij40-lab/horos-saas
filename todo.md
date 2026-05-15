@@ -192,3 +192,12 @@
 - [x] Frontend: botón eliminar en cada miniatura (hover)
 - [x] Frontend: componente IdfImagesMini en el panel expandido de la tabla lista
 - [x] Frontend: lightbox para ver imagen en tamaño completo al hacer clic
+
+## CCTV - Vaciar Inventario y Anti-duplicados
+- [ ] Router CCTV: endpoint clearAll por categoría (cameras/idfs/licenses/monitors/servers/switches/ups)
+- [ ] Frontend: botón "Vaciar Inventario" en el header del módulo CCTV con diálogo de confirmación
+- [ ] Frontend: el diálogo pide escribir "CONFIRMAR" antes de borrar para evitar accidentes
+- [ ] Frontend: el botón Vaciar solo borra la categoría activa (pestaña seleccionada)
+- [ ] Importación: validación anti-duplicados por idCamera/idIdf/idLicencia/etc. antes de insertar
+- [ ] Importación: mostrar en el Paso 4 los registros omitidos por duplicado (nombre + motivo)
+- [ ] Importación: opción "Actualizar si existe" vs "Omitir si existe" en el Paso 3

@@ -394,11 +394,62 @@ export const cctvImportRouter = router({
       );
       const records = applyMapping(rows, mappingStr, tenantId);
       let inserted = 0;
+      let skipped = 0;
       const errors: string[] = [];
+      const skippedNames: string[] = [];
 
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No hay conexión a la base de datos" });
+
+      // Load existing IDs and names for duplicate detection
+      const { eq } = await import("drizzle-orm");
+      const existingIds = new Set<string>();
+      const existingNames = new Set<string>();
+
+      if (input.category === "cameras") {
+        const existing = await db.select({ idCamera: cctvCameras.idCamera, area: cctvCameras.area }).from(cctvCameras).where(eq(cctvCameras.tenantId, tenantId));
+        existing.forEach(r => { if (r.idCamera) existingIds.add(r.idCamera.toLowerCase()); if (r.area) existingNames.add(r.area.toLowerCase()); });
+      } else if (input.category === "idfs") {
+        const existing = await db.select({ idIdf: cctvIdfs.idIdf, nombre: cctvIdfs.nombre }).from(cctvIdfs).where(eq(cctvIdfs.tenantId, tenantId));
+        existing.forEach(r => { if (r.idIdf) existingIds.add(r.idIdf.toLowerCase()); if (r.nombre) existingNames.add(r.nombre.toLowerCase()); });
+      } else if (input.category === "licenses") {
+        const existing = await db.select({ idLicencia: cctvLicenses.idLicencia, marca: cctvLicenses.marca }).from(cctvLicenses).where(eq(cctvLicenses.tenantId, tenantId));
+        existing.forEach(r => { if (r.idLicencia) existingIds.add(r.idLicencia.toLowerCase()); if (r.marca) existingNames.add(r.marca.toLowerCase()); });
+      } else if (input.category === "monitors") {
+        const existing = await db.select({ idMonitor: cctvMonitors.idMonitor, marca: cctvMonitors.marca }).from(cctvMonitors).where(eq(cctvMonitors.tenantId, tenantId));
+        existing.forEach(r => { if (r.idMonitor) existingIds.add(r.idMonitor.toLowerCase()); if (r.marca) existingNames.add(r.marca.toLowerCase()); });
+      } else if (input.category === "servers") {
+        const existing = await db.select({ idServer: cctvServers.idServer, marca: cctvServers.marca }).from(cctvServers).where(eq(cctvServers.tenantId, tenantId));
+        existing.forEach(r => { if (r.idServer) existingIds.add(r.idServer.toLowerCase()); if (r.marca) existingNames.add(r.marca.toLowerCase()); });
+      } else if (input.category === "switches") {
+        const existing = await db.select({ idSwitch: cctvSwitches.idSwitch, marca: cctvSwitches.marca }).from(cctvSwitches).where(eq(cctvSwitches.tenantId, tenantId));
+        existing.forEach(r => { if (r.idSwitch) existingIds.add(r.idSwitch.toLowerCase()); if (r.marca) existingNames.add(r.marca.toLowerCase()); });
+      } else if (input.category === "ups") {
+        const existing = await db.select({ idUps: cctvUps.idUps, marca: cctvUps.marca }).from(cctvUps).where(eq(cctvUps.tenantId, tenantId));
+        existing.forEach(r => { if (r.idUps) existingIds.add(r.idUps.toLowerCase()); if (r.marca) existingNames.add(r.marca.toLowerCase()); });
+      }
+
+      // ID field per category
+      const ID_FIELD: Record<string, string> = {
+        cameras: "idCamera", idfs: "idIdf", licenses: "idLicencia",
+        monitors: "idMonitor", servers: "idServer", switches: "idSwitch", ups: "idUps",
+      };
+      const idField = ID_FIELD[input.category];
+
       for (const rec of records) {
+        // Duplicate check by ID
+        const recId = rec[idField] ? String(rec[idField]).toLowerCase() : null;
+        const recName = rec.nombre ? String(rec.nombre).toLowerCase() : (rec.area ? String(rec.area).toLowerCase() : null);
+        if (recId && existingIds.has(recId)) {
+          skipped++;
+          skippedNames.push(String(rec[idField]));
+          continue;
+        }
+        if (recName && existingNames.has(recName)) {
+          skipped++;
+          skippedNames.push(recName);
+          continue;
+        }
         try {
           if (input.category === "cameras") await db.insert(cctvCameras).values(rec as any);
           else if (input.category === "idfs") await db.insert(cctvIdfs).values(rec as any);
@@ -408,12 +459,15 @@ export const cctvImportRouter = router({
           else if (input.category === "switches") await db.insert(cctvSwitches).values(rec as any);
           else if (input.category === "ups") await db.insert(cctvUps).values(rec as any);
           inserted++;
+          // Add to sets to prevent duplicates within the same import batch
+          if (recId) existingIds.add(recId);
+          if (recName) existingNames.add(recName);
         } catch (e: any) {
           errors.push(e?.message ?? "Error desconocido");
         }
       }
 
-      return { inserted, errors, total: records.length };
+      return { inserted, skipped, skippedNames, errors, total: records.length };
     }),
 
   // Get category definitions (for step 1 UI)

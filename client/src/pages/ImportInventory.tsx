@@ -97,7 +97,7 @@ export default function ImportInventory() {
   const [isDragging, setIsDragging] = useState(false);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
-  const [importResult, setImportResult] = useState<{ inserted: number; errors: string[]; total: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ inserted: number; skipped: number; skippedNames: string[]; errors: string[]; total: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const parseMut = trpc.cctvImport.parseFile.useMutation({
@@ -314,7 +314,7 @@ export default function ImportInventory() {
   // ── Step 4: Result ───────────────────────────────────────────────────────
   const renderStep4 = () => {
     if (!importResult) return null;
-    const { inserted, errors, total } = importResult;
+    const { inserted, skipped, skippedNames, errors, total } = importResult;
     const success = inserted > 0;
     return (
       <div className="text-center">
@@ -331,7 +331,7 @@ export default function ImportInventory() {
           Se procesaron <strong>{total}</strong> registros del archivo.
         </p>
 
-        <div className="grid grid-cols-3 gap-4 mb-6 max-w-sm mx-auto">
+        <div className="grid grid-cols-4 gap-3 mb-6 max-w-lg mx-auto">
           <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
             <div className="text-2xl font-bold text-green-400">{inserted}</div>
             <div className="text-xs text-muted-foreground">Importados</div>
@@ -340,11 +340,27 @@ export default function ImportInventory() {
             <div className="text-2xl font-bold">{total}</div>
             <div className="text-xs text-muted-foreground">Total</div>
           </div>
+          <div className={`p-3 rounded-xl border ${skipped > 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-muted/30 border-border"}`}>
+            <div className={`text-2xl font-bold ${skipped > 0 ? "text-amber-400" : ""}`}>{skipped}</div>
+            <div className="text-xs text-muted-foreground">Duplicados</div>
+          </div>
           <div className={`p-3 rounded-xl border ${errors.length > 0 ? "bg-red-500/10 border-red-500/20" : "bg-muted/30 border-border"}`}>
             <div className={`text-2xl font-bold ${errors.length > 0 ? "text-red-400" : ""}`}>{errors.length}</div>
             <div className="text-xs text-muted-foreground">Errores</div>
           </div>
         </div>
+
+        {skipped > 0 && (
+          <details className="mb-4 text-left">
+            <summary className="text-sm text-amber-400 cursor-pointer">Ver duplicados omitidos ({skipped})</summary>
+            <div className="mt-2 max-h-32 overflow-y-auto rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+              {skippedNames.slice(0, 30).map((n, i) => (
+                <p key={i} className="text-xs text-amber-300 mb-1">{i + 1}. {n} — ya existe en el inventario</p>
+              ))}
+              {skippedNames.length > 30 && <p className="text-xs text-muted-foreground">... y {skippedNames.length - 30} más</p>}
+            </div>
+          </details>
+        )}
 
         {errors.length > 0 && (
           <details className="mb-6 text-left">

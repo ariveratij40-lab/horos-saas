@@ -288,6 +288,14 @@ export const cctvCamerasRouter = router({
     return { success: true };
   }),
 
+  clearAll: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new Error("DB no disponible");
+    const tenantId = ctx.user.tenantId ?? 1;
+    await db.delete(cctvCameras).where(eq(cctvCameras.tenantId, tenantId));
+    return { success: true };
+  }),
+
   stats: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return { total: 0, active: 0, inactive: 0, maintenance: 0, retired: 0, poe: 0 };
@@ -378,6 +386,15 @@ export const cctvIdfsRouter = router({
     if (!db) throw new Error("DB no disponible");
     const tenantId = ctx.user.tenantId ?? 1;
     await db.delete(cctvIdfs).where(and(eq(cctvIdfs.id, input.id), eq(cctvIdfs.tenantId, tenantId)));
+    return { success: true };
+  }),
+
+  clearAll: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new Error("DB no disponible");
+    const tenantId = ctx.user.tenantId ?? 1;
+    await db.delete(cctvIdfImages).where(eq(cctvIdfImages.tenantId, tenantId));
+    await db.delete(cctvIdfs).where(eq(cctvIdfs.tenantId, tenantId));
     return { success: true };
   }),
 
@@ -502,6 +519,14 @@ export const cctvLicensesRouter = router({
     return { success: true };
   }),
 
+  clearAll: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new Error("DB no disponible");
+    const tenantId = ctx.user.tenantId ?? 1;
+    await db.delete(cctvLicenses).where(eq(cctvLicenses.tenantId, tenantId));
+    return { success: true };
+  }),
+
   expiringSoon: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return [];
@@ -572,6 +597,14 @@ export const cctvMonitorsRouter = router({
     await db.delete(cctvMonitors).where(and(eq(cctvMonitors.id, input.id), eq(cctvMonitors.tenantId, tenantId)));
     return { success: true };
   }),
+
+  clearAll: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new Error("DB no disponible");
+    const tenantId = ctx.user.tenantId ?? 1;
+    await db.delete(cctvMonitors).where(eq(cctvMonitors.tenantId, tenantId));
+    return { success: true };
+  }),
 });
 
 // SERVIDORES / NVR
@@ -624,6 +657,14 @@ export const cctvServersRouter = router({
     if (!db) throw new Error("DB no disponible");
     const tenantId = ctx.user.tenantId ?? 1;
     await db.delete(cctvServers).where(and(eq(cctvServers.id, input.id), eq(cctvServers.tenantId, tenantId)));
+    return { success: true };
+  }),
+
+  clearAll: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new Error("DB no disponible");
+    const tenantId = ctx.user.tenantId ?? 1;
+    await db.delete(cctvServers).where(eq(cctvServers.tenantId, tenantId));
     return { success: true };
   }),
 });
@@ -680,6 +721,14 @@ export const cctvSwitchesRouter = router({
     await db.delete(cctvSwitches).where(and(eq(cctvSwitches.id, input.id), eq(cctvSwitches.tenantId, tenantId)));
     return { success: true };
   }),
+
+  clearAll: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new Error("DB no disponible");
+    const tenantId = ctx.user.tenantId ?? 1;
+    await db.delete(cctvSwitches).where(eq(cctvSwitches.tenantId, tenantId));
+    return { success: true };
+  }),
 });
 
 // UPS
@@ -732,6 +781,14 @@ export const cctvUpsRouter = router({
     if (!db) throw new Error("DB no disponible");
     const tenantId = ctx.user.tenantId ?? 1;
     await db.delete(cctvUps).where(and(eq(cctvUps.id, input.id), eq(cctvUps.tenantId, tenantId)));
+    return { success: true };
+  }),
+
+  clearAll: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new Error("DB no disponible");
+    const tenantId = ctx.user.tenantId ?? 1;
+    await db.delete(cctvUps).where(eq(cctvUps.tenantId, tenantId));
     return { success: true };
   }),
 });
