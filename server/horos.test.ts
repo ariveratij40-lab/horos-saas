@@ -224,3 +224,83 @@ describe("dashboard.kpisDetailed", () => {
     expect(typeof dbModule.getDashboardKpisDetailed).toBe("function");
   });
 });
+
+// ─── Tests CCTV ───────────────────────────────────────────────────────────────
+const createCtx = () => makeCtx({ role: "admin", tenantId: 1 });
+
+describe("cctv.cameras", () => {
+  it("list returns empty array when no DB", async () => {
+    const caller = appRouter.createCaller(createCtx());
+    const result = await caller.cctv.cameras.list(undefined);
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("stats returns zero counts when no DB", async () => {
+    const caller = appRouter.createCaller(createCtx());
+    const stats = await caller.cctv.cameras.stats();
+    expect(stats).toMatchObject({ total: 0, active: 0, poe: 0 });
+  });
+});
+
+describe("cctv.idfs", () => {
+  it("list returns empty array when no DB", async () => {
+    const caller = appRouter.createCaller(createCtx());
+    const result = await caller.cctv.idfs.list(undefined);
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("cctv.licenses", () => {
+  it("list returns empty array when no DB", async () => {
+    const caller = appRouter.createCaller(createCtx());
+    const result = await caller.cctv.licenses.list(undefined);
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("expiringSoon returns empty array when no DB", async () => {
+    const caller = appRouter.createCaller(createCtx());
+    const result = await caller.cctv.licenses.expiringSoon();
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("cctv.monitors", () => {
+  it("list returns empty array when no DB", async () => {
+    const caller = appRouter.createCaller(createCtx());
+    const result = await caller.cctv.monitors.list(undefined);
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("cctv.servers", () => {
+  it("list returns empty array when no DB", async () => {
+    const caller = appRouter.createCaller(createCtx());
+    const result = await caller.cctv.servers.list(undefined);
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("cctv.switches", () => {
+  it("list returns empty array when no DB", async () => {
+    const caller = appRouter.createCaller(createCtx());
+    const result = await caller.cctv.switches.list(undefined);
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("cctv.ups", () => {
+  it("list returns empty array when no DB", async () => {
+    const caller = appRouter.createCaller(createCtx());
+    const result = await caller.cctv.ups.list(undefined);
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("cctv.summary", () => {
+  it("summary returns null or an object when no DB", async () => {
+    const caller = appRouter.createCaller(createCtx());
+    const result = await caller.cctv.summary();
+    // Without DB the router returns null; with DB it returns the summary object
+    expect(result === null || typeof result === "object").toBe(true);
+  });
+});

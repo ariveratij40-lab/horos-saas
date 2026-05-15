@@ -1,5 +1,4 @@
 import { useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -255,8 +254,10 @@ function IdfsTab() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
+  const [search, setSearch] = useState("");
 
-  const { data: idfs = [], refetch } = trpc.cctv.idfs.list.useQuery(undefined);
+  const { data: idfsRaw = [], refetch } = trpc.cctv.idfs.list.useQuery(undefined);
+  const idfs = idfsRaw.filter(r => !search || [r.idIdf, r.nombre, r.ubicacion, r.tipo].some(v => v?.toLowerCase().includes(search.toLowerCase())));
   const createMut = trpc.cctv.idfs.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("IDF registrado"); } });
   const updateMut = trpc.cctv.idfs.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("IDF actualizado"); } });
   const deleteMut = trpc.cctv.idfs.delete.useMutation({ onSuccess: () => { refetch(); toast.success("IDF eliminado"); } });
@@ -269,6 +270,10 @@ function IdfsTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Buscar IDF/MDF..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nuevo IDF/MDF</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
@@ -350,8 +355,10 @@ function LicensesTab() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
+  const [search, setSearch] = useState("");
 
-  const { data: licenses = [], refetch } = trpc.cctv.licenses.list.useQuery(undefined);
+  const { data: licensesRaw = [], refetch } = trpc.cctv.licenses.list.useQuery(undefined);
+  const licenses = licensesRaw.filter(r => !search || [r.idLicencia, r.marca, r.modelo, r.noContrato, r.equipoAsignado, r.proveedor].some(v => v?.toLowerCase().includes(search.toLowerCase())));
   const { data: expiring = [] } = trpc.cctv.licenses.expiringSoon.useQuery();
   const createMut = trpc.cctv.licenses.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Licencia registrada"); } });
   const updateMut = trpc.cctv.licenses.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Licencia actualizada"); } });
@@ -380,6 +387,10 @@ function LicensesTab() {
         </div>
       )}
       <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Buscar licencia..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nueva Licencia</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
@@ -455,8 +466,10 @@ function MonitorsTab() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
+  const [search, setSearch] = useState("");
 
-  const { data: monitors = [], refetch } = trpc.cctv.monitors.list.useQuery(undefined);
+  const { data: monitorsRaw = [], refetch } = trpc.cctv.monitors.list.useQuery(undefined);
+  const monitors = monitorsRaw.filter(r => !search || [r.idMonitor, r.marca, r.modelo, r.ubicacion, r.serie].some(v => v?.toLowerCase().includes(search.toLowerCase())));
   const createMut = trpc.cctv.monitors.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Monitor registrado"); } });
   const updateMut = trpc.cctv.monitors.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Monitor actualizado"); } });
   const deleteMut = trpc.cctv.monitors.delete.useMutation({ onSuccess: () => { refetch(); toast.success("Monitor eliminado"); } });
@@ -469,6 +482,10 @@ function MonitorsTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Buscar pantalla..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nueva Pantalla</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
@@ -559,8 +576,10 @@ function ServersTab() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
+  const [search, setSearch] = useState("");
 
-  const { data: servers = [], refetch } = trpc.cctv.servers.list.useQuery(undefined);
+  const { data: serversRaw = [], refetch } = trpc.cctv.servers.list.useQuery(undefined);
+  const servers = serversRaw.filter(r => !search || [r.idServer, r.marca, r.modelo, r.ip, r.ubicacion, r.versionVms].some(v => v?.toLowerCase().includes(search.toLowerCase())));
   const createMut = trpc.cctv.servers.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Servidor registrado"); } });
   const updateMut = trpc.cctv.servers.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Servidor actualizado"); } });
   const deleteMut = trpc.cctv.servers.delete.useMutation({ onSuccess: () => { refetch(); toast.success("Servidor eliminado"); } });
@@ -573,6 +592,10 @@ function ServersTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Buscar servidor/NVR..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nuevo Servidor/NVR</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
@@ -757,8 +780,10 @@ function UpsTab() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
+  const [search, setSearch] = useState("");
 
-  const { data: upsList = [], refetch } = trpc.cctv.ups.list.useQuery(undefined);
+  const { data: upsListRaw = [], refetch } = trpc.cctv.ups.list.useQuery(undefined);
+  const upsList = upsListRaw.filter(r => !search || [r.idUps, r.marca, r.modelo, r.ubicacion].some(v => v?.toLowerCase().includes(search.toLowerCase())));
   const createMut = trpc.cctv.ups.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("UPS registrado"); } });
   const updateMut = trpc.cctv.ups.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("UPS actualizado"); } });
   const deleteMut = trpc.cctv.ups.delete.useMutation({ onSuccess: () => { refetch(); toast.success("UPS eliminado"); } });
@@ -771,6 +796,10 @@ function UpsTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Buscar UPS..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nuevo UPS</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
@@ -846,7 +875,7 @@ export default function CCTVPage() {
   const { data: summary } = trpc.cctv.summary.useQuery();
 
   return (
-    <DashboardLayout>
+    <div>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -939,6 +968,6 @@ export default function CCTVPage() {
           <TabsContent value="ups"><UpsTab /></TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
+    </div>
   );
 }

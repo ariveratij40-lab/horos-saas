@@ -66,16 +66,16 @@
 - [x] Pruebas unitarias para los nuevos KPIs granulares
 
 ## Módulo Inventario CCTV - 7 Tipos de Equipo
-- [ ] Schema BD: tabla cctv_cameras con todos los campos de la plantilla CSV
-- [ ] Schema BD: tabla cctv_idfs (IDF/MDF con racks, gabinetes, fibra, switches, etc.)
-- [ ] Schema BD: tabla cctv_licenses (tipo, contrato, fechas, equipo asignado)
-- [ ] Schema BD: tabla cctv_monitors (tipo, tamaño, resolución, tecnología, puerto)
-- [ ] Schema BD: tabla cctv_servers (tipo VMS, versión, licencias, SO, hardware, red)
-- [ ] Schema BD: tabla cctv_switches (tipo, firmware, puertos, PoE, cámaras conectadas)
-- [ ] Schema BD: tabla cctv_ups (tipo, capacidad, autonomía, equipos conectados)
-- [ ] Backend: routers tRPC CRUD para los 7 tipos de equipo CCTV
-- [ ] Frontend: módulo /cctv con 7 pestañas (Cámaras, IDF, Licencias, Pantallas, Servidores, Switches, UPS)
-- [ ] Frontend: formularios de alta/edición con todos los campos de cada plantilla
-- [ ] Frontend: tablas de listado con filtros y búsqueda por tipo de equipo
-- [ ] Frontend: navegación desde Dashboard pestaña CCTV hacia el módulo
-- [ ] Pruebas unitarias para los nuevos routers CCTV
+- [x] Schema BD: tabla cctv_cameras con todos los campos de la plantilla CSV
+- [x] Schema BD: tabla cctv_idfs (IDF/MDF con racks, gabinetes, fibra, switches, etc.)
+- [x] Schema BD: tabla cctv_licenses (tipo, contrato, fechas, equipo asignado)
+- [x] Schema BD: tabla cctv_monitors (tipo, tamaño, resolución, tecnología, puerto)
+- [x] Schema BD: tabla cctv_servers (tipo VMS, versión, licencias, SO, hardware, red)
+- [x] Schema BD: tabla cctv_switches (tipo, firmware, puertos, PoE, cámaras conectadas)
+- [x] Schema BD: tabla cctv_ups (tipo, capacidad, autonomía, equipos conectados)
+- [x] Backend: routers tRPC CRUD para los 7 tipos de equipo CCTV
+- [x] Frontend: módulo /cctv con 7 pestañas (Cámaras, IDF, Licencias, Pantallas, Servidores, Switches, UPS)
+- [x] Frontend: formularios de alta/edición con todos los campos de cada plantilla
+- [x] Frontend: tablas de listado con filtros y búsqueda por tipo de equipo
+- [x] Frontend: navegación desde Dashboard pestaña CCTV hacia el módulo
+- [x] Pruebas unitarias para los nuevos routers CCTV
