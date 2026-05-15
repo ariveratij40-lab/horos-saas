@@ -47,6 +47,8 @@ const cameraSchema = z.object({
   sceneDescription: z.string().nullish(),
   branchId: z.number().nullish(),
   ctpat: z.boolean().nullish(),
+  invoiceNumber: z.string().nullish(),
+  amount: z.string().nullish(),
 });
 
 const idfSchema = z.object({
@@ -73,6 +75,8 @@ const idfSchema = z.object({
   fotoUrl: z.string().optional(),
   status: z.enum(["active", "inactive", "maintenance"]).optional(),
   branchId: z.number().optional(),
+  invoiceNumber: z.string().optional(),
+  amount: z.string().optional(),
 });
 
 const licenseSchema = z.object({
@@ -94,6 +98,8 @@ const licenseSchema = z.object({
   status: z.enum(["active", "expired", "cancelled", "pending_renewal"]).optional(),
   observaciones: z.string().optional(),
   branchId: z.number().optional(),
+  invoiceNumber: z.string().optional(),
+  amount: z.string().optional(),
 });
 
 const monitorSchema = z.object({
@@ -118,6 +124,8 @@ const monitorSchema = z.object({
   observaciones: z.string().optional(),
   fotoUrl: z.string().optional(),
   branchId: z.number().optional(),
+  invoiceNumber: z.string().optional(),
+  amount: z.string().optional(),
 });
 
 const serverSchema = z.object({
@@ -153,6 +161,8 @@ const serverSchema = z.object({
   observaciones: z.string().optional(),
   fotoUrl: z.string().optional(),
   branchId: z.number().optional(),
+  invoiceNumber: z.string().optional(),
+  amount: z.string().optional(),
 });
 
 const switchSchema = z.object({
@@ -181,6 +191,8 @@ const switchSchema = z.object({
   observaciones: z.string().optional(),
   fotoUrl: z.string().optional(),
   branchId: z.number().optional(),
+  invoiceNumber: z.string().optional(),
+  amount: z.string().optional(),
 });
 
 const upsSchema = z.object({
@@ -206,6 +218,8 @@ const upsSchema = z.object({
   observaciones: z.string().optional(),
   fotoUrl: z.string().optional(),
   branchId: z.number().optional(),
+  invoiceNumber: z.string().optional(),
+  amount: z.string().optional(),
 });
 
 const listInput = z.object({

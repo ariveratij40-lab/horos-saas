@@ -439,6 +439,9 @@ export const cctvCameras = mysqlTable("cctv_cameras", {
   sceneDescription: varchar("sceneDescription", { length: 255 }),
   // Programa CTPAT (Customs Trade Partnership Against Terrorism)
   ctpat: boolean("ctpat").default(false),
+  // Factura / Monto
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -478,6 +481,9 @@ export const cctvIdfs = mysqlTable("cctv_idfs", {
   observaciones: text("observaciones"),
   fotoUrl: text("fotoUrl"),
   status: mysqlEnum("status", ["active", "inactive", "maintenance"]).default("active").notNull(),
+  // Factura / Monto
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -507,6 +513,9 @@ export const cctvLicenses = mysqlTable("cctv_licenses", {
   expirado: boolean("expirado").default(false),
   status: mysqlEnum("status", ["active", "expired", "cancelled", "pending_renewal"]).default("active").notNull(),
   observaciones: text("observaciones"),
+  // Factura / Monto
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -539,6 +548,9 @@ export const cctvMonitors = mysqlTable("cctv_monitors", {
   status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
   observaciones: text("observaciones"),
   fotoUrl: text("fotoUrl"),
+  // Factura / Monto
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -587,6 +599,9 @@ export const cctvServers = mysqlTable("cctv_servers", {
   status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
   observaciones: text("observaciones"),
   fotoUrl: text("fotoUrl"),
+  // Factura / Monto
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -626,6 +641,9 @@ export const cctvSwitches = mysqlTable("cctv_switches", {
   status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
   observaciones: text("observaciones"),
   fotoUrl: text("fotoUrl"),
+  // Factura / Monto
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -660,6 +678,9 @@ export const cctvUps = mysqlTable("cctv_ups", {
   status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired"]).default("active").notNull(),
   observaciones: text("observaciones"),
   fotoUrl: text("fotoUrl"),
+  // Factura / Monto
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

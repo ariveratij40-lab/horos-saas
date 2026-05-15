@@ -169,3 +169,9 @@
 - [x] Frontend: Paso 3 - mapeo de columnas con sugerencias IA y vista previa de datos
 - [x] Frontend: Paso 4 - resultado con contadores de importados/errores/total
 - [x] Frontend: botón "Importar" en el toolbar del módulo CCTV
+
+## CCTV - Campos Factura y Monto en todos los inventarios
+- [x] Schema Drizzle: invoiceNumber (varchar 100) y amount (decimal 12,2) en las 7 tablas
+- [x] Migración SQL aplicada en las 7 tablas CCTV
+- [x] Router CCTV: invoiceNumber y amount en los 7 schemas Zod
+- [x] Frontend: campos No. Factura y Monto en los 7 formularios de alta/edición
