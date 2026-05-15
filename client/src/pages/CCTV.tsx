@@ -109,8 +109,9 @@ function DataTable({
               <td className="px-3 py-2 text-right">
                 <div className="flex items-center justify-end gap-1">
                   {onSheet && (
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10" title="Ver Ficha Técnica" onClick={() => onSheet(row)}>
-                      <FileText className="w-3.5 h-3.5" />
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-primary border-primary/30 hover:bg-primary/10 hover:text-primary gap-1" title="Ver Ficha Técnica" onClick={() => onSheet(row)}>
+                      <FileText className="w-3 h-3" />
+                      Ficha
                     </Button>
                   )}
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(row)}>
