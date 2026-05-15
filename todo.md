@@ -120,3 +120,12 @@
 - [x] Frontend: campo de imagen de escena inline en el formulario de crear/editar cámara
 - [x] Frontend: mostrar branchId (sucursal) en la tarjeta de cámara
 - [x] Backend: labelMap de getSheet actualizado con sceneImageUrl/sceneDescription
+
+## CCTV - Pestaña Resumen en Inventario
+- [x] Agregar pestaña "Resumen" como primera pestaña en el módulo /cctv
+- [x] Pestaña Resumen: fichas de totales por tipo de equipo (Cámaras, IDF/MDF, Licencias, Pantallas, Servidores, Switches, UPS)
+- [x] Pestaña Resumen: distribución de cámaras por tipo (domo, bala, ptz, poe, retiradas)
+- [x] Pestaña Resumen: alertas de licencias próximas a vencer (90 días)
+- [x] Pestaña Resumen: KPIs globales (total equipos, activos, mantenimiento, licencias expiradas)
+- [x] Mover las fichas de totales globales (actualmente sobre las pestañas) a la pestaña Resumen
+- [x] Limpiar las fichas de totales individuales de CamerasTab para que no se vean saturadas

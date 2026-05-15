@@ -423,10 +423,16 @@ export const cctvLicensesRouter = router({
     const db = await getDb();
     if (!db) return [];
     const tenantId = ctx.user.tenantId ?? 1;
+    const now = new Date();
     const in90days = new Date();
     in90days.setDate(in90days.getDate() + 90);
     return db.select().from(cctvLicenses)
-      .where(and(eq(cctvLicenses.tenantId, tenantId), eq(cctvLicenses.status, "active")))
+      .where(and(
+        eq(cctvLicenses.tenantId, tenantId),
+        eq(cctvLicenses.status, "active"),
+        gte(cctvLicenses.fechaExpiracion, now),
+        lt(cctvLicenses.fechaExpiracion, in90days),
+      ))
       .orderBy(cctvLicenses.fechaExpiracion).limit(20);
   }),
 });

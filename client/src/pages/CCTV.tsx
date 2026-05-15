@@ -19,7 +19,7 @@ import {
   Camera, Server, Wifi, Monitor, Shield, Zap, Network,
   Plus, Search, Pencil, Trash2, RefreshCw, FileText,
   CheckCircle2, XCircle, AlertTriangle, Clock,
-  LayoutGrid, List, Upload, ImageIcon, X as XIcon,
+  LayoutGrid, List, Upload, ImageIcon, X as XIcon, Activity,
 } from "lucide-react";
 import CctvTechSheet, { type CctvEquipmentType } from "@/components/CctvTechSheet";
 
@@ -293,15 +293,6 @@ function CamerasTab() {
 
   return (
     <div className="space-y-4">
-      {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <SummaryCard icon={<Camera className="w-5 h-5" />} label="Total Cámaras" value={stats.total} />
-          <SummaryCard icon={<CheckCircle2 className="w-5 h-5" />} label="Activas" value={stats.active} />
-          <SummaryCard icon={<Zap className="w-5 h-5" />} label="Con PoE" value={stats.poe} />
-          <SummaryCard icon={<AlertTriangle className="w-5 h-5" />} label="Mantenimiento" value={stats.maintenance} />
-        </div>
-      )}
-
       {/* Toolbar */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-xs">
@@ -1202,14 +1193,177 @@ function UpsTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// TAB: RESUMEN CCTV
+// ═══════════════════════════════════════════════════════════════════════════════
+function ResumenCCTVTab() {
+  const { data: summary, isLoading } = trpc.cctv.summary.useQuery();
+  const { data: stats } = trpc.cctv.cameras.stats.useQuery();
+  const { data: expiring = [] } = trpc.cctv.licenses.expiringSoon.useQuery();
+
+  const EQUIPMENT = [
+    { key: "cameras",  label: "Cámaras",    icon: Camera,  color: "text-sky-400",    bg: "bg-sky-500/10",    border: "border-sky-500/20" },
+    { key: "idfs",     label: "IDF / MDF",  icon: Network, color: "text-blue-400",   bg: "bg-blue-500/10",   border: "border-blue-500/20" },
+    { key: "licenses", label: "Licencias",  icon: Shield,  color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+    { key: "monitors", label: "Pantallas",  icon: Monitor, color: "text-cyan-400",   bg: "bg-cyan-500/10",   border: "border-cyan-500/20" },
+    { key: "servers",  label: "Servidores", icon: Server,  color: "text-green-400",  bg: "bg-green-500/10",  border: "border-green-500/20" },
+    { key: "switches", label: "Switches",   icon: Wifi,    color: "text-amber-400",  bg: "bg-amber-500/10",  border: "border-amber-500/20" },
+    { key: "ups",      label: "UPS",        icon: Zap,     color: "text-red-400",    bg: "bg-red-500/10",    border: "border-red-500/20" },
+  ] as const;
+
+  const totalEquipos = summary
+    ? summary.cameras.total + summary.idfs.total + summary.licenses.total +
+      summary.monitors.total + summary.servers.total + summary.switches.total + summary.ups.total
+    : 0;
+
+  const totalActivos = summary
+    ? summary.cameras.active + summary.idfs.active + summary.licenses.active +
+      summary.monitors.active + summary.servers.active + summary.switches.active + summary.ups.active
+    : 0;
+
+  return (
+    <div className="space-y-6 animate-fade-up">
+      {/* KPIs globales */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-border/50 bg-card p-4 text-center shadow-sm">
+          <p className="text-3xl font-bold text-foreground">{isLoading ? "—" : totalEquipos}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Total equipos</p>
+        </div>
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-center shadow-sm">
+          <p className="text-3xl font-bold text-emerald-400">{isLoading ? "—" : totalActivos}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Equipos activos</p>
+        </div>
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-center shadow-sm">
+          <p className="text-3xl font-bold text-amber-400">{isLoading ? "—" : (stats?.maintenance ?? 0)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">En mantenimiento</p>
+        </div>
+        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-center shadow-sm">
+          <p className="text-3xl font-bold text-red-400">{isLoading ? "—" : (summary?.licenses.expired ?? 0)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Licencias expiradas</p>
+        </div>
+      </div>
+
+      {/* Fichas por tipo de equipo */}
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Inventario por tipo de equipo</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {EQUIPMENT.map(({ key, label, icon: Icon, color, bg, border }) => {
+            const data = summary?.[key as keyof typeof summary] as any;
+            const total = data?.total ?? 0;
+            const active = data?.active ?? 0;
+            const inactive = total - active;
+            const pct = total > 0 ? Math.round((active / total) * 100) : 0;
+            return (
+              <div key={key} className={`rounded-xl border ${border} ${bg} p-4 space-y-3`}>
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${bg}`}>
+                    <Icon className={`w-4 h-4 ${color}`} />
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">{label}</span>
+                </div>
+                <div className="flex items-end justify-between">
+                  <p className="text-2xl font-bold text-foreground">{isLoading ? "—" : total}</p>
+                  <span className="text-xs text-muted-foreground">total</span>
+                </div>
+                {/* Barra de progreso */}
+                <div className="space-y-1">
+                  <div className="h-1.5 rounded-full bg-border/50 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span className="text-emerald-400">{active} activos</span>
+                    <span>{inactive} inactivos</span>
+                  </div>
+                </div>
+                {/* Info extra por tipo */}
+                {key === "switches" && summary?.switches && (
+                  <p className="text-[10px] text-amber-400">{summary.switches.freePorts} puertos libres</p>
+                )}
+                {key === "licenses" && summary?.licenses && summary.licenses.expired > 0 && (
+                  <p className="text-[10px] text-red-400">{summary.licenses.expired} expiradas</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Distribución de cámaras por tipo */}
+      {stats && ((stats.domo ?? 0) > 0 || (stats.bala ?? 0) > 0 || (stats.ptz ?? 0) > 0) && (
+        <div>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Distribución de cámaras por tipo</h3>
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+            {[
+              { label: "Domo",       value: stats.domo ?? 0,     color: "text-sky-400",    bg: "bg-sky-500/10" },
+              { label: "Bala",       value: stats.bala ?? 0,     color: "text-blue-400",   bg: "bg-blue-500/10" },
+              { label: "PTZ",        value: stats.ptz ?? 0,      color: "text-violet-400", bg: "bg-violet-500/10" },
+              { label: "Con PoE",    value: stats.poe,      color: "text-amber-400",  bg: "bg-amber-500/10" },
+              { label: "Retiradas",  value: stats.retired,  color: "text-red-400",    bg: "bg-red-500/10" },
+            ].map(({ label, value, color, bg }) => (
+              <div key={label} className={`rounded-xl border border-border/30 ${bg} p-3 text-center`}>
+                <p className={`text-xl font-bold ${color}`}>{value}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Licencias próximas a vencer */}
+      {expiring.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
+            Licencias próximas a vencer (90 días)
+          </h3>
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-amber-500/20">
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">ID Licencia</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">Marca / Modelo</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">Equipo Asignado</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-muted-foreground">Vencimiento</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expiring.slice(0, 5).map((lic: any) => (
+                  <tr key={lic.id} className="border-b border-amber-500/10 last:border-0">
+                    <td className="px-4 py-2 font-mono text-xs text-primary">{lic.idLicencia ?? "—"}</td>
+                    <td className="px-4 py-2 text-xs">{[lic.marca, lic.modelo].filter(Boolean).join(" ") || "—"}</td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">{lic.equipoAsignado ?? "—"}</td>
+                    <td className="px-4 py-2 text-xs text-amber-400">
+                      {lic.fechaExpiracion ? new Date(lic.fechaExpiracion).toLocaleDateString("es-MX") : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Estado vacío */}
+      {!isLoading && totalEquipos === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <Camera className="w-12 h-12 mx-auto mb-3 opacity-20" />
+          <p className="text-sm">No hay equipos registrados en el inventario CCTV.</p>
+          <p className="text-xs mt-1">Usa las pestañas de cada tipo de equipo para comenzar a registrar.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // PÁGINA PRINCIPAL CCTV
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function CCTVPage() {
-  const { data: summary } = trpc.cctv.summary.useQuery();
-
   return (
     <div>
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -1223,75 +1377,20 @@ export default function CCTVPage() {
           </div>
         </div>
 
-        {/* Resumen global */}
-        {summary && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-            <Card className="border-0 shadow-sm bg-primary/5 border-primary/20">
-              <CardContent className="p-3 text-center">
-                <Camera className="w-5 h-5 mx-auto mb-1 text-primary" />
-                <p className="text-xl font-bold text-foreground">{summary.cameras.total}</p>
-                <p className="text-xs text-muted-foreground">Cámaras</p>
-              </CardContent>
-            </Card>
-            <Card className="border-0 shadow-sm bg-blue-500/5">
-              <CardContent className="p-3 text-center">
-                <Network className="w-5 h-5 mx-auto mb-1 text-blue-400" />
-                <p className="text-xl font-bold text-foreground">{summary.idfs.total}</p>
-                <p className="text-xs text-muted-foreground">IDF/MDF</p>
-              </CardContent>
-            </Card>
-            <Card className="border-0 shadow-sm bg-purple-500/5">
-              <CardContent className="p-3 text-center">
-                <Shield className="w-5 h-5 mx-auto mb-1 text-purple-400" />
-                <p className="text-xl font-bold text-foreground">{summary.licenses.total}</p>
-                <p className="text-xs text-muted-foreground">Licencias</p>
-                {summary.licenses.expired > 0 && <p className="text-xs text-red-400">{summary.licenses.expired} expiradas</p>}
-              </CardContent>
-            </Card>
-            <Card className="border-0 shadow-sm bg-cyan-500/5">
-              <CardContent className="p-3 text-center">
-                <Monitor className="w-5 h-5 mx-auto mb-1 text-cyan-400" />
-                <p className="text-xl font-bold text-foreground">{summary.monitors.total}</p>
-                <p className="text-xs text-muted-foreground">Pantallas</p>
-              </CardContent>
-            </Card>
-            <Card className="border-0 shadow-sm bg-green-500/5">
-              <CardContent className="p-3 text-center">
-                <Server className="w-5 h-5 mx-auto mb-1 text-green-400" />
-                <p className="text-xl font-bold text-foreground">{summary.servers.total}</p>
-                <p className="text-xs text-muted-foreground">Servidores</p>
-              </CardContent>
-            </Card>
-            <Card className="border-0 shadow-sm bg-amber-500/5">
-              <CardContent className="p-3 text-center">
-                <Wifi className="w-5 h-5 mx-auto mb-1 text-amber-400" />
-                <p className="text-xl font-bold text-foreground">{summary.switches.total}</p>
-                <p className="text-xs text-muted-foreground">Switches</p>
-                <p className="text-xs text-muted-foreground">{summary.switches.freePorts} libres</p>
-              </CardContent>
-            </Card>
-            <Card className="border-0 shadow-sm bg-red-500/5">
-              <CardContent className="p-3 text-center">
-                <Zap className="w-5 h-5 mx-auto mb-1 text-red-400" />
-                <p className="text-xl font-bold text-foreground">{summary.ups.total}</p>
-                <p className="text-xs text-muted-foreground">UPS</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Tabs de equipos */}
-        <Tabs defaultValue="cameras" className="space-y-4">
-          <TabsList className="grid grid-cols-7 h-10 bg-muted/50">
-            <TabsTrigger value="cameras" className="gap-1.5 text-xs"><Camera className="w-3.5 h-3.5" />Cámaras</TabsTrigger>
-            <TabsTrigger value="idfs" className="gap-1.5 text-xs"><Network className="w-3.5 h-3.5" />IDF/MDF</TabsTrigger>
-            <TabsTrigger value="licenses" className="gap-1.5 text-xs"><Shield className="w-3.5 h-3.5" />Licencias</TabsTrigger>
-            <TabsTrigger value="monitors" className="gap-1.5 text-xs"><Monitor className="w-3.5 h-3.5" />Pantallas</TabsTrigger>
-            <TabsTrigger value="servers" className="gap-1.5 text-xs"><Server className="w-3.5 h-3.5" />Servidores</TabsTrigger>
-            <TabsTrigger value="switches" className="gap-1.5 text-xs"><Wifi className="w-3.5 h-3.5" />Switches</TabsTrigger>
-            <TabsTrigger value="ups" className="gap-1.5 text-xs"><Zap className="w-3.5 h-3.5" />UPS</TabsTrigger>
+        {/* Tabs de equipos — Resumen primero */}
+        <Tabs defaultValue="resumen" className="space-y-4">
+          <TabsList className="grid grid-cols-8 h-10 bg-muted/50">
+            <TabsTrigger value="resumen"   className="gap-1.5 text-xs"><Activity className="w-3.5 h-3.5" />Resumen</TabsTrigger>
+            <TabsTrigger value="cameras"   className="gap-1.5 text-xs"><Camera className="w-3.5 h-3.5" />Cámaras</TabsTrigger>
+            <TabsTrigger value="idfs"      className="gap-1.5 text-xs"><Network className="w-3.5 h-3.5" />IDF/MDF</TabsTrigger>
+            <TabsTrigger value="licenses"  className="gap-1.5 text-xs"><Shield className="w-3.5 h-3.5" />Licencias</TabsTrigger>
+            <TabsTrigger value="monitors"  className="gap-1.5 text-xs"><Monitor className="w-3.5 h-3.5" />Pantallas</TabsTrigger>
+            <TabsTrigger value="servers"   className="gap-1.5 text-xs"><Server className="w-3.5 h-3.5" />Servidores</TabsTrigger>
+            <TabsTrigger value="switches"  className="gap-1.5 text-xs"><Wifi className="w-3.5 h-3.5" />Switches</TabsTrigger>
+            <TabsTrigger value="ups"       className="gap-1.5 text-xs"><Zap className="w-3.5 h-3.5" />UPS</TabsTrigger>
           </TabsList>
 
+          <TabsContent value="resumen"><ResumenCCTVTab /></TabsContent>
           <TabsContent value="cameras"><CamerasTab /></TabsContent>
           <TabsContent value="idfs"><IdfsTab /></TabsContent>
           <TabsContent value="licenses"><LicensesTab /></TabsContent>
