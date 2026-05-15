@@ -1423,6 +1423,31 @@ function LicensesTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CARD: MONITOR
+// ═══════════════════════════════════════════════════════════════════════════════
+function MonitorCard({ mon, onEdit, onDelete, onSheet }: { mon: any; onEdit: (r: any) => void; onDelete: (id: number) => void; onSheet: (r: any) => void }) {
+  return (
+    <Card className="group relative overflow-hidden border border-border/60 hover:border-primary/40 transition-all hover:shadow-lg">
+      <div className="aspect-video bg-muted/30 flex items-center justify-center relative overflow-hidden">
+        <Monitor className="w-12 h-12 text-muted-foreground/30" />
+        <div className="absolute top-2 right-2"><StatusBadge status={mon.status} /></div>
+      </div>
+      <CardContent className="p-3 space-y-1">
+        <p className="font-mono text-xs text-primary">{mon.idMonitor ?? "—"}</p>
+        <p className="font-semibold text-sm truncate">{mon.marca ?? ""} {mon.modelo ?? ""}</p>
+        <p className="text-xs text-muted-foreground truncate">{mon.tamano ?? ""} · {mon.resolucion ?? ""}</p>
+        <p className="text-xs text-muted-foreground truncate">{mon.ubicacion ?? "Sin ubicación"}</p>
+        <div className="flex gap-1 pt-1">
+          <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => onSheet(mon)}><FileText className="w-3 h-3 mr-1" />Ficha</Button>
+          <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => onEdit(mon)}><Pencil className="w-3 h-3" /></Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-destructive hover:bg-destructive/10" onClick={() => onDelete(mon.id)}><Trash2 className="w-3 h-3" /></Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TAB: MONITORES / PANTALLAS
 // ═══════════════════════════════════════════════════════════════════════════════
 function MonitorsTab() {
@@ -1430,56 +1455,150 @@ function MonitorsTab() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
+  const [filterTipo, setFilterTipo] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [sortKey, setSortKey] = useState("idMonitor");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
 
   const { data: monitorsRaw = [], refetch } = trpc.cctv.monitors.list.useQuery(undefined);
-  const monitors = monitorsRaw.filter(r => !search || [r.idMonitor, r.marca, r.modelo, r.ubicacion, r.serie].some(v => v?.toLowerCase().includes(search.toLowerCase())));
   const createMut = trpc.cctv.monitors.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Monitor registrado"); } });
   const updateMut = trpc.cctv.monitors.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Monitor actualizado"); } });
   const deleteMut = trpc.cctv.monitors.delete.useMutation({ onSuccess: () => { refetch(); toast.success("Monitor eliminado"); } });
+
+  const filtered = monitorsRaw.filter(r => {
+    if (search && ![r.idMonitor, r.marca, r.modelo, r.ubicacion, r.serie].some(v => v?.toLowerCase().includes(search.toLowerCase()))) return false;
+    if (filterTipo !== "all" && r.tipo !== filterTipo) return false;
+    if (filterStatus !== "all" && r.status !== filterStatus) return false;
+    return true;
+  });
+  const sorted = [...filtered].sort((a, b) => {
+    const av = String((a as any)[sortKey] ?? "").toLowerCase();
+    const bv = String((b as any)[sortKey] ?? "").toLowerCase();
+    return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+  function toggleSort(key: string) { if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(key); setSortDir("asc"); } }
+  function toggleRow(id: number) { setExpandedRows(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; }); }
 
   function openCreate() { setEditing(null); setForm({}); setOpen(true); }
   function openEdit(row: any) { setEditing(row); setForm({ ...row, fechaCompra: row.fechaCompra ? new Date(row.fechaCompra).toISOString().split("T")[0] : "", garantiaExpiracion: row.garantiaExpiracion ? new Date(row.garantiaExpiracion).toISOString().split("T")[0] : "" }); setOpen(true); }
   function handleSave() { if (editing) updateMut.mutate({ id: editing.id, ...form }); else createMut.mutate(form); }
   const f = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
 
+  const SortTh = ({ col, label }: { col: string; label: string }) => (
+    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort(col)}>
+      {label} {sortKey === col ? (sortDir === "asc" ? "▲" : "▼") : ""}
+    </th>
+  );
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-xs">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar pantalla..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Select value={filterTipo} onValueChange={setFilterTipo}>
+          <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Todos los tipos" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los tipos</SelectItem>
+            {["monitor","pantalla","videowall","otro"].map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            {["active","inactive","maintenance","retired"].map(s => <SelectItem key={s} value={s}>{STATUS_CONFIG[s]?.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center border rounded-md overflow-hidden h-9 ml-auto">
+          <button onClick={() => setViewMode("cards")} className={`px-2.5 h-full flex items-center gap-1 text-xs transition-colors ${viewMode === "cards" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}><LayoutGrid className="w-3.5 h-3.5" />Tarjetas</button>
+          <button onClick={() => setViewMode("list")} className={`px-2.5 h-full flex items-center gap-1 text-xs transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}><List className="w-3.5 h-3.5" />Lista</button>
         </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nueva Pantalla</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <ExpandableTable
-        rows={monitors}
-        idKey="id"
-        columns={[
-          { key: "idMonitor", label: "ID" },
-          { key: "marca", label: "Marca" },
-          { key: "modelo", label: "Modelo" },
-          { key: "tipo", label: "Tipo", render: (r: any) => <span className="capitalize">{r.tipo}</span> },
-          { key: "tamano", label: "Tamaño" },
-          { key: "resolucion", label: "Resolución" },
-          { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
-        ]}
-        detailFields={[
-          { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idMonitor ?? "—"}</p><p className="text-foreground/60 capitalize">{r.tipo ?? "—"}</p></> },
-          { label: "Marca / Modelo", render: (r: any) => <><p>{r.marca ?? "—"}</p><p className="text-foreground/60">{r.modelo ?? "—"}</p></> },
-          { label: "Tamaño / Resolución", render: (r: any) => <><p>{r.tamano ?? "—"}</p><p className="text-foreground/60">{r.resolucion ?? "—"}</p></> },
-          { label: "Tecnología / Puerto", render: (r: any) => <><p>{r.tecnologia ?? "—"}</p><p className="text-foreground/60">{r.puerto ?? "—"}</p></> },
-          { label: "Ubicación", render: (r: any) => <><p>{r.ubicacion ?? "—"}</p><p className="text-foreground/60">{r.ups ? "✅ Con UPS" : "Sin UPS"}</p></> },
-          { label: "Observaciones", render: (r: any) => <p className="text-foreground/70 text-xs">{r.observaciones ?? "—"}</p> },
-        ]}
-        onEdit={openEdit}
-        onDelete={(id: number) => deleteMut.mutate({ id })}
-        onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.tamano ?? ""}`.trim()); }}
-        emptyIcon={<Monitor className="w-10 h-10 mx-auto mb-2 opacity-20" />}
-        emptyText="No hay pantallas registradas."
-      />
+      <p className="text-xs text-muted-foreground">{sorted.length} pantalla(s)</p>
+
+      {/* Vista tarjetas */}
+      {viewMode === "cards" && (
+        sorted.length === 0
+          ? <div className="text-center py-16 text-muted-foreground"><Monitor className="w-10 h-10 mx-auto mb-2 opacity-20" /><p>No hay pantallas registradas.</p></div>
+          : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {sorted.map(mon => <MonitorCard key={mon.id} mon={mon} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.tamano ?? ""}`.trim()); }} />)}
+            </div>
+      )}
+
+      {/* Vista lista */}
+      {viewMode === "list" && (
+        <div className="rounded-lg border border-border/60 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40">
+              <tr>
+                <th className="w-8" />
+                <SortTh col="idMonitor" label="ID" />
+                <SortTh col="marca" label="Marca" />
+                <SortTh col="modelo" label="Modelo" />
+                <SortTh col="tipo" label="Tipo" />
+                <SortTh col="tamano" label="Tamaño" />
+                <SortTh col="resolucion" label="Resolución" />
+                <SortTh col="ubicacion" label="Ubicación" />
+                <SortTh col="status" label="Estado" />
+                <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {sorted.length === 0 && <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">No hay pantallas registradas.</td></tr>}
+              {sorted.map(mon => (
+                <React.Fragment key={mon.id}>
+                  <tr className="hover:bg-muted/20 cursor-pointer" onClick={() => toggleRow(mon.id)}>
+                    <td className="pl-3">{expandedRows.has(mon.id) ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-primary">{mon.idMonitor ?? "—"}</td>
+                    <td className="px-3 py-2">{mon.marca ?? "—"}</td>
+                    <td className="px-3 py-2">{mon.modelo ?? "—"}</td>
+                    <td className="px-3 py-2 capitalize">{mon.tipo ?? "—"}</td>
+                    <td className="px-3 py-2">{mon.tamano ?? "—"}</td>
+                    <td className="px-3 py-2">{mon.resolucion ?? "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{mon.ubicacion ?? "—"}</td>
+                    <td className="px-3 py-2"><StatusBadge status={mon.status} /></td>
+                    <td className="px-3 py-2">
+                      <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(mon.id); setSheetName(`${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.tamano ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(mon)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: mon.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedRows.has(mon.id) && (
+                    <tr><td colSpan={10} className="bg-muted/10 px-6 py-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
+                        <div><p className="text-xs text-muted-foreground">ID / Tipo</p><p className="font-mono text-primary">{mon.idMonitor ?? "—"}</p><p className="text-muted-foreground capitalize">{mon.tipo ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Marca / Modelo</p><p>{mon.marca ?? "—"}</p><p className="text-muted-foreground">{mon.modelo ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Tamaño / Resolución</p><p>{mon.tamano ?? "—"}</p><p className="text-muted-foreground">{mon.resolucion ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Tecnología / Puerto</p><p>{mon.tecnologia ?? "—"}</p><p className="text-muted-foreground">{mon.puerto ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Ubicación</p><p>{mon.ubicacion ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Conexión</p><p>{mon.conexion ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">UPS</p><p>{mon.ups ? "✅ Con UPS" : "Sin UPS"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Factura / Monto</p><p>{mon.invoiceNumber ?? "—"}</p><p className="text-muted-foreground">{mon.amount ? `$${Number(mon.amount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "—"}</p></div>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(mon.id); setSheetName(`${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.tamano ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(mon)}><Pencil className="w-3 h-3" />Editar</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: mon.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
+                      </div>
+                    </td></tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="monitor" equipmentId={sheetId} equipmentName={sheetName} />
@@ -1549,6 +1668,32 @@ function MonitorsTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CARD: SERVIDOR
+// ═══════════════════════════════════════════════════════════════════════════════
+function ServerCard({ srv, onEdit, onDelete, onSheet }: { srv: any; onEdit: (r: any) => void; onDelete: (id: number) => void; onSheet: (r: any) => void }) {
+  return (
+    <Card className="group relative overflow-hidden border border-border/60 hover:border-primary/40 transition-all hover:shadow-lg">
+      <div className="aspect-video bg-muted/30 flex items-center justify-center relative overflow-hidden">
+        <Server className="w-12 h-12 text-muted-foreground/30" />
+        <div className="absolute top-2 left-2"><span className="text-xs font-bold uppercase bg-muted/80 text-foreground/70 px-1.5 py-0.5 rounded">{srv.tipo ?? "NVR"}</span></div>
+        <div className="absolute top-2 right-2"><StatusBadge status={srv.status} /></div>
+      </div>
+      <CardContent className="p-3 space-y-1">
+        <p className="font-mono text-xs text-primary">{srv.idServer ?? "—"}</p>
+        <p className="font-semibold text-sm truncate">{srv.marca ?? ""} {srv.modelo ?? ""}</p>
+        <p className="text-xs text-muted-foreground truncate">{srv.versionVms ?? ""} · {srv.licencias ?? 0} lic.</p>
+        <p className="text-xs text-muted-foreground truncate font-mono">{srv.ip ?? "Sin IP"}</p>
+        <div className="flex gap-1 pt-1">
+          <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => onSheet(srv)}><FileText className="w-3 h-3 mr-1" />Ficha</Button>
+          <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => onEdit(srv)}><Pencil className="w-3 h-3" /></Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-destructive hover:bg-destructive/10" onClick={() => onDelete(srv.id)}><Trash2 className="w-3 h-3" /></Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TAB: SERVIDORES / NVR
 // ═══════════════════════════════════════════════════════════════════════════════
 function ServersTab() {
@@ -1556,56 +1701,150 @@ function ServersTab() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
+  const [filterTipo, setFilterTipo] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [sortKey, setSortKey] = useState("idServer");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
 
   const { data: serversRaw = [], refetch } = trpc.cctv.servers.list.useQuery(undefined);
-  const servers = serversRaw.filter(r => !search || [r.idServer, r.marca, r.modelo, r.ip, r.ubicacion, r.versionVms].some(v => v?.toLowerCase().includes(search.toLowerCase())));
   const createMut = trpc.cctv.servers.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Servidor registrado"); } });
   const updateMut = trpc.cctv.servers.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Servidor actualizado"); } });
   const deleteMut = trpc.cctv.servers.delete.useMutation({ onSuccess: () => { refetch(); toast.success("Servidor eliminado"); } });
+
+  const filtered = serversRaw.filter(r => {
+    if (search && ![r.idServer, r.marca, r.modelo, r.ip, r.ubicacion, r.versionVms].some(v => v?.toLowerCase().includes(search.toLowerCase()))) return false;
+    if (filterTipo !== "all" && r.tipo !== filterTipo) return false;
+    if (filterStatus !== "all" && r.status !== filterStatus) return false;
+    return true;
+  });
+  const sorted = [...filtered].sort((a, b) => {
+    const av = String((a as any)[sortKey] ?? "").toLowerCase();
+    const bv = String((b as any)[sortKey] ?? "").toLowerCase();
+    return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+  function toggleSort(key: string) { if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(key); setSortDir("asc"); } }
+  function toggleRow(id: number) { setExpandedRows(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; }); }
 
   function openCreate() { setEditing(null); setForm({}); setOpen(true); }
   function openEdit(row: any) { setEditing(row); setForm({ ...row, fechaCompra: row.fechaCompra ? new Date(row.fechaCompra).toISOString().split("T")[0] : "", garantiaExpiracion: row.garantiaExpiracion ? new Date(row.garantiaExpiracion).toISOString().split("T")[0] : "" }); setOpen(true); }
   function handleSave() { if (editing) updateMut.mutate({ id: editing.id, ...form }); else createMut.mutate(form); }
   const f = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
 
+  const SortTh = ({ col, label }: { col: string; label: string }) => (
+    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort(col)}>
+      {label} {sortKey === col ? (sortDir === "asc" ? "▲" : "▼") : ""}
+    </th>
+  );
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-xs">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar servidor/NVR..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Select value={filterTipo} onValueChange={setFilterTipo}>
+          <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Todos los tipos" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los tipos</SelectItem>
+            {["nvr","workstation","appliance","servidor","otro"].map(t => <SelectItem key={t} value={t} className="uppercase">{t.toUpperCase()}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            {["active","inactive","maintenance","retired"].map(s => <SelectItem key={s} value={s}>{STATUS_CONFIG[s]?.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center border rounded-md overflow-hidden h-9 ml-auto">
+          <button onClick={() => setViewMode("cards")} className={`px-2.5 h-full flex items-center gap-1 text-xs transition-colors ${viewMode === "cards" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}><LayoutGrid className="w-3.5 h-3.5" />Tarjetas</button>
+          <button onClick={() => setViewMode("list")} className={`px-2.5 h-full flex items-center gap-1 text-xs transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}><List className="w-3.5 h-3.5" />Lista</button>
         </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nuevo Servidor/NVR</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <ExpandableTable
-        rows={servers}
-        idKey="id"
-        columns={[
-          { key: "idServer", label: "ID" },
-          { key: "marca", label: "Marca" },
-          { key: "modelo", label: "Modelo" },
-          { key: "tipo", label: "Tipo", render: (r: any) => <span className="uppercase text-xs font-semibold">{r.tipo}</span> },
-          { key: "versionVms", label: "VMS" },
-          { key: "ip", label: "IP" },
-          { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
-        ]}
-        detailFields={[
-          { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idServer ?? "—"}</p><p className="text-foreground/60 uppercase text-xs">{r.tipo ?? "—"}</p></> },
-          { label: "Marca / Modelo", render: (r: any) => <><p>{r.marca ?? "—"}</p><p className="text-foreground/60">{r.modelo ?? "—"}</p></> },
-          { label: "VMS / Licencias", render: (r: any) => <><p>{r.versionVms ?? "—"}</p><p className="text-foreground/60">{r.licencias ?? 0} lic. ({r.licenciasLibres ?? 0} libres)</p></> },
-          { label: "IP / MAC", render: (r: any) => <><p className="font-mono">{r.ip ?? "—"}</p><p className="text-foreground/60 font-mono">{r.mac ?? "—"}</p></> },
-          { label: "SO / Hardware", render: (r: any) => <><p>{r.so ?? "—"}</p><p className="text-foreground/60">{r.memoria ?? ""} {r.procesador ?? ""}</p></> },
-          { label: "Ubicación / Cámaras", render: (r: any) => <><p>{r.ubicacion ?? "—"}</p><p className="text-foreground/60">{r.numCamaras ?? 0} cámaras</p></> },
-        ]}
-        onEdit={openEdit}
-        onDelete={(id: number) => deleteMut.mutate({ id })}
-        onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); }}
-        emptyIcon={<Server className="w-10 h-10 mx-auto mb-2 opacity-20" />}
-        emptyText="No hay servidores/NVR registrados."
-      />
+      <p className="text-xs text-muted-foreground">{sorted.length} servidor(es)/NVR</p>
+
+      {/* Vista tarjetas */}
+      {viewMode === "cards" && (
+        sorted.length === 0
+          ? <div className="text-center py-16 text-muted-foreground"><Server className="w-10 h-10 mx-auto mb-2 opacity-20" /><p>No hay servidores/NVR registrados.</p></div>
+          : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {sorted.map(srv => <ServerCard key={srv.id} srv={srv} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); }} />)}
+            </div>
+      )}
+
+      {/* Vista lista */}
+      {viewMode === "list" && (
+        <div className="rounded-lg border border-border/60 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40">
+              <tr>
+                <th className="w-8" />
+                <SortTh col="idServer" label="ID" />
+                <SortTh col="marca" label="Marca" />
+                <SortTh col="modelo" label="Modelo" />
+                <SortTh col="tipo" label="Tipo" />
+                <SortTh col="versionVms" label="VMS" />
+                <SortTh col="ip" label="IP" />
+                <SortTh col="ubicacion" label="Ubicación" />
+                <SortTh col="status" label="Estado" />
+                <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {sorted.length === 0 && <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">No hay servidores/NVR registrados.</td></tr>}
+              {sorted.map(srv => (
+                <React.Fragment key={srv.id}>
+                  <tr className="hover:bg-muted/20 cursor-pointer" onClick={() => toggleRow(srv.id)}>
+                    <td className="pl-3">{expandedRows.has(srv.id) ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-primary">{srv.idServer ?? "—"}</td>
+                    <td className="px-3 py-2">{srv.marca ?? "—"}</td>
+                    <td className="px-3 py-2">{srv.modelo ?? "—"}</td>
+                    <td className="px-3 py-2 uppercase text-xs font-semibold">{srv.tipo ?? "—"}</td>
+                    <td className="px-3 py-2">{srv.versionVms ?? "—"}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{srv.ip ?? "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{srv.ubicacion ?? "—"}</td>
+                    <td className="px-3 py-2"><StatusBadge status={srv.status} /></td>
+                    <td className="px-3 py-2">
+                      <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(srv.id); setSheetName(`${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(srv)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: srv.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedRows.has(srv.id) && (
+                    <tr><td colSpan={10} className="bg-muted/10 px-6 py-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
+                        <div><p className="text-xs text-muted-foreground">ID / Tipo</p><p className="font-mono text-primary">{srv.idServer ?? "—"}</p><p className="text-muted-foreground uppercase text-xs">{srv.tipo ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Marca / Modelo</p><p>{srv.marca ?? "—"}</p><p className="text-muted-foreground">{srv.modelo ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">VMS / Licencias</p><p>{srv.versionVms ?? "—"}</p><p className="text-muted-foreground">{srv.licencias ?? 0} lic. ({srv.licenciasLibres ?? 0} libres)</p></div>
+                        <div><p className="text-xs text-muted-foreground">IP / MAC</p><p className="font-mono">{srv.ip ?? "—"}</p><p className="text-muted-foreground font-mono">{srv.mac ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">SO / Hardware</p><p>{srv.so ?? "—"}</p><p className="text-muted-foreground">{srv.memoria ?? ""} {srv.procesador ?? ""}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Ubicación / Cámaras</p><p>{srv.ubicacion ?? "—"}</p><p className="text-muted-foreground">{srv.numCamaras ?? 0} cámaras</p></div>
+                        <div><p className="text-xs text-muted-foreground">Storage</p><p>{srv.storage ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Factura / Monto</p><p>{srv.invoiceNumber ?? "—"}</p><p className="text-muted-foreground">{srv.amount ? `$${Number(srv.amount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "—"}</p></div>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(srv.id); setSheetName(`${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(srv)}><Pencil className="w-3 h-3" />Editar</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: srv.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
+                      </div>
+                    </td></tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="server" equipmentId={sheetId} equipmentName={sheetName} />
@@ -1668,67 +1907,191 @@ function ServersTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CARD: SWITCH
+// ═══════════════════════════════════════════════════════════════════════════════
+function SwitchCard({ sw, onEdit, onDelete, onSheet }: { sw: any; onEdit: (r: any) => void; onDelete: (id: number) => void; onSheet: (r: any) => void }) {
+  const free = sw.puertosLibres ?? 0;
+  const total = sw.puertos ?? 0;
+  const usedPct = total > 0 ? Math.round(((total - free) / total) * 100) : 0;
+  return (
+    <Card className="group relative overflow-hidden border border-border/60 hover:border-primary/40 transition-all hover:shadow-lg">
+      <div className="aspect-video bg-muted/30 flex items-center justify-center relative overflow-hidden">
+        <Network className="w-12 h-12 text-muted-foreground/30" />
+        <div className="absolute top-2 left-2"><span className="text-xs font-bold uppercase bg-muted/80 text-foreground/70 px-1.5 py-0.5 rounded">{sw.tipo ?? "POE"}</span></div>
+        <div className="absolute top-2 right-2"><StatusBadge status={sw.status} /></div>
+        <div className="absolute bottom-2 left-2 right-2">
+          <div className="h-1.5 bg-muted/60 rounded-full overflow-hidden">
+            <div className="h-full bg-primary/70 rounded-full transition-all" style={{ width: `${usedPct}%` }} />
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">{total - free}/{total} puertos</p>
+        </div>
+      </div>
+      <CardContent className="p-3 space-y-1">
+        <p className="font-mono text-xs text-primary">{sw.idSwitch ?? "—"}</p>
+        <p className="font-semibold text-sm truncate">{sw.marca ?? ""} {sw.modelo ?? ""}</p>
+        <p className="text-xs text-muted-foreground truncate">{sw.puertosPoe ?? 0} PoE · {sw.capacidadPto ?? ""}</p>
+        <p className="text-xs text-muted-foreground truncate">{sw.ubicacion ?? "Sin ubicación"}</p>
+        <div className="flex gap-1 pt-1">
+          <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => onSheet(sw)}><FileText className="w-3 h-3 mr-1" />Ficha</Button>
+          <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => onEdit(sw)}><Pencil className="w-3 h-3" /></Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-destructive hover:bg-destructive/10" onClick={() => onDelete(sw.id)}><Trash2 className="w-3 h-3" /></Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TAB: SWITCHES
 // ═══════════════════════════════════════════════════════════════════════════════
 function SwitchesTab() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
+  const [search, setSearch] = useState("");
+  const [filterTipo, setFilterTipo] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [sortKey, setSortKey] = useState("idSwitch");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
 
-  const { data: switches = [], refetch } = trpc.cctv.switches.list.useQuery(undefined);
+  const { data: switchesRaw = [], refetch } = trpc.cctv.switches.list.useQuery(undefined);
   const createMut = trpc.cctv.switches.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Switch registrado"); } });
   const updateMut = trpc.cctv.switches.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Switch actualizado"); } });
   const deleteMut = trpc.cctv.switches.delete.useMutation({ onSuccess: () => { refetch(); toast.success("Switch eliminado"); } });
 
+  const filtered = switchesRaw.filter(r => {
+    if (search && ![r.idSwitch, r.marca, r.modelo, r.ip, r.ubicacion].some(v => v?.toLowerCase().includes(search.toLowerCase()))) return false;
+    if (filterTipo !== "all" && r.tipo !== filterTipo) return false;
+    if (filterStatus !== "all" && r.status !== filterStatus) return false;
+    return true;
+  });
+    const sorted = [...filtered].sort((a, b) => {
+    const av = String((a as any)[sortKey] ?? "").toLowerCase();
+    const bv = String((b as any)[sortKey] ?? "").toLowerCase();
+    return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+  function toggleSort(key: string) { if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(key); setSortDir("asc"); } }
+  function toggleRow(id: number) { setExpandedRows(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; }); }
   function openCreate() { setEditing(null); setForm({}); setOpen(true); }
   function openEdit(row: any) { setEditing(row); setForm({ ...row, fechaCompra: row.fechaCompra ? new Date(row.fechaCompra).toISOString().split("T")[0] : "", garantiaExpiracion: row.garantiaExpiracion ? new Date(row.garantiaExpiracion).toISOString().split("T")[0] : "" }); setOpen(true); }
   function handleSave() { if (editing) updateMut.mutate({ id: editing.id, ...form }); else createMut.mutate(form); }
   const f = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
 
-  const totalPorts = switches.reduce((a, s) => a + (s.puertos ?? 0), 0);
-  const freePorts = switches.reduce((a, s) => a + (s.puertosLibres ?? 0), 0);
-  const poeSwitches = switches.filter(s => s.tipo === "poe").length;
+  const SortTh = ({ col, label }: { col: string; label: string }) => (
+    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort(col)}>
+      {label} {sortKey === col ? (sortDir === "asc" ? "▲" : "▼") : ""}
+    </th>
+  );
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryCard icon={<Network className="w-5 h-5" />} label="Total Switches" value={switches.length} />
-        <SummaryCard icon={<Zap className="w-5 h-5" />} label="Switches PoE" value={poeSwitches} />
-        <SummaryCard icon={<Wifi className="w-5 h-5" />} label="Puertos Totales" value={totalPorts} />
-        <SummaryCard icon={<CheckCircle2 className="w-5 h-5" />} label="Puertos Libres" value={freePorts} />
-      </div>
-      <div className="flex items-center gap-2">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Buscar switch..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Select value={filterTipo} onValueChange={setFilterTipo}>
+          <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Todos los tipos" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los tipos</SelectItem>
+            {["poe","standard","appliance","core","acceso","otro"].map(t => <SelectItem key={t} value={t} className="uppercase">{t.toUpperCase()}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            {["active","inactive","maintenance","retired"].map(s => <SelectItem key={s} value={s}>{STATUS_CONFIG[s]?.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center border rounded-md overflow-hidden h-9 ml-auto">
+          <button onClick={() => setViewMode("cards")} className={`px-2.5 h-full flex items-center gap-1 text-xs transition-colors ${viewMode === "cards" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}><LayoutGrid className="w-3.5 h-3.5" />Tarjetas</button>
+          <button onClick={() => setViewMode("list")} className={`px-2.5 h-full flex items-center gap-1 text-xs transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}><List className="w-3.5 h-3.5" />Lista</button>
+        </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nuevo Switch</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <ExpandableTable
-        rows={switches}
-        idKey="id"
-        columns={[
-          { key: "idSwitch", label: "ID" },
-          { key: "marca", label: "Marca" },
-          { key: "modelo", label: "Modelo" },
-          { key: "tipo", label: "Tipo", render: (r: any) => <span className="uppercase text-xs font-semibold">{r.tipo}</span> },
-          { key: "puertos", label: "Puertos" },
-          { key: "puertosLibres", label: "Libres" },
-          { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
-        ]}
-        detailFields={[
-          { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idSwitch ?? "—"}</p><p className="text-foreground/60 uppercase text-xs">{r.tipo ?? "—"}</p></> },
-          { label: "Marca / Modelo", render: (r: any) => <><p>{r.marca ?? "—"}</p><p className="text-foreground/60">{r.modelo ?? "—"}</p></> },
-          { label: "Puertos / PoE", render: (r: any) => <><p>{r.puertos ?? 0} totales</p><p className="text-foreground/60">{r.puertosPoe ?? 0} PoE</p></> },
-          { label: "Libres / Cámaras", render: (r: any) => <><p>{r.puertosLibres ?? 0} libres</p><p className="text-foreground/60">{r.numCamaras ?? 0} cámaras</p></> },
-          { label: "IP / Firmware", render: (r: any) => <><p className="font-mono">{r.ip ?? "—"}</p><p className="text-foreground/60">{r.firmware ?? "—"}</p></> },
-          { label: "Ubicación", render: (r: any) => <><p>{r.ubicacion ?? "—"}</p><p className="text-foreground/60">{r.capacidadPto ?? ""}</p></> },
-        ]}
-        onEdit={openEdit}
-        onDelete={(id: number) => deleteMut.mutate({ id })}
-        onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); }}
-        emptyIcon={<Wifi className="w-10 h-10 mx-auto mb-2 opacity-20" />}
-        emptyText="No hay switches registrados."
-      />
+      <p className="text-xs text-muted-foreground">{sorted.length} switch(es)</p>
+
+      {/* Vista tarjetas */}
+      {viewMode === "cards" && (
+        sorted.length === 0
+          ? <div className="text-center py-16 text-muted-foreground"><Network className="w-10 h-10 mx-auto mb-2 opacity-20" /><p>No hay switches registrados.</p></div>
+          : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {sorted.map(sw => <SwitchCard key={sw.id} sw={sw} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); }} />)}
+            </div>
+      )}
+
+      {/* Vista lista */}
+      {viewMode === "list" && (
+        <div className="rounded-lg border border-border/60 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40">
+              <tr>
+                <th className="w-8" />
+                <SortTh col="idSwitch" label="ID" />
+                <SortTh col="marca" label="Marca" />
+                <SortTh col="modelo" label="Modelo" />
+                <SortTh col="tipo" label="Tipo" />
+                <SortTh col="puertos" label="Puertos" />
+                <SortTh col="puertosLibres" label="Libres" />
+                <SortTh col="ubicacion" label="Ubicación" />
+                <SortTh col="status" label="Estado" />
+                <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {sorted.length === 0 && <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">No hay switches registrados.</td></tr>}
+              {sorted.map(sw => (
+                <React.Fragment key={sw.id}>
+                  <tr className="hover:bg-muted/20 cursor-pointer" onClick={() => toggleRow(sw.id)}>
+                    <td className="pl-3">{expandedRows.has(sw.id) ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-primary">{sw.idSwitch ?? "—"}</td>
+                    <td className="px-3 py-2">{sw.marca ?? "—"}</td>
+                    <td className="px-3 py-2">{sw.modelo ?? "—"}</td>
+                    <td className="px-3 py-2 uppercase text-xs font-semibold">{sw.tipo ?? "—"}</td>
+                    <td className="px-3 py-2">{sw.puertos ?? "—"}</td>
+                    <td className="px-3 py-2">{sw.puertosLibres ?? "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{sw.ubicacion ?? "—"}</td>
+                    <td className="px-3 py-2"><StatusBadge status={sw.status} /></td>
+                    <td className="px-3 py-2">
+                      <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(sw.id); setSheetName(`${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(sw)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: sw.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedRows.has(sw.id) && (
+                    <tr><td colSpan={10} className="bg-muted/10 px-6 py-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
+                        <div><p className="text-xs text-muted-foreground">ID / Tipo</p><p className="font-mono text-primary">{sw.idSwitch ?? "—"}</p><p className="text-muted-foreground uppercase text-xs">{sw.tipo ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Marca / Modelo</p><p>{sw.marca ?? "—"}</p><p className="text-muted-foreground">{sw.modelo ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Puertos / PoE</p><p>{sw.puertos ?? 0} totales</p><p className="text-muted-foreground">{sw.puertosPoe ?? 0} PoE</p></div>
+                        <div><p className="text-xs text-muted-foreground">Libres / Cámaras</p><p>{sw.puertosLibres ?? 0} libres</p><p className="text-muted-foreground">{sw.numCamaras ?? 0} cámaras</p></div>
+                        <div><p className="text-xs text-muted-foreground">IP / Firmware</p><p className="font-mono">{sw.ip ?? "—"}</p><p className="text-muted-foreground">{sw.firmware ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Capacidad Puerto</p><p>{sw.capacidadPto ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Ubicación</p><p>{sw.ubicacion ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Factura / Monto</p><p>{sw.invoiceNumber ?? "—"}</p><p className="text-muted-foreground">{sw.amount ? `$${Number(sw.amount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "—"}</p></div>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(sw.id); setSheetName(`${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(sw)}><Pencil className="w-3 h-3" />Editar</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: sw.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
+                      </div>
+                    </td></tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="switch" equipmentId={sheetId} equipmentName={sheetName} />
@@ -1783,6 +2146,33 @@ function SwitchesTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CARD: UPS
+// ═══════════════════════════════════════════════════════════════════════════════
+function UpsCard({ ups, onEdit, onDelete, onSheet }: { ups: any; onEdit: (r: any) => void; onDelete: (id: number) => void; onSheet: (r: any) => void }) {
+  return (
+    <Card className="group relative overflow-hidden border border-border/60 hover:border-primary/40 transition-all hover:shadow-lg">
+      <div className="aspect-video bg-muted/30 flex items-center justify-center relative overflow-hidden">
+        <Zap className="w-12 h-12 text-muted-foreground/30" />
+        <div className="absolute top-2 left-2"><span className="text-xs font-bold capitalize bg-muted/80 text-foreground/70 px-1.5 py-0.5 rounded">{ups.tipo ?? "rack"}</span></div>
+        <div className="absolute top-2 right-2"><StatusBadge status={ups.status} /></div>
+        {ups.tarjetaRed && <div className="absolute bottom-2 right-2"><span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded">Red</span></div>}
+      </div>
+      <CardContent className="p-3 space-y-1">
+        <p className="font-mono text-xs text-primary">{ups.idUps ?? "—"}</p>
+        <p className="font-semibold text-sm truncate">{ups.marca ?? ""} {ups.modelo ?? ""}</p>
+        <p className="text-xs text-muted-foreground truncate">{ups.capacidad ?? ""} · {ups.autonomia ?? ""}</p>
+        <p className="text-xs text-muted-foreground truncate">{ups.ubicacion ?? "Sin ubicación"}</p>
+        <div className="flex gap-1 pt-1">
+          <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => onSheet(ups)}><FileText className="w-3 h-3 mr-1" />Ficha</Button>
+          <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => onEdit(ups)}><Pencil className="w-3 h-3" /></Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-destructive hover:bg-destructive/10" onClick={() => onDelete(ups.id)}><Trash2 className="w-3 h-3" /></Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TAB: UPS
 // ═══════════════════════════════════════════════════════════════════════════════
 function UpsTab() {
@@ -1790,56 +2180,149 @@ function UpsTab() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [search, setSearch] = useState("");
+  const [filterTipo, setFilterTipo] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [sortKey, setSortKey] = useState("idUps");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [sheetId, setSheetId] = useState<number | null>(null);
   const [sheetName, setSheetName] = useState("");
 
   const { data: upsListRaw = [], refetch } = trpc.cctv.ups.list.useQuery(undefined);
-  const upsList = upsListRaw.filter(r => !search || [r.idUps, r.marca, r.modelo, r.ubicacion].some(v => v?.toLowerCase().includes(search.toLowerCase())));
   const createMut = trpc.cctv.ups.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("UPS registrado"); } });
   const updateMut = trpc.cctv.ups.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("UPS actualizado"); } });
   const deleteMut = trpc.cctv.ups.delete.useMutation({ onSuccess: () => { refetch(); toast.success("UPS eliminado"); } });
 
+  const filtered = upsListRaw.filter(r => {
+    if (search && ![r.idUps, r.marca, r.modelo, r.ubicacion].some(v => v?.toLowerCase().includes(search.toLowerCase()))) return false;
+    if (filterTipo !== "all" && r.tipo !== filterTipo) return false;
+    if (filterStatus !== "all" && r.status !== filterStatus) return false;
+    return true;
+  });
+    const sorted = [...filtered].sort((a, b) => {
+    const av = String((a as any)[sortKey] ?? "").toLowerCase();
+    const bv = String((b as any)[sortKey] ?? "").toLowerCase();
+    return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+  function toggleSort(key: string) { if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(key); setSortDir("asc"); } }
+  function toggleRow(id: number) { setExpandedRows(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; }); }
   function openCreate() { setEditing(null); setForm({}); setOpen(true); }
   function openEdit(row: any) { setEditing(row); setForm({ ...row, fechaCompra: row.fechaCompra ? new Date(row.fechaCompra).toISOString().split("T")[0] : "", garantiaExpiracion: row.garantiaExpiracion ? new Date(row.garantiaExpiracion).toISOString().split("T")[0] : "" }); setOpen(true); }
   function handleSave() { if (editing) updateMut.mutate({ id: editing.id, ...form }); else createMut.mutate(form); }
   const f = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
 
+  const SortTh = ({ col, label }: { col: string; label: string }) => (
+    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort(col)}>
+      {label} {sortKey === col ? (sortDir === "asc" ? "▲" : "▼") : ""}
+    </th>
+  );
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-xs">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar UPS..." className="pl-8 h-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Select value={filterTipo} onValueChange={setFilterTipo}>
+          <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Todos los tipos" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los tipos</SelectItem>
+            {["torre","rack","online","interactivo","otro"].map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            {["active","inactive","maintenance","retired"].map(s => <SelectItem key={s} value={s}>{STATUS_CONFIG[s]?.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center border rounded-md overflow-hidden h-9 ml-auto">
+          <button onClick={() => setViewMode("cards")} className={`px-2.5 h-full flex items-center gap-1 text-xs transition-colors ${viewMode === "cards" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}><LayoutGrid className="w-3.5 h-3.5" />Tarjetas</button>
+          <button onClick={() => setViewMode("list")} className={`px-2.5 h-full flex items-center gap-1 text-xs transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}><List className="w-3.5 h-3.5" />Lista</button>
         </div>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nuevo UPS</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
-      <ExpandableTable
-        rows={upsList}
-        idKey="id"
-        columns={[
-          { key: "idUps", label: "ID" },
-          { key: "marca", label: "Marca" },
-          { key: "modelo", label: "Modelo" },
-          { key: "tipo", label: "Tipo", render: (r: any) => <span className="capitalize">{r.tipo}</span> },
-          { key: "capacidad", label: "Capacidad" },
-          { key: "autonomia", label: "Autonomía" },
-          { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
-        ]}
-        detailFields={[
-          { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idUps ?? "—"}</p><p className="text-foreground/60 capitalize">{r.tipo ?? "—"}</p></> },
-          { label: "Marca / Modelo", render: (r: any) => <><p>{r.marca ?? "—"}</p><p className="text-foreground/60">{r.modelo ?? "—"}</p></> },
-          { label: "Capacidad / Autonomía", render: (r: any) => <><p>{r.capacidad ?? "—"}</p><p className="text-foreground/60">{r.autonomia ?? "—"}</p></> },
-          { label: "Equipos / Consumo", render: (r: any) => <><p>{r.equiposConectados ?? 0} equipos</p><p className="text-foreground/60">{r.consumoActual ?? "—"}</p></> },
-          { label: "IP / Tarjeta Red", render: (r: any) => <><p className="font-mono">{r.ip ?? "—"}</p><p className="text-foreground/60">{r.tarjetaRed ? "✅ Con tarjeta red" : "Sin tarjeta red"}</p></> },
-          { label: "Ubicación", render: (r: any) => <><p>{r.ubicacion ?? "—"}</p><p className="text-foreground/60">{r.observaciones ?? ""}</p></> },
-        ]}
-        onEdit={openEdit}
-        onDelete={(id: number) => deleteMut.mutate({ id })}
-        onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); }}
-        emptyIcon={<Zap className="w-10 h-10 mx-auto mb-2 opacity-20" />}
-        emptyText="No hay UPS registrados."
-      />
+      <p className="text-xs text-muted-foreground">{sorted.length} UPS</p>
+
+      {/* Vista tarjetas */}
+      {viewMode === "cards" && (
+        sorted.length === 0
+          ? <div className="text-center py-16 text-muted-foreground"><Zap className="w-10 h-10 mx-auto mb-2 opacity-20" /><p>No hay UPS registrados.</p></div>
+          : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {sorted.map(u => <UpsCard key={u.id} ups={u} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); }} />)}
+            </div>
+      )}
+
+      {/* Vista lista */}
+      {viewMode === "list" && (
+        <div className="rounded-lg border border-border/60 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40">
+              <tr>
+                <th className="w-8" />
+                <SortTh col="idUps" label="ID" />
+                <SortTh col="marca" label="Marca" />
+                <SortTh col="modelo" label="Modelo" />
+                <SortTh col="tipo" label="Tipo" />
+                <SortTh col="capacidad" label="Capacidad" />
+                <SortTh col="autonomia" label="Autonomía" />
+                <SortTh col="ubicacion" label="Ubicación" />
+                <SortTh col="status" label="Estado" />
+                <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {sorted.length === 0 && <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">No hay UPS registrados.</td></tr>}
+              {sorted.map(u => (
+                <React.Fragment key={u.id}>
+                  <tr className="hover:bg-muted/20 cursor-pointer" onClick={() => toggleRow(u.id)}>
+                    <td className="pl-3">{expandedRows.has(u.id) ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-primary">{u.idUps ?? "—"}</td>
+                    <td className="px-3 py-2">{u.marca ?? "—"}</td>
+                    <td className="px-3 py-2">{u.modelo ?? "—"}</td>
+                    <td className="px-3 py-2 capitalize">{u.tipo ?? "—"}</td>
+                    <td className="px-3 py-2">{u.capacidad ?? "—"}</td>
+                    <td className="px-3 py-2">{u.autonomia ?? "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{u.ubicacion ?? "—"}</td>
+                    <td className="px-3 py-2"><StatusBadge status={u.status} /></td>
+                    <td className="px-3 py-2">
+                      <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(u.id); setSheetName(`${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(u)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: u.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedRows.has(u.id) && (
+                    <tr><td colSpan={10} className="bg-muted/10 px-6 py-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
+                        <div><p className="text-xs text-muted-foreground">ID / Tipo</p><p className="font-mono text-primary">{u.idUps ?? "—"}</p><p className="text-muted-foreground capitalize">{u.tipo ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Marca / Modelo</p><p>{u.marca ?? "—"}</p><p className="text-muted-foreground">{u.modelo ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Capacidad / Autonomía</p><p>{u.capacidad ?? "—"}</p><p className="text-muted-foreground">{u.autonomia ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Equipos / Consumo</p><p>{u.equiposConectados ?? 0} equipos</p><p className="text-muted-foreground">{u.consumoActual ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">IP</p><p className="font-mono">{u.ip ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Tarjeta de Red</p><p>{u.tarjetaRed ? "✅ Con tarjeta red" : "Sin tarjeta red"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Ubicación</p><p>{u.ubicacion ?? "—"}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Factura / Monto</p><p>{u.invoiceNumber ?? "—"}</p><p className="text-muted-foreground">{u.amount ? `$${Number(u.amount).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "—"}</p></div>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(u.id); setSheetName(`${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(u)}><Pencil className="w-3 h-3" />Editar</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: u.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
+                      </div>
+                    </td></tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="ups" equipmentId={sheetId} equipmentName={sheetName} />

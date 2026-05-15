@@ -7,6 +7,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
+import { eq } from "drizzle-orm";
 import {
   cctvCameras, cctvIdfs, cctvLicenses, cctvMonitors,
   cctvServers, cctvSwitches, cctvUps,
@@ -359,6 +360,7 @@ export const cctvImportRouter = router({
       fileName: z.string(),
       category: z.enum(["cameras", "idfs", "licenses", "monitors", "servers", "switches", "ups"]),
       mapping: z.record(z.string(), z.string().nullable()),
+      duplicateMode: z.enum(["skip", "update"]).optional().default("skip"),
     }))
     .mutation(async ({ input, ctx }) => {
       const tenantId = ctx.user.tenantId ?? 1;
@@ -394,6 +396,7 @@ export const cctvImportRouter = router({
       );
       const records = applyMapping(rows, mappingStr, tenantId);
       let inserted = 0;
+      let updated = 0;
       let skipped = 0;
       const errors: string[] = [];
       const skippedNames: string[] = [];
@@ -440,14 +443,28 @@ export const cctvImportRouter = router({
         // Duplicate check by ID
         const recId = rec[idField] ? String(rec[idField]).toLowerCase() : null;
         const recName = rec.nombre ? String(rec.nombre).toLowerCase() : (rec.area ? String(rec.area).toLowerCase() : null);
-        if (recId && existingIds.has(recId)) {
-          skipped++;
-          skippedNames.push(String(rec[idField]));
-          continue;
-        }
-        if (recName && existingNames.has(recName)) {
-          skipped++;
-          skippedNames.push(recName);
+                const isDuplicate = (recId && existingIds.has(recId)) || (recName && existingNames.has(recName));
+        if (isDuplicate) {
+          if (input.duplicateMode === "update" && recId) {
+            // Update existing record by its ID field, scoped to tenant for safety
+            try {
+              const { [idField]: _id, tenantId: _tid, ...updateData } = rec as any;
+              const { and } = await import("drizzle-orm");
+              if (input.category === "cameras") await db.update(cctvCameras).set(updateData).where(and(eq(cctvCameras.idCamera, String(rec[idField])), eq(cctvCameras.tenantId, tenantId)));
+              else if (input.category === "idfs") await db.update(cctvIdfs).set(updateData).where(and(eq(cctvIdfs.idIdf, String(rec[idField])), eq(cctvIdfs.tenantId, tenantId)));
+              else if (input.category === "licenses") await db.update(cctvLicenses).set(updateData).where(and(eq(cctvLicenses.idLicencia, String(rec[idField])), eq(cctvLicenses.tenantId, tenantId)));
+              else if (input.category === "monitors") await db.update(cctvMonitors).set(updateData).where(and(eq(cctvMonitors.idMonitor, String(rec[idField])), eq(cctvMonitors.tenantId, tenantId)));
+              else if (input.category === "servers") await db.update(cctvServers).set(updateData).where(and(eq(cctvServers.idServer, String(rec[idField])), eq(cctvServers.tenantId, tenantId)));
+              else if (input.category === "switches") await db.update(cctvSwitches).set(updateData).where(and(eq(cctvSwitches.idSwitch, String(rec[idField])), eq(cctvSwitches.tenantId, tenantId)));
+              else if (input.category === "ups") await db.update(cctvUps).set(updateData).where(and(eq(cctvUps.idUps, String(rec[idField])), eq(cctvUps.tenantId, tenantId)));
+              updated++;
+            } catch (e: any) {
+              errors.push(`Update error: ${e?.message ?? "Error desconocido"}`);
+            }
+          } else {
+            skipped++;
+            skippedNames.push(recId ? String(rec[idField]) : (recName ?? "?"));
+          }
           continue;
         }
         try {
@@ -466,8 +483,7 @@ export const cctvImportRouter = router({
           errors.push(e?.message ?? "Error desconocido");
         }
       }
-
-      return { inserted, skipped, skippedNames, errors, total: records.length };
+      return { inserted, updated, skipped, skippedNames, errors, total: records.length };
     }),
 
   // Get category definitions (for step 1 UI)

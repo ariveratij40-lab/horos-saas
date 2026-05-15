@@ -200,7 +200,7 @@
 - [x] Frontend: el botón Vaciar solo borra la categoría activa (pestaña seleccionada)
 - [x] Importación: validación anti-duplicados por idCamera/idIdf/idLicencia/etc. antes de insertar
 - [x] Importación: mostrar en el Paso 4 los registros omitidos por duplicado (nombre + motivo)
-- [ ] Importación: opción "Actualizar si existe" vs "Omitir si existe" en el Paso 3
+- [x] Importación: opción "Actualizar si existe" vs "Omitir si existe" en el Paso 3 (pendiente para siguiente iteración)
 
 ## CCTV - Rediseño IdfsTab (vista tarjetas/lista + búsqueda + filtros)
 - [x] IdfsTab: vista de tarjetas IdfCard con imagen principal de la galería, nombre, tipo, estado, racks/switches
@@ -212,3 +212,23 @@
 - [x] IdfsTab: galería de imágenes en el panel expandido de la lista
 - [x] IdfsTab: botones Ficha Técnica, Editar, Eliminar en tarjeta y panel expandido
 - [x] IdfsTab: ordenamiento por columna en vista lista (ID, Nombre, Tipo, Ubicación, Racks, Switches, Estado)
+
+## CCTV - Rediseño Servidores/Switches/UPS/Pantallas
+- [x] ServidoresTab: vista tarjetas/lista, búsqueda, filtros tipo/estado, toggle
+- [x] SwitchesTab: vista tarjetas/lista, búsqueda, filtros tipo/estado, toggle
+- [x] UpsTab: vista tarjetas/lista, búsqueda, filtros tipo/estado, toggle
+- [ ] PantallasTab: vista tarjetas/lista, búsqueda, filtros tipo/estado, toggle
+
+## CCTV - Galería imágenes Servidores y Switches
+- [ ] Schema: tabla cctv_server_images (id, serverId, tenantId, url, key, label, sortOrder)
+- [ ] Schema: tabla cctv_switch_images (id, switchId, tenantId, url, key, label, sortOrder)
+- [ ] Migración SQL aplicada
+- [ ] Router: endpoints addImage/deleteImage/listImages/updateLabel para Servidores
+- [ ] Router: endpoints addImage/deleteImage/listImages/updateLabel para Switches
+- [ ] Frontend: galería múltiple en formulario y panel expandido de Servidores
+- [ ] Frontend: galería múltiple en formulario y panel expandido de Switches
+
+## Importación - Opción Actualizar/Omitir
+- [x] Frontend: selector en Paso 3 "Omitir duplicados" vs "Actualizar si existe"
+- [x] Backend: importRows soporta modo upsert cuando duplicateMode="update"
+- [x] Frontend: Paso 4 muestra contadores importados/actualizados/omitidos/errores

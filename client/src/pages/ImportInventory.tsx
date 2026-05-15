@@ -8,7 +8,7 @@ import {
   ArrowLeft, Upload, FileSpreadsheet, FileText, File,
   CheckCircle2, AlertCircle, ChevronRight, RotateCcw,
   Download, Loader2, Camera, Server, Wifi, Monitor,
-  Shield, Zap, Package,
+  Shield, Zap, Package, RefreshCw, SkipForward,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -97,7 +97,8 @@ export default function ImportInventory() {
   const [isDragging, setIsDragging] = useState(false);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
-  const [importResult, setImportResult] = useState<{ inserted: number; skipped: number; skippedNames: string[]; errors: string[]; total: number } | null>(null);
+  const [duplicateMode, setDuplicateMode] = useState<"skip" | "update">("skip");
+  const [importResult, setImportResult] = useState<{ inserted: number; updated: number; skipped: number; skippedNames: string[]; errors: string[]; total: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const parseMut = trpc.cctvImport.parseFile.useMutation({
@@ -147,12 +148,12 @@ export default function ImportInventory() {
 
   const handleImport = () => {
     if (!file || !category || !fileBase64) return;
-    importMut.mutate({ fileBase64, fileName: file.name, category, mapping });
+    importMut.mutate({ fileBase64, fileName: file.name, category, mapping, duplicateMode });
   };
 
   const reset = () => {
     setStep(1); setCategory(null); setFile(null); setFileBase64("");
-    setParseResult(null); setMapping({}); setImportResult(null);
+    setParseResult(null); setMapping({}); setDuplicateMode("skip"); setImportResult(null);
   };
 
   // ── Step 1: Select category ──────────────────────────────────────────────
@@ -299,6 +300,41 @@ export default function ImportInventory() {
           </details>
         )}
 
+        {/* Duplicate mode selector */}
+        <div className="mb-4 p-4 rounded-xl border border-border bg-muted/20">
+          <p className="text-sm font-semibold mb-3">Manejo de duplicados</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              onClick={() => setDuplicateMode("skip")}
+              className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${
+                duplicateMode === "skip"
+                  ? "border-amber-500/50 bg-amber-500/10 shadow-sm"
+                  : "border-border hover:border-border/80 hover:bg-muted/30"
+              }`}
+            >
+              <SkipForward className={`w-5 h-5 mt-0.5 shrink-0 ${duplicateMode === "skip" ? "text-amber-400" : "text-muted-foreground"}`} />
+              <div>
+                <p className={`text-sm font-semibold ${duplicateMode === "skip" ? "text-amber-400" : ""}`}>Omitir duplicados</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Los registros que ya existen en el inventario serán ignorados.</p>
+              </div>
+            </button>
+            <button
+              onClick={() => setDuplicateMode("update")}
+              className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${
+                duplicateMode === "update"
+                  ? "border-blue-500/50 bg-blue-500/10 shadow-sm"
+                  : "border-border hover:border-border/80 hover:bg-muted/30"
+              }`}
+            >
+              <RefreshCw className={`w-5 h-5 mt-0.5 shrink-0 ${duplicateMode === "update" ? "text-blue-400" : "text-muted-foreground"}`} />
+              <div>
+                <p className={`text-sm font-semibold ${duplicateMode === "update" ? "text-blue-400" : ""}`}>Actualizar duplicados</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Los registros existentes serán actualizados con los datos del archivo.</p>
+              </div>
+            </button>
+          </div>
+        </div>
+
         <div className="flex justify-between">
           <Button variant="outline" onClick={() => setStep(2)}>Atrás</Button>
           <Button onClick={handleImport} disabled={importMut.isPending} className="gap-2">
@@ -315,7 +351,8 @@ export default function ImportInventory() {
   const renderStep4 = () => {
     if (!importResult) return null;
     const { inserted, skipped, skippedNames, errors, total } = importResult;
-    const success = inserted > 0;
+    const updatedCount = importResult.updated ?? 0;
+    const success = inserted > 0 || updatedCount > 0;
     return (
       <div className="text-center">
         <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4
@@ -331,18 +368,18 @@ export default function ImportInventory() {
           Se procesaron <strong>{total}</strong> registros del archivo.
         </p>
 
-        <div className="grid grid-cols-4 gap-3 mb-6 max-w-lg mx-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 max-w-lg mx-auto">
           <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
             <div className="text-2xl font-bold text-green-400">{inserted}</div>
-            <div className="text-xs text-muted-foreground">Importados</div>
+            <div className="text-xs text-muted-foreground">Nuevos</div>
           </div>
-          <div className="p-3 rounded-xl bg-muted/30 border border-border">
-            <div className="text-2xl font-bold">{total}</div>
-            <div className="text-xs text-muted-foreground">Total</div>
+          <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <div className="text-2xl font-bold text-blue-400">{updatedCount}</div>
+            <div className="text-xs text-muted-foreground">Actualizados</div>
           </div>
           <div className={`p-3 rounded-xl border ${skipped > 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-muted/30 border-border"}`}>
             <div className={`text-2xl font-bold ${skipped > 0 ? "text-amber-400" : ""}`}>{skipped}</div>
-            <div className="text-xs text-muted-foreground">Duplicados</div>
+            <div className="text-xs text-muted-foreground">Omitidos</div>
           </div>
           <div className={`p-3 rounded-xl border ${errors.length > 0 ? "bg-red-500/10 border-red-500/20" : "bg-muted/30 border-border"}`}>
             <div className={`text-2xl font-bold ${errors.length > 0 ? "text-red-400" : ""}`}>{errors.length}</div>
