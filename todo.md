@@ -88,3 +88,7 @@
 - [x] Encabezado de ficha con logo HOROS, nombre del equipo, fecha de generación y estado
 - [x] Secciones por categoría: Identificación, Red/Conectividad, Hardware, Garantía/Proveedor, Observaciones
 - [x] Pruebas unitarias para el endpoint getEquipmentSheet
+
+## Sidebar - Reorganización Infraestructura
+- [x] Agrupar módulos de Infraestructura por sistema: CCTV, Control de Acceso, Cableado Estructurado, Voceo
+- [x] Sub-secciones colapsables con ícono y etiqueta de sistema

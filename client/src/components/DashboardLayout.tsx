@@ -24,19 +24,39 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   LayoutDashboard, FileText, Ticket, Package, Shield, Building2,
-  Wrench, ClipboardList, Bot, Users, LogOut, ChevronDown,
-  Bell, Settings, Activity, PanelLeft, Camera,
+  Wrench, ClipboardList, Bot, Users, LogOut, ChevronDown, ChevronRight,
+  Bell, Settings, Camera, Network, Volume2, Lock, Cable,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
-import { trpc } from "@/lib/trpc";
 
 const LOGO_URL = "/manus-storage/Logo_Horos_v12_Transparente_08ee2bf3.webp";
 
-const menuGroups = [
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+type NavItem = {
+  icon: React.ElementType;
+  label: string;
+  path: string;
+};
+
+type NavGroup = {
+  label: string;
+  items?: NavItem[];
+  systems?: SystemGroup[];
+};
+
+type SystemGroup = {
+  icon: React.ElementType;
+  label: string;
+  color: string;
+  items: NavItem[];
+};
+
+// ─── Definición del menú ──────────────────────────────────────────────────────
+const menuGroups: NavGroup[] = [
   {
     label: "Principal",
     items: [
@@ -54,10 +74,43 @@ const menuGroups = [
   {
     label: "Infraestructura",
     items: [
-      { icon: Package, label: "Inventario", path: "/assets" },
-      { icon: Camera, label: "CCTV", path: "/cctv" },
+      { icon: Package, label: "Inventario General", path: "/assets" },
       { icon: Building2, label: "Sucursales", path: "/branches" },
       { icon: Wrench, label: "Mantenimiento", path: "/maintenance" },
+    ],
+    systems: [
+      {
+        icon: Camera,
+        label: "CCTV",
+        color: "text-blue-500",
+        items: [
+          { icon: Camera, label: "Inventario CCTV", path: "/cctv" },
+        ],
+      },
+      {
+        icon: Lock,
+        label: "Control de Acceso",
+        color: "text-emerald-500",
+        items: [
+          { icon: Lock, label: "Inventario Acceso", path: "/access-control" },
+        ],
+      },
+      {
+        icon: Cable,
+        label: "Cableado Estructurado",
+        color: "text-orange-500",
+        items: [
+          { icon: Cable, label: "Inventario Cableado", path: "/structured-cabling" },
+        ],
+      },
+      {
+        icon: Volume2,
+        label: "Voceo",
+        color: "text-purple-500",
+        items: [
+          { icon: Volume2, label: "Inventario Voceo", path: "/paging" },
+        ],
+      },
     ],
   },
   {
@@ -78,41 +131,94 @@ const menuGroups = [
 const SIDEBAR_WIDTH_KEY = "horos-sidebar-width";
 const DEFAULT_WIDTH = 260;
 const MIN_WIDTH = 200;
-const MAX_WIDTH = 320;
+const MAX_WIDTH = 340;
 
-function SidebarNav() {
-  const [location, navigate] = useLocation();
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
+// ─── Componente de sub-sistema colapsable ─────────────────────────────────────
+function SystemSubGroup({ system, location, navigate, isCollapsed }: {
+  system: SystemGroup;
+  location: string;
+  navigate: (path: string) => void;
+  isCollapsed: boolean;
+}) {
+  const isAnyActive = system.items.some(
+    (item) => location === item.path || location.startsWith(item.path + "/")
+  );
+  const [open, setOpen] = useState(isAnyActive);
+
+  // Auto-open if a child route is active
+  useEffect(() => {
+    if (isAnyActive) setOpen(true);
+  }, [isAnyActive]);
+
+  if (isCollapsed) {
+    // In collapsed mode, show only the system icon with tooltip
+    return (
+      <SidebarMenu>
+        {system.items.map((item) => {
+          const isActive = location === item.path || location.startsWith(item.path + "/");
+          return (
+            <SidebarMenuItem key={item.path}>
+              <SidebarMenuButton
+                onClick={() => navigate(item.path)}
+                isActive={isActive}
+                tooltip={`${system.label}: ${item.label}`}
+                className={cn(
+                  "h-9 rounded-lg transition-all duration-150 font-medium text-sm",
+                  isActive
+                    ? "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                )}
+              >
+                <system.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-primary" : system.color)} />
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          );
+        })}
+      </SidebarMenu>
+    );
+  }
 
   return (
-    <SidebarContent className="px-2 py-2 overflow-y-auto">
-      {menuGroups.map((group) => (
-        <div key={group.label} className="mb-4">
-          {!isCollapsed && (
-            <div className="px-3 py-1 mb-1">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-                {group.label}
-              </span>
-            </div>
+    <div className="mb-1">
+      {/* System header button */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 group",
+          isAnyActive
+            ? "text-foreground bg-muted/40"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+        )}
+      >
+        <system.icon className={cn("w-3.5 h-3.5 shrink-0", system.color)} />
+        <span className="flex-1 text-left tracking-wide">{system.label}</span>
+        <ChevronRight
+          className={cn(
+            "w-3 h-3 shrink-0 transition-transform duration-200",
+            open ? "rotate-90" : ""
           )}
+        />
+      </button>
+
+      {/* System items */}
+      {open && (
+        <div className="ml-3 mt-0.5 border-l border-border/40 pl-2">
           <SidebarMenu>
-            {group.items.map((item) => {
-              const isActive = location === item.path || (item.path !== "/dashboard" && location.startsWith(item.path));
+            {system.items.map((item) => {
+              const isActive = location === item.path || location.startsWith(item.path + "/");
               return (
                 <SidebarMenuItem key={item.path}>
                   <SidebarMenuButton
                     onClick={() => navigate(item.path)}
                     isActive={isActive}
-                    tooltip={isCollapsed ? item.label : undefined}
                     className={cn(
-                      "h-9 rounded-lg transition-all duration-150 font-medium text-sm",
+                      "h-8 rounded-lg transition-all duration-150 font-medium text-xs",
                       isActive
                         ? "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary font-semibold"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                     )}
                   >
-                    <item.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-primary" : "")} />
+                    <item.icon className={cn("w-3.5 h-3.5 shrink-0", isActive ? "text-primary" : "")} />
                     <span>{item.label}</span>
                     {isActive && (
                       <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
@@ -123,11 +229,88 @@ function SidebarNav() {
             })}
           </SidebarMenu>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Navegación principal ─────────────────────────────────────────────────────
+function SidebarNav() {
+  const [location, navigate] = useLocation();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+
+  return (
+    <SidebarContent className="px-2 py-2 overflow-y-auto">
+      {menuGroups.map((group) => (
+        <div key={group.label} className="mb-4">
+          {/* Group label */}
+          {!isCollapsed && (
+            <div className="px-3 py-1 mb-1">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+                {group.label}
+              </span>
+            </div>
+          )}
+
+          {/* Regular items */}
+          {group.items && (
+            <SidebarMenu>
+              {group.items.map((item) => {
+                const isActive = location === item.path || (item.path !== "/dashboard" && location.startsWith(item.path));
+                return (
+                  <SidebarMenuItem key={item.path}>
+                    <SidebarMenuButton
+                      onClick={() => navigate(item.path)}
+                      isActive={isActive}
+                      tooltip={isCollapsed ? item.label : undefined}
+                      className={cn(
+                        "h-9 rounded-lg transition-all duration-150 font-medium text-sm",
+                        isActive
+                          ? "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary font-semibold"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                      )}
+                    >
+                      <item.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-primary" : "")} />
+                      <span>{item.label}</span>
+                      {isActive && (
+                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          )}
+
+          {/* Systems sub-groups (only in Infraestructura) */}
+          {group.systems && (
+            <div className="mt-2 space-y-0.5">
+              {!isCollapsed && (
+                <div className="px-3 py-1 mb-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
+                    Sistemas
+                  </span>
+                </div>
+              )}
+              {group.systems.map((system) => (
+                <SystemSubGroup
+                  key={system.label}
+                  system={system}
+                  location={location}
+                  navigate={navigate}
+                  isCollapsed={isCollapsed}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       ))}
     </SidebarContent>
   );
 }
 
+// ─── Layout principal ─────────────────────────────────────────────────────────
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
@@ -138,7 +321,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isResizing = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(0);
-  const [location] = useLocation();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());

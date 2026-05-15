@@ -23,6 +23,7 @@ import Audit from "./pages/Audit";
 import AIAssistant from "./pages/AIAssistant";
 import Users from "./pages/Users";
 import CCTV from "./pages/CCTV";
+import { AccessControlPage, StructuredCablingPage, PagingSystemPage } from "./pages/ComingSoon";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
@@ -55,6 +56,9 @@ function Router() {
       <Route path="/ai" component={() => <ProtectedRoute component={AIAssistant} />} />
       <Route path="/users" component={() => <ProtectedRoute component={Users} />} />
       <Route path="/cctv" component={() => <ProtectedRoute component={CCTV} />} />
+      <Route path="/access-control" component={AccessControlPage} />
+      <Route path="/structured-cabling" component={StructuredCablingPage} />
+      <Route path="/paging" component={PagingSystemPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
