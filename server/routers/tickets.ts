@@ -137,4 +137,31 @@ export const ticketsRouter = router({
     const tenantId = ctx.user.tenantId ?? 1;
     return getTicketComments(input.ticketId, tenantId);
   }),
+
+  uploadEvidence: protectedProcedure.input(z.object({
+    ticketId: z.number(),
+    imageBase64: z.string(),
+    mimeType: z.string().default("image/jpeg"),
+    fileName: z.string().optional(),
+  })).mutation(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB no disponible" });
+    const tenantId = ctx.user.tenantId ?? 1;
+    // Verify ticket ownership
+    const ticket = await getTicketById(input.ticketId, tenantId);
+    if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket no encontrado" });
+    // Upload to S3
+    const { storagePut } = await import("../storage");
+    const ext = input.mimeType.split("/")[1] ?? "jpg";
+    const key = `tickets/evidence/${tenantId}/${input.ticketId}-${Date.now()}.${ext}`;
+    const buffer = Buffer.from(input.imageBase64.replace(/^data:[^;]+;base64,/, ""), "base64");
+    const { url } = await storagePut(key, buffer, input.mimeType);
+    // Update ticket record
+    const { tickets } = await import("../../drizzle/schema");
+    const { eq, and } = await import("drizzle-orm");
+    await db.update(tickets).set({ evidenceImageUrl: url, evidenceImageKey: key } as any)
+      .where(and(eq(tickets.id, input.ticketId), eq(tickets.tenantId, tenantId)));
+    await createAuditLog({ tenantId, userId: ctx.user.id, userName: ctx.user.name ?? undefined, action: "UPDATE", module: "tickets", entityType: "ticket", entityId: input.ticketId, description: `Imagen de evidencia subida al ticket #${input.ticketId}` });
+    return { url, key };
+  }),
 });

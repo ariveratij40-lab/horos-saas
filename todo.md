@@ -303,3 +303,13 @@
 - [ ] Backend: endpoint incidentes CCTV lee slaTier del equipo y calcula tiempos SLA
 - [ ] Frontend: formulario de incidente muestra equipo vinculado + Tier + tiempo SLA calculado
 - [ ] Frontend: lista de incidentes muestra badge Tier y countdown SLA
+
+## Incidentes CCTV - Imagen de Evidencia
+- [x] Backend: campos evidenceImageUrl y evidenceImageKey en tabla tickets (migración 0013 aplicada)
+- [x] Backend: endpoint tickets.uploadEvidence que acepta imageBase64, mimeType, ticketId y sube a S3
+- [x] Frontend: campo de subida de imagen en el formulario de nuevo incidente (zona drag-drop + preview)
+- [x] Frontend: botón para quitar imagen seleccionada antes de guardar
+- [x] Frontend: flujo de 2 pasos: crear ticket → si hay imagen, convertir a base64 y llamar uploadEvidence
+- [x] Frontend: mostrar imagen de evidencia en el panel expandido de la lista de incidentes
+- [x] Frontend: enlace para ver imagen en tamaño completo al hacer clic
+- [x] Backend: createTicket en db.ts retorna el ID del ticket insertado (insertId)

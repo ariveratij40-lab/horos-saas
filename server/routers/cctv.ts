@@ -960,25 +960,25 @@ export const cctvRouter = router({
         );
 
       const cam = cameras.find(matches);
-      if (cam) return { category: "cameras" as const, categoryLabel: "Cámara", id: cam.id, idCode: cam.idCamera ?? null, marca: cam.marca ?? null, modelo: cam.modelo ?? null, status: cam.status ?? null, ubicacion: cam.area ?? null, ip: cam.ip ?? null, serie: cam.serie ?? null, tipo: cam.tipo ?? null, rfidTag: cam.rfidTag ?? null, observaciones: cam.observaciones ?? null };
+      if (cam) return { category: "cameras" as const, categoryLabel: "Cámara", id: cam.id, idCode: cam.idCamera ?? null, marca: cam.marca ?? null, modelo: cam.modelo ?? null, status: cam.status ?? null, ubicacion: cam.area ?? null, ip: cam.ip ?? null, serie: cam.serie ?? null, tipo: cam.tipo ?? null, rfidTag: cam.rfidTag ?? null, observaciones: cam.observaciones ?? null, slaTier: cam.slaTier ?? null };
 
       const idf = idfs.find(matches);
-      if (idf) return { category: "idfs" as const, categoryLabel: "IDF/MDF", id: idf.id, idCode: idf.idIdf ?? null, marca: idf.nombre ?? null, modelo: idf.tipo ?? null, status: idf.status ?? null, ubicacion: idf.ubicacion ?? null, ip: null, serie: null, tipo: idf.tipo ?? null, rfidTag: idf.rfidTag ?? null, observaciones: idf.observaciones ?? null };
+      if (idf) return { category: "idfs" as const, categoryLabel: "IDF/MDF", id: idf.id, idCode: idf.idIdf ?? null, marca: idf.nombre ?? null, modelo: idf.tipo ?? null, status: idf.status ?? null, ubicacion: idf.ubicacion ?? null, ip: null, serie: null, tipo: idf.tipo ?? null, rfidTag: idf.rfidTag ?? null, observaciones: idf.observaciones ?? null, slaTier: idf.slaTier ?? null };
 
       const lic = licenses.find(matches);
-      if (lic) return { category: "licenses" as const, categoryLabel: "Licencia", id: lic.id, idCode: lic.idLicencia ?? null, marca: lic.marca ?? null, modelo: lic.modelo ?? null, status: lic.status ?? null, ubicacion: lic.ubicacion ?? null, ip: null, serie: null, tipo: lic.tipo ?? null, rfidTag: lic.rfidTag ?? null, observaciones: lic.observaciones ?? null };
+      if (lic) return { category: "licenses" as const, categoryLabel: "Licencia", id: lic.id, idCode: lic.idLicencia ?? null, marca: lic.marca ?? null, modelo: lic.modelo ?? null, status: lic.status ?? null, ubicacion: lic.ubicacion ?? null, ip: null, serie: null, tipo: lic.tipo ?? null, rfidTag: lic.rfidTag ?? null, observaciones: lic.observaciones ?? null, slaTier: lic.slaTier ?? null };
 
       const mon = monitors.find(matches);
-      if (mon) return { category: "monitors" as const, categoryLabel: "Monitor", id: mon.id, idCode: mon.idMonitor ?? null, marca: mon.marca ?? null, modelo: mon.modelo ?? null, status: mon.status ?? null, ubicacion: mon.ubicacion ?? null, ip: null, serie: mon.serie ?? null, tipo: mon.tipo ?? null, rfidTag: mon.rfidTag ?? null, observaciones: mon.observaciones ?? null };
+      if (mon) return { category: "monitors" as const, categoryLabel: "Monitor", id: mon.id, idCode: mon.idMonitor ?? null, marca: mon.marca ?? null, modelo: mon.modelo ?? null, status: mon.status ?? null, ubicacion: mon.ubicacion ?? null, ip: null, serie: mon.serie ?? null, tipo: mon.tipo ?? null, rfidTag: mon.rfidTag ?? null, observaciones: mon.observaciones ?? null, slaTier: mon.slaTier ?? null };
 
       const srv = servers.find(matches);
-      if (srv) return { category: "servers" as const, categoryLabel: "Servidor", id: srv.id, idCode: srv.idServer ?? null, marca: srv.marca ?? null, modelo: srv.modelo ?? null, status: srv.status ?? null, ubicacion: srv.ubicacion ?? null, ip: srv.ip ?? null, serie: srv.serie ?? null, tipo: srv.tipo ?? null, rfidTag: srv.rfidTag ?? null, observaciones: srv.observaciones ?? null };
+      if (srv) return { category: "servers" as const, categoryLabel: "Servidor", id: srv.id, idCode: srv.idServer ?? null, marca: srv.marca ?? null, modelo: srv.modelo ?? null, status: srv.status ?? null, ubicacion: srv.ubicacion ?? null, ip: srv.ip ?? null, serie: srv.serie ?? null, tipo: srv.tipo ?? null, rfidTag: srv.rfidTag ?? null, observaciones: srv.observaciones ?? null, slaTier: srv.slaTier ?? null };
 
       const sw = switches.find(matches);
-      if (sw) return { category: "switches" as const, categoryLabel: "Switch", id: sw.id, idCode: sw.idSwitch ?? null, marca: sw.marca ?? null, modelo: sw.modelo ?? null, status: sw.status ?? null, ubicacion: sw.ubicacion ?? null, ip: sw.ip ?? null, serie: sw.serie ?? null, tipo: sw.tipo ?? null, rfidTag: sw.rfidTag ?? null, observaciones: sw.observaciones ?? null };
+      if (sw) return { category: "switches" as const, categoryLabel: "Switch", id: sw.id, idCode: sw.idSwitch ?? null, marca: sw.marca ?? null, modelo: sw.modelo ?? null, status: sw.status ?? null, ubicacion: sw.ubicacion ?? null, ip: sw.ip ?? null, serie: sw.serie ?? null, tipo: sw.tipo ?? null, rfidTag: sw.rfidTag ?? null, observaciones: sw.observaciones ?? null, slaTier: sw.slaTier ?? null };
 
       const u = ups.find(matches);
-      if (u) return { category: "ups" as const, categoryLabel: "UPS", id: u.id, idCode: u.idUps ?? null, marca: u.marca ?? null, modelo: u.modelo ?? null, status: u.status ?? null, ubicacion: u.ubicacion ?? null, ip: u.ip ?? null, serie: u.serie ?? null, tipo: u.tipo ?? null, rfidTag: u.rfidTag ?? null, observaciones: u.observaciones ?? null };
+      if (u) return { category: "ups" as const, categoryLabel: "UPS", id: u.id, idCode: u.idUps ?? null, marca: u.marca ?? null, modelo: u.modelo ?? null, status: u.status ?? null, ubicacion: u.ubicacion ?? null, ip: u.ip ?? null, serie: u.serie ?? null, tipo: u.tipo ?? null, rfidTag: u.rfidTag ?? null, observaciones: u.observaciones ?? null, slaTier: u.slaTier ?? null };
 
       return null;
     }),

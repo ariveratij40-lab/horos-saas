@@ -205,7 +205,10 @@ export async function getTicketById(id: number, tenantId: number) {
 export async function createTicket(data: InsertTicket) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  return db.insert(tickets).values(data);
+  const result = await db.insert(tickets).values(data);
+  // result[0].insertId contains the auto-increment ID in MySQL/TiDB
+  const insertId = (result as any)?.[0]?.insertId ?? null;
+  return { id: insertId as number | null };
 }
 
 export async function updateTicket(id: number, tenantId: number, data: Partial<InsertTicket>) {

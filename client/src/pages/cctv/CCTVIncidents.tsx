@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   AlertTriangle, Search, Clock, CheckCircle2, XCircle, Plus,
   Shield, Zap, Activity, Timer, ChevronDown, ChevronUp, Ticket,
+  Camera, ImageIcon, Upload, X as XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -102,6 +103,11 @@ export default function CCTVIncidents() {
   const [open, setOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
+  // Evidence image state
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [evidencePreview, setEvidencePreview] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Equipment search
   const [equipSearch, setEquipSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -124,16 +130,21 @@ export default function CCTVIncidents() {
     { enabled: debouncedSearch.length >= 2 && !selectedEquip }
   );
   const createMut = trpc.tickets.create.useMutation({
-    onSuccess: () => {
-      toast.success("Incidente registrado correctamente");
-      setOpen(false);
-      setForm({ title: "", description: "", priority: "medium", category: "corrective", notes: "" });
-      setSelectedEquip(null);
-      setEquipSearch("");
-      refetch();
-    },
     onError: (e) => toast.error(e.message),
   });
+  const uploadMut = trpc.tickets.uploadEvidence.useMutation({
+    onError: (e) => toast.error("Error al subir imagen: " + e.message),
+  });
+
+  const resetForm = () => {
+    setForm({ title: "", description: "", priority: "medium", category: "corrective", notes: "" });
+    setSelectedEquip(null);
+    setEquipSearch("");
+    setEquipResults([]);
+    setEvidenceFile(null);
+    setEvidencePreview("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   // Debounce: update debouncedSearch after 400ms
   useEffect(() => {
@@ -161,17 +172,63 @@ export default function CCTVIncidents() {
     }
   };
 
-  const handleCreate = () => {
-    if (!form.title.trim()) { toast.error("El título es obligatorio"); return; }
-    createMut.mutate({
-      ...form,
-      slaTier: selectedEquip?.slaTier ?? undefined,
-      assetCategory: selectedEquip?.category ?? undefined,
-      assetName: selectedEquip ? `${selectedEquip.marca ?? ""} ${selectedEquip.modelo ?? ""}`.trim() : undefined,
-      slaDeadlineHours: selectedEquip?.slaTier
-        ? SLA_TIERS[selectedEquip.slaTier as keyof typeof SLA_TIERS]?.responseHours
-        : undefined,
+  // Convert File to base64
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("La imagen no puede superar 10 MB");
+      return;
+    }
+    setEvidenceFile(file);
+    const url = URL.createObjectURL(file);
+    setEvidencePreview(url);
+  };
+
+  const handleRemoveEvidence = () => {
+    setEvidenceFile(null);
+    if (evidencePreview) URL.revokeObjectURL(evidencePreview);
+    setEvidencePreview("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleCreate = async () => {
+    if (!form.title.trim()) { toast.error("El título es obligatorio"); return; }
+    try {
+      const result = await createMut.mutateAsync({
+        ...form,
+        slaTier: selectedEquip?.slaTier ?? undefined,
+        assetCategory: selectedEquip?.category ?? undefined,
+        assetName: selectedEquip ? `${selectedEquip.marca ?? ""} ${selectedEquip.modelo ?? ""}`.trim() : undefined,
+        slaDeadlineHours: selectedEquip?.slaTier
+          ? SLA_TIERS[selectedEquip.slaTier as keyof typeof SLA_TIERS]?.responseHours
+          : undefined,
+      });
+      // Upload evidence image if selected
+      if (evidenceFile && result?.id) {
+        const base64 = await fileToBase64(evidenceFile);
+        await uploadMut.mutateAsync({
+          ticketId: result.id,
+          imageBase64: base64,
+          mimeType: evidenceFile.type,
+          fileName: evidenceFile.name,
+        });
+      }
+      toast.success("Incidente registrado correctamente");
+      setOpen(false);
+      resetForm();
+      refetch();
+    } catch {
+      // errors handled by mutation onError callbacks
+    }
   };
 
   // Filter tickets
@@ -408,6 +465,22 @@ export default function CCTVIncidents() {
                                   )}
                                 </div>
                               )}
+                              {t.evidenceImageUrl && (
+                                <div className="md:col-span-2">
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                    <Camera className="w-3 h-3" />
+                                    Imagen de Evidencia
+                                  </p>
+                                  <a href={t.evidenceImageUrl} target="_blank" rel="noopener noreferrer">
+                                    <img
+                                      src={t.evidenceImageUrl}
+                                      alt="Evidencia del incidente"
+                                      className="max-h-48 rounded-lg border border-border object-contain bg-muted/30 hover:opacity-90 transition-opacity cursor-pointer"
+                                    />
+                                  </a>
+                                  <p className="text-xs text-muted-foreground mt-1">Haz clic en la imagen para verla en tamaño completo</p>
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -422,7 +495,7 @@ export default function CCTVIncidents() {
       </Card>
 
       {/* ── New Incident Dialog ─────────────────────────────────────────────── */}
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSelectedEquip(null); setEquipSearch(""); setEquipResults([]); } }}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -561,6 +634,53 @@ export default function CCTVIncidents() {
               />
             </div>
 
+            {/* Evidence image */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Camera className="w-4 h-4 text-muted-foreground" />
+                Imagen de Evidencia
+                <span className="text-xs text-muted-foreground font-normal">(opcional, máx. 10 MB)</span>
+              </Label>
+              {!evidencePreview ? (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full border-2 border-dashed border-border rounded-lg p-6 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <Upload className="w-6 h-6" />
+                  <span className="text-sm">Haz clic para seleccionar una imagen</span>
+                  <span className="text-xs">JPG, PNG, WEBP, GIF</span>
+                </button>
+              ) : (
+                <div className="relative rounded-lg overflow-hidden border border-border">
+                  <img
+                    src={evidencePreview}
+                    alt="Vista previa de evidencia"
+                    className="w-full max-h-56 object-contain bg-muted/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRemoveEvidence}
+                    className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
+                    title="Quitar imagen"
+                  >
+                    <XIcon className="w-4 h-4" />
+                  </button>
+                  <div className="px-3 py-1.5 bg-muted/50 text-xs text-muted-foreground flex items-center gap-1.5">
+                    <ImageIcon className="w-3 h-3" />
+                    {evidenceFile?.name} ({evidenceFile ? (evidenceFile.size / 1024).toFixed(0) : 0} KB)
+                  </div>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </div>
+
             {/* SLA summary banner */}
             {selectedEquip?.slaTier && (
               <div className={cn("p-3 rounded-lg border text-sm", SLA_TIERS[selectedEquip.slaTier as keyof typeof SLA_TIERS]?.color)}>
@@ -576,9 +696,9 @@ export default function CCTVIncidents() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreate} disabled={createMut.isPending}>
-              {createMut.isPending ? "Registrando..." : "Registrar Incidente"}
+            <Button variant="outline" onClick={() => { setOpen(false); resetForm(); }}>Cancelar</Button>
+            <Button onClick={handleCreate} disabled={createMut.isPending || uploadMut.isPending}>
+              {createMut.isPending ? "Registrando..." : uploadMut.isPending ? "Subiendo imagen..." : "Registrar Incidente"}
             </Button>
           </DialogFooter>
         </DialogContent>

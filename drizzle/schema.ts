@@ -212,6 +212,8 @@ export const tickets = mysqlTable("tickets", {
   assetCategory: varchar("assetCategory", { length: 50 }),
   assetName: varchar("assetName", { length: 255 }),
   slaDeadlineHours: int("slaDeadlineHours"),
+  evidenceImageUrl: text("evidenceImageUrl"),
+  evidenceImageKey: varchar("evidenceImageKey", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
