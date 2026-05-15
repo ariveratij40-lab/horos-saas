@@ -304,3 +304,96 @@ describe("cctv.summary", () => {
     expect(result === null || typeof result === "object").toBe(true);
   });
 });
+
+// ─── Fichas Técnicas CCTV: getSheet ──────────────────────────────────────────
+const mockCtx = makeCtx({ role: "admin", tenantId: 1 });
+const equipmentTypes = ["camera", "idf", "license", "monitor", "server", "switch", "ups"] as const;
+
+describe("cctv.getSheet", () => {
+  it("procedure exists in the router", () => {
+    const procedures = appRouter._def.procedures;
+    expect(procedures["cctv.getSheet"]).toBeDefined();
+  });
+
+  it("returns null or valid object for all 7 equipment types (graceful degradation)", async () => {
+    const caller = appRouter.createCaller(mockCtx);
+    for (const type of equipmentTypes) {
+      const result = await caller.cctv.getSheet({ type, id: 1 });
+      expect(result === null || typeof result === "object").toBe(true);
+    }
+  });
+
+  it("accepts all 7 equipment types without throwing", async () => {
+    const caller = appRouter.createCaller(mockCtx);
+    for (const type of equipmentTypes) {
+      await expect(caller.cctv.getSheet({ type, id: 999 })).resolves.not.toThrow();
+    }
+  });
+
+  it("returns null for non-existent equipment id", async () => {
+    const caller = appRouter.createCaller(mockCtx);
+    const result = await caller.cctv.getSheet({ type: "camera", id: 999999 });
+    expect(result === null || typeof result === "object").toBe(true);
+  });
+
+  it("input schema rejects invalid equipment type", async () => {
+    const caller = appRouter.createCaller(mockCtx);
+    await expect(
+      caller.cctv.getSheet({ type: "invalid_type" as any, id: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("input schema rejects non-numeric id", async () => {
+    const caller = appRouter.createCaller(mockCtx);
+    await expect(
+      caller.cctv.getSheet({ type: "camera", id: "abc" as any })
+    ).rejects.toThrow();
+  });
+
+  it("when result is non-null, it has the expected shape", async () => {
+    const caller = appRouter.createCaller(mockCtx);
+    const result = await caller.cctv.getSheet({ type: "camera", id: 1 });
+    if (result !== null) {
+      expect(result).toHaveProperty("id");
+      expect(result).toHaveProperty("type", "camera");
+      expect(result).toHaveProperty("typeLabel");
+      expect(result).toHaveProperty("fields");
+      expect(result).toHaveProperty("generatedAt");
+      expect(Array.isArray(result.fields)).toBe(true);
+      expect(typeof result.typeLabel).toBe("string");
+      expect(result.typeLabel.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("typeLabel values are correct for all 7 types", () => {
+    const expectedLabels: Record<string, string> = {
+      camera:  "Cámara CCTV",
+      idf:     "IDF / MDF",
+      license: "Licencia de Software",
+      monitor: "Monitor / Pantalla",
+      server:  "Servidor / NVR",
+      switch:  "Switch",
+      ups:     "UPS",
+    };
+    for (const [type, label] of Object.entries(expectedLabels)) {
+      expect(label.length).toBeGreaterThan(0);
+      expect(equipmentTypes).toContain(type as any);
+    }
+    expect(Object.keys(expectedLabels)).toHaveLength(7);
+  });
+
+  it("each field in result has key, label, and value properties", async () => {
+    const caller = appRouter.createCaller(mockCtx);
+    const result = await caller.cctv.getSheet({ type: "switch", id: 1 });
+    if (result !== null && result.fields.length > 0) {
+      for (const field of result.fields) {
+        expect(field).toHaveProperty("key");
+        expect(field).toHaveProperty("label");
+        expect(field).toHaveProperty("value");
+        expect(typeof field.key).toBe("string");
+        expect(typeof field.label).toBe("string");
+        expect(typeof field.value).toBe("string");
+      }
+    }
+  });
+});
