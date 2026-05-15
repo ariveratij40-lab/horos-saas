@@ -480,6 +480,9 @@ export const cctvIdfs = mysqlTable("cctv_idfs", {
   comentarios: text("comentarios"),
   observaciones: text("observaciones"),
   fotoUrl: text("fotoUrl"),
+  // Imagen del IDF/MDF (foto del rack/gabinete)
+  idfImageUrl: text("idfImageUrl"),
+  idfImageKey: text("idfImageKey"),
   status: mysqlEnum("status", ["active", "inactive", "maintenance"]).default("active").notNull(),
   // Factura / Monto
   invoiceNumber: varchar("invoiceNumber", { length: 100 }),

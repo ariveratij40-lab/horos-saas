@@ -77,6 +77,8 @@ const idfSchema = z.object({
   branchId: z.number().optional(),
   invoiceNumber: z.string().optional(),
   amount: z.string().optional(),
+  idfImageUrl: z.string().optional(),
+  idfImageKey: z.string().optional(),
 });
 
 const licenseSchema = z.object({
@@ -377,6 +379,29 @@ export const cctvIdfsRouter = router({
     const tenantId = ctx.user.tenantId ?? 1;
     await db.delete(cctvIdfs).where(and(eq(cctvIdfs.id, input.id), eq(cctvIdfs.tenantId, tenantId)));
     return { success: true };
+  }),
+
+  // Subir imagen del IDF/MDF (base64 → S3)
+  uploadImage: protectedProcedure.input(z.object({
+    id: z.number(),
+    imageBase64: z.string(),
+    mimeType: z.string().default("image/jpeg"),
+  })).mutation(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) throw new Error("DB no disponible");
+    const tenantId = ctx.user.tenantId ?? 1;
+    const [idf] = await db.select().from(cctvIdfs)
+      .where(and(eq(cctvIdfs.id, input.id), eq(cctvIdfs.tenantId, tenantId))).limit(1);
+    if (!idf) throw new Error("IDF/MDF no encontrado");
+    const { storagePut } = await import("../storage");
+    const buffer = Buffer.from(input.imageBase64.replace(/^data:[^;]+;base64,/, ""), "base64");
+    const key = `cctv/idfs/${tenantId}/${input.id}-${Date.now()}.jpg`;
+    const { url } = await storagePut(key, buffer, input.mimeType);
+    await db.update(cctvIdfs).set({
+      idfImageUrl: url,
+      idfImageKey: key,
+    } as any).where(and(eq(cctvIdfs.id, input.id), eq(cctvIdfs.tenantId, tenantId)));
+    return { url, key };
   }),
 });
 

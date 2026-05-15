@@ -889,10 +889,29 @@ function IdfsTab() {
   const createMut = trpc.cctv.idfs.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("IDF registrado"); } });
   const updateMut = trpc.cctv.idfs.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("IDF actualizado"); } });
   const deleteMut = trpc.cctv.idfs.delete.useMutation({ onSuccess: () => { refetch(); toast.success("IDF eliminado"); } });
+  const uploadImageMut = trpc.cctv.idfs.uploadImage.useMutation({
+    onSuccess: (data) => {
+      refetch();
+      setForm((p: any) => ({ ...p, idfImageUrl: data.url, idfImageKey: data.key }));
+      toast.success("Imagen subida correctamente");
+    },
+    onError: () => toast.error("Error al subir imagen"),
+  });
 
   function openCreate() { setEditing(null); setForm({}); setOpen(true); }
   function openEdit(row: any) { setEditing(row); setForm({ ...row }); setOpen(true); }
   function handleSave() { if (editing) updateMut.mutate({ id: editing.id, ...form }); else createMut.mutate(form); }
+
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !editing) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target?.result as string;
+      uploadImageMut.mutate({ id: editing.id, imageBase64: base64, mimeType: file.type });
+    };
+    reader.readAsDataURL(file);
+  }
   const f = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
 
   return (
@@ -918,6 +937,13 @@ function IdfsTab() {
           { key: "status", label: "Estado", render: (r: any) => <StatusBadge status={r.status} /> },
         ]}
         detailFields={[
+          { label: "IMAGEN", render: (r: any) => r.idfImageUrl ? (
+            <img src={r.idfImageUrl} alt="IDF" className="w-full max-w-[160px] h-24 object-cover rounded-lg border" />
+          ) : (
+            <div className="w-[160px] h-24 rounded-lg border-2 border-dashed border-border bg-muted/30 flex items-center justify-center">
+              <ImageIcon className="w-6 h-6 opacity-20" />
+            </div>
+          )},
           { label: "ID / Tipo", render: (r: any) => <><p className="font-mono text-primary">{r.idIdf ?? "—"}</p><p className="text-foreground/60 capitalize">{r.tipo ?? "—"}</p></> },
           { label: "Nombre", render: (r: any) => <><p>{r.nombre ?? "—"}</p><p className="text-foreground/60">{r.ubicacion ?? "—"}</p></> },
           { label: "Racks / Gabinetes", render: (r: any) => <><p>{r.numeroRacks ?? 0} racks</p><p className="text-foreground/60">{r.numGabinetes ?? 0} gabinetes</p></> },
@@ -979,6 +1005,43 @@ function IdfsTab() {
             <div className="col-span-2"><Field label="Observaciones"><Textarea value={form.observaciones ?? ""} onChange={e => f("observaciones", e.target.value)} rows={2} /></Field></div>
             <Field label="No. Factura"><Input value={form.invoiceNumber ?? ""} onChange={e => f("invoiceNumber", e.target.value)} placeholder="FAC-2024-001" /></Field>
             <Field label="Monto"><Input type="number" step="0.01" value={form.amount ?? ""} onChange={e => f("amount", e.target.value)} placeholder="0.00" /></Field>
+            {/* Imagen del IDF/MDF */}
+            <div className="col-span-2">
+              <div className="border-t pt-4">
+                <p className="text-sm font-medium mb-3 text-foreground/80">IMAGEN DEL IDF/MDF (OPCIONAL)</p>
+                <div className="flex gap-4 items-start">
+                  <div
+                    className="relative w-48 h-32 rounded-lg border-2 border-dashed border-border bg-muted/30 flex items-center justify-center cursor-pointer overflow-hidden hover:border-primary/50 transition-colors"
+                    onClick={() => editing && document.getElementById('idf-image-upload')?.click()}
+                  >
+                    {form.idfImageUrl ? (
+                      <img src={form.idfImageUrl} alt="IDF" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center text-muted-foreground">
+                        <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-40" />
+                        <p className="text-xs">{editing ? "Clic para subir imagen" : "Guarda primero para subir imagen"}</p>
+                      </div>
+                    )}
+                    {uploadImageMut.isPending && (
+                      <div className="absolute inset-0 bg-background/70 flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {editing && (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => document.getElementById('idf-image-upload')?.click()} disabled={uploadImageMut.isPending}>
+                          <Upload className="w-3.5 h-3.5 mr-1.5" />{form.idfImageUrl ? "Cambiar imagen" : "Subir imagen"}
+                        </Button>
+                        <input id="idf-image-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                      </>
+                    )}
+                    <p className="text-xs text-muted-foreground">Foto del rack, gabinete o instalación.<br/>Formatos: JPG, PNG, WEBP</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

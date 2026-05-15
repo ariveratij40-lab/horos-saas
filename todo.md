@@ -175,3 +175,10 @@
 - [x] Migración SQL aplicada en las 7 tablas CCTV
 - [x] Router CCTV: invoiceNumber y amount en los 7 schemas Zod
 - [x] Frontend: campos No. Factura y Monto en los 7 formularios de alta/edición
+
+## CCTV - Imagen en IDF/MDF
+- [x] Schema Drizzle: agregar campos idfImageUrl e idfImageKey a cctvIdfs
+- [x] Migración SQL: ALTER TABLE cctv_idfs ADD COLUMN idfImageUrl, idfImageKey
+- [x] Router CCTV: endpoint uploadImage para subir imagen al storage S3
+- [x] Frontend: campo de subida de imagen en el formulario de edición de IDF/MDF con preview
+- [x] Frontend: preview de imagen en el panel expandido de la tabla lista IDF/MDF
