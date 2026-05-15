@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { MaintenanceHistorySheet } from "@/components/MaintenanceHistorySheet";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -359,6 +360,9 @@ function CamerasTab() {
   const [maintOpen, setMaintOpen] = useState(false);
   const [maintId, setMaintId] = useState<number | null>(null);
   const [maintName, setMaintName] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteName, setDeleteName] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "list">("list");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [sortKey, setSortKey] = useState<string>("idCamera");
@@ -367,6 +371,7 @@ function CamerasTab() {
   const expandAll = () => setExpandedRows(new Set(sortedFiltered.map((c: any) => c.id)));
   const collapseAll = () => setExpandedRows(new Set());
   const toggleSort = (key: string) => { if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(key); setSortDir("asc"); } };
+  const confirmDelete = (id: number, name: string) => { setDeleteId(id); setDeleteName(name); setDeleteOpen(true); };
   // Scene upload state (modal separado)
   const [sceneOpen, setSceneOpen] = useState(false);
   const [sceneCamera, setSceneCamera] = useState<any>(null);
@@ -547,7 +552,7 @@ function CamerasTab() {
                 key={cam.id}
                 cam={cam}
                 onEdit={openEdit}
-                onDelete={id => deleteMut.mutate({ id })}
+                onDelete={id => { const cam = cameras.find((c: any) => c.id === id); confirmDelete(id, `${cam?.marca ?? ""} ${cam?.modelo ?? ""} ${cam?.idCamera ?? ""}`.trim()); }}
                 onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idCamera ?? ""}`.trim()); }}
                 onUploadScene={openUploadScene}
                 onMaintenance={row => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idCamera ?? ""}`.trim()); setMaintOpen(true); }}
@@ -632,7 +637,7 @@ function CamerasTab() {
                     <button className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors" title="Editar" onClick={() => openEdit(cam)}>
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
-                    <button className="p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-destructive transition-colors" title="Eliminar" onClick={() => deleteMut.mutate({ id: cam.id })}>
+                    <button className="p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-destructive transition-colors" title="Eliminar" onClick={() => confirmDelete(cam.id, `${cam.marca ?? ""} ${cam.modelo ?? ""} ${cam.idCamera ?? ""}`.trim())}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </span>
@@ -719,7 +724,7 @@ function CamerasTab() {
                       <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1.5" onClick={() => openUploadScene(cam)}>
                         <Upload className="w-3 h-3" /> Imagen
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-3 text-xs gap-1.5 text-destructive hover:text-destructive ml-auto" onClick={() => deleteMut.mutate({ id: cam.id })}>
+                      <Button size="sm" variant="ghost" className="h-7 px-3 text-xs gap-1.5 text-destructive hover:text-destructive ml-auto" onClick={() => confirmDelete(cam.id, `${cam.marca ?? ""} ${cam.modelo ?? ""} ${cam.idCamera ?? ""}`.trim())}>
                         <Trash2 className="w-3 h-3" /> Eliminar
                       </Button>
                     </div>
@@ -746,6 +751,14 @@ function CamerasTab() {
         category="cameras"
         itemId={maintId ?? 0}
         itemName={maintName}
+      />
+      <DeleteConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        itemName={deleteName}
+        itemType="cámara"
+        onConfirm={() => { if (deleteId !== null) { deleteMut.mutate({ id: deleteId }); setDeleteOpen(false); } }}
+        isLoading={deleteMut.isPending}
       />
       {/* Modal: subir imagen de escena */}
       <Dialog open={sceneOpen} onOpenChange={setSceneOpen}>
@@ -1025,6 +1038,10 @@ function IdfsTab() {
   const [maintOpen, setMaintOpen] = useState(false);
   const [maintId, setMaintId] = useState<number | null>(null);
   const [maintName, setMaintName] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteName, setDeleteName] = useState("");
+  const confirmDelete = (id: number, name: string) => { setDeleteId(id); setDeleteName(name); setDeleteOpen(true); };
   const { data: idfsRaw = [], refetch } = trpc.cctv.idfs.list.useQuery(undefined);
   const filtered = idfsRaw.filter(r => {
     if (filterTipo !== "all" && r.tipo !== filterTipo) return false;
@@ -1132,7 +1149,7 @@ function IdfsTab() {
                 key={idf.id}
                 idf={idf}
                 onEdit={openEdit}
-                onDelete={id => deleteMut.mutate({ id })}
+                onDelete={id => { const idf = idfsRaw.find((r: any) => r.id === id); confirmDelete(id, `${idf?.nombre ?? idf?.idIdf ?? ""} (${idf?.tipo ?? "IDF"})`); }}
                 onSheet={row => { setSheetId(row.id); setSheetName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); }}
               />
             ))}
@@ -1188,7 +1205,7 @@ function IdfsTab() {
                   <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                     <button className="p-1 rounded hover:bg-amber-500/10 text-muted-foreground hover:text-amber-500 transition-colors" title="Bitácora de Mantenimiento" onClick={() => { setMaintId(row.id); setMaintName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); setMaintOpen(true); }}><Wrench className="w-3.5 h-3.5" /></button>
                     <button className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors" title="Editar" onClick={() => openEdit(row)}><Pencil className="w-3.5 h-3.5" /></button>
-                    <button className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Eliminar" onClick={() => deleteMut.mutate({ id: row.id })}><Trash2 className="w-3.5 h-3.5" /></button>
+                    <button className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Eliminar" onClick={() => confirmDelete(row.id, `${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`)}><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
                 {isExp && (
@@ -1206,7 +1223,7 @@ function IdfsTab() {
                       <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={e => { e.stopPropagation(); setMaintId(row.id); setMaintName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); setMaintOpen(true); }}><Wrench className="w-3 h-3" /> Mantenimiento</Button>
                       <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1" onClick={e => { e.stopPropagation(); setSheetId(row.id); setSheetName(`${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); }}><FileText className="w-3 h-3" /> Ficha Técnica</Button>
                       <Button size="sm" variant="outline" className="h-7 px-3 text-xs gap-1" onClick={e => { e.stopPropagation(); openEdit(row); }}><Pencil className="w-3 h-3" /> Editar</Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-3 text-xs gap-1 text-destructive hover:text-destructive" onClick={e => { e.stopPropagation(); deleteMut.mutate({ id: row.id }); }}><Trash2 className="w-3 h-3" /> Eliminar</Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-3 text-xs gap-1 text-destructive hover:text-destructive" onClick={e => { e.stopPropagation(); confirmDelete(row.id, `${row.nombre ?? row.idIdf ?? ""} (${row.tipo ?? "IDF"})`); }}><Trash2 className="w-3 h-3" /> Eliminar</Button>
                     </div>
                   </div>
                 )}
@@ -1225,6 +1242,14 @@ function IdfsTab() {
         category="idfs"
         itemId={maintId ?? 0}
         itemName={maintName}
+      />
+      <DeleteConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        itemName={deleteName}
+        itemType="IDF/MDF"
+        onConfirm={() => { if (deleteId !== null) { deleteMut.mutate({ id: deleteId }); setDeleteOpen(false); } }}
+        isLoading={deleteMut.isPending}
       />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -1374,6 +1399,10 @@ function LicensesTab() {
   const [maintOpen, setMaintOpen] = useState(false);
   const [maintId, setMaintId] = useState<number | null>(null);
   const [maintName, setMaintName] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteName, setDeleteName] = useState("");
+  const confirmDelete = (id: number, name: string) => { setDeleteId(id); setDeleteName(name); setDeleteOpen(true); };
   const { data: licensesRaw = [], refetch } = trpc.cctv.licenses.list.useQuery(undefined);
   const licenses = licensesRaw.filter(r => !search || [r.idLicencia, r.marca, r.modelo, r.noContrato, r.equipoAsignado, r.proveedor].some(v => v?.toLowerCase().includes(search.toLowerCase())));
   const { data: expiring = [] } = trpc.cctv.licenses.expiringSoon.useQuery();
@@ -1432,7 +1461,7 @@ function LicensesTab() {
           { label: "Observaciones", render: (r: any) => <p className="text-foreground/70 text-xs">{r.observaciones ?? "—"}</p> },
         ]}
                 onEdit={openEdit}
-        onDelete={(id: number) => deleteMut.mutate({ id })}
+        onDelete={(id: number) => { const lic = licensesRaw.find((r: any) => r.id === id); confirmDelete(id, `${lic?.marca ?? ""} ${lic?.modelo ?? ""} ${lic?.idLicencia ?? ""}`.trim()); }}
         onSheet={(row: any) => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idLicencia ?? ""}`.trim()); }}
         onMaintenance={(row: any) => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idLicencia ?? ""}`.trim()); setMaintOpen(true); }}
         emptyIcon={<Shield className="w-10 h-10 mx-auto mb-2 opacity-20" />}
@@ -1441,14 +1470,21 @@ function LicensesTab() {
       {sheetId !== null && (
         <CctvTechSheet open={sheetId !== null} onClose={() => setSheetId(null)} equipmentType="license" equipmentId={sheetId} equipmentName={sheetName} />
       )}
-      <MaintenanceHistorySheet
+            <MaintenanceHistorySheet
         open={maintOpen}
         onOpenChange={setMaintOpen}
         category="licenses"
         itemId={maintId ?? 0}
         itemName={maintName}
       />
-
+      <DeleteConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        itemName={deleteName}
+        itemType="licencia"
+        onConfirm={() => { if (deleteId !== null) { deleteMut.mutate({ id: deleteId }); setDeleteOpen(false); } }}
+        isLoading={deleteMut.isPending}
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Editar Licencia" : "Nueva Licencia"}</DialogTitle></DialogHeader>
@@ -1548,6 +1584,10 @@ function MonitorsTab() {
   const [maintOpen, setMaintOpen] = useState(false);
   const [maintId, setMaintId] = useState<number | null>(null);
   const [maintName, setMaintName] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteName, setDeleteName] = useState("");
+  const confirmDelete = (id: number, name: string) => { setDeleteId(id); setDeleteName(name); setDeleteOpen(true); };
   const { data: monitorsRaw = [], refetch } = trpc.cctv.monitors.list.useQuery(undefined);
   const createMut = trpc.cctv.monitors.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Monitor registrado"); } });
   const updateMut = trpc.cctv.monitors.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Monitor actualizado"); } });
@@ -1614,7 +1654,7 @@ function MonitorsTab() {
         sorted.length === 0
           ? <div className="text-center py-16 text-muted-foreground"><Monitor className="w-10 h-10 mx-auto mb-2 opacity-20" /><p>No hay pantallas registradas.</p></div>
           : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {sorted.map(mon => <MonitorCard key={mon.id} mon={mon} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.tamano ?? ""}`.trim()); }} />)}
+              {sorted.map(mon => <MonitorCard key={mon.id} mon={mon} onEdit={openEdit} onDelete={id => confirmDelete(id, `${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.idMonitor ?? ""}`.trim())} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.tamano ?? ""}`.trim()); }} />)}
             </div>
       )}
 
@@ -1655,7 +1695,7 @@ function MonitorsTab() {
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10" title="Bitácora de Mantenimiento" onClick={() => { setMaintId(mon.id); setMaintName(`${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.tamano ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(mon.id); setSheetName(`${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.tamano ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(mon)}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: mon.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => confirmDelete(mon.id, `${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.idMonitor ?? ""}`.trim())}><Trash2 className="w-3.5 h-3.5" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -1675,7 +1715,7 @@ function MonitorsTab() {
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={() => { setMaintId(mon.id); setMaintName(`${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.tamano ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3 h-3" />Mantenimiento</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(mon.id); setSheetName(`${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.tamano ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(mon)}><Pencil className="w-3 h-3" />Editar</Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: mon.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => confirmDelete(mon.id, `${mon.marca ?? ""} ${mon.modelo ?? ""} ${mon.idMonitor ?? ""}`.trim())}><Trash2 className="w-3 h-3" />Eliminar</Button>
                       </div>
                     </td></tr>
                   )}
@@ -1695,6 +1735,14 @@ function MonitorsTab() {
         category="monitors"
         itemId={maintId ?? 0}
         itemName={maintName}
+      />
+      <DeleteConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        itemName={deleteName}
+        itemType="pantalla/monitor"
+        onConfirm={() => { if (deleteId !== null) { deleteMut.mutate({ id: deleteId }); setDeleteOpen(false); } }}
+        isLoading={deleteMut.isPending}
       />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1810,6 +1858,10 @@ function ServersTab() {
   const [maintOpen, setMaintOpen] = useState(false);
   const [maintId, setMaintId] = useState<number | null>(null);
   const [maintName, setMaintName] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteName, setDeleteName] = useState("");
+  const confirmDelete = (id: number, name: string) => { setDeleteId(id); setDeleteName(name); setDeleteOpen(true); };
   const { data: serversRaw = [], refetch } = trpc.cctv.servers.list.useQuery(undefined);
   const createMut = trpc.cctv.servers.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Servidor registrado"); } });
   const updateMut = trpc.cctv.servers.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Servidor actualizado"); } });
@@ -1876,7 +1928,7 @@ function ServersTab() {
         sorted.length === 0
           ? <div className="text-center py-16 text-muted-foreground"><Server className="w-10 h-10 mx-auto mb-2 opacity-20" /><p>No hay servidores/NVR registrados.</p></div>
           : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {sorted.map(srv => <ServerCard key={srv.id} srv={srv} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); }} onMaintenance={row => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); setMaintOpen(true); }} />)}
+              {sorted.map(srv => <ServerCard key={srv.id} srv={srv} onEdit={openEdit} onDelete={id => confirmDelete(id, `${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim())} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); }} onMaintenance={row => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idServer ?? ""}`.trim()); setMaintOpen(true); }} />)}
             </div>
       )}
 
@@ -1917,7 +1969,7 @@ function ServersTab() {
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10" title="Bitácora de Mantenimiento" onClick={() => { setMaintId(srv.id); setMaintName(`${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(srv.id); setSheetName(`${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(srv)}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: srv.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => confirmDelete(srv.id, `${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim())}><Trash2 className="w-3.5 h-3.5" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -1937,7 +1989,7 @@ function ServersTab() {
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={() => { setMaintId(srv.id); setMaintName(`${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3 h-3" />Mantenimiento</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(srv.id); setSheetName(`${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(srv)}><Pencil className="w-3 h-3" />Editar</Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: srv.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => confirmDelete(srv.id, `${srv.marca ?? ""} ${srv.modelo ?? ""} ${srv.idServer ?? ""}`.trim())}><Trash2 className="w-3 h-3" />Eliminar</Button>
                       </div>
                     </td></tr>
                   )}
@@ -1957,6 +2009,14 @@ function ServersTab() {
         category="servers"
         itemId={maintId ?? 0}
         itemName={maintName}
+      />
+      <DeleteConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        itemName={deleteName}
+        itemType="servidor/NVR"
+        onConfirm={() => { if (deleteId !== null) { deleteMut.mutate({ id: deleteId }); setDeleteOpen(false); } }}
+        isLoading={deleteMut.isPending}
       />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -2074,6 +2134,10 @@ function SwitchesTab() {
   const [maintOpen, setMaintOpen] = useState(false);
   const [maintId, setMaintId] = useState<number | null>(null);
   const [maintName, setMaintName] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteName, setDeleteName] = useState("");
+  const confirmDelete = (id: number, name: string) => { setDeleteId(id); setDeleteName(name); setDeleteOpen(true); };
   const { data: switchesRaw = [], refetch } = trpc.cctv.switches.list.useQuery(undefined);
   const createMut = trpc.cctv.switches.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Switch registrado"); } });
   const updateMut = trpc.cctv.switches.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("Switch actualizado"); } });
@@ -2139,7 +2203,7 @@ function SwitchesTab() {
         sorted.length === 0
           ? <div className="text-center py-16 text-muted-foreground"><Network className="w-10 h-10 mx-auto mb-2 opacity-20" /><p>No hay switches registrados.</p></div>
           : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {sorted.map(sw => <SwitchCard key={sw.id} sw={sw} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); }} onMaintenance={row => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); setMaintOpen(true); }} />)}
+              {sorted.map(sw => <SwitchCard key={sw.id} sw={sw} onEdit={openEdit} onDelete={id => confirmDelete(id, `${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim())} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); }} onMaintenance={row => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idSwitch ?? ""}`.trim()); setMaintOpen(true); }} />)}
             </div>
       )}
 
@@ -2180,7 +2244,7 @@ function SwitchesTab() {
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10" title="Bitácora de Mantenimiento" onClick={() => { setMaintId(sw.id); setMaintName(`${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(sw.id); setSheetName(`${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(sw)}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: sw.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => confirmDelete(sw.id, `${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim())}><Trash2 className="w-3.5 h-3.5" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -2200,7 +2264,7 @@ function SwitchesTab() {
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={() => { setMaintId(sw.id); setMaintName(`${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3 h-3" />Mantenimiento</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(sw.id); setSheetName(`${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(sw)}><Pencil className="w-3 h-3" />Editar</Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: sw.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => confirmDelete(sw.id, `${sw.marca ?? ""} ${sw.modelo ?? ""} ${sw.idSwitch ?? ""}`.trim())}><Trash2 className="w-3 h-3" />Eliminar</Button>
                       </div>
                     </td></tr>
                   )}
@@ -2220,6 +2284,14 @@ function SwitchesTab() {
         category="switches"
         itemId={maintId ?? 0}
         itemName={maintName}
+      />
+      <DeleteConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        itemName={deleteName}
+        itemType="switch"
+        onConfirm={() => { if (deleteId !== null) { deleteMut.mutate({ id: deleteId }); setDeleteOpen(false); } }}
+        isLoading={deleteMut.isPending}
       />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -2321,6 +2393,10 @@ function UpsTab() {
   const [maintOpen, setMaintOpen] = useState(false);
   const [maintId, setMaintId] = useState<number | null>(null);
   const [maintName, setMaintName] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteName, setDeleteName] = useState("");
+  const confirmDelete = (id: number, name: string) => { setDeleteId(id); setDeleteName(name); setDeleteOpen(true); };
   const { data: upsListRaw = [], refetch } = trpc.cctv.ups.list.useQuery(undefined);
   const createMut = trpc.cctv.ups.create.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("UPS registrado"); } });
   const updateMut = trpc.cctv.ups.update.useMutation({ onSuccess: () => { refetch(); setOpen(false); toast.success("UPS actualizado"); } });
@@ -2386,7 +2462,7 @@ function UpsTab() {
         sorted.length === 0
           ? <div className="text-center py-16 text-muted-foreground"><Zap className="w-10 h-10 mx-auto mb-2 opacity-20" /><p>No hay UPS registrados.</p></div>
           : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {sorted.map(u => <UpsCard key={u.id} ups={u} onEdit={openEdit} onDelete={id => deleteMut.mutate({ id })} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); }} onMaintenance={row => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); setMaintOpen(true); }} />)}
+              {sorted.map(u => <UpsCard key={u.id} ups={u} onEdit={openEdit} onDelete={id => confirmDelete(id, `${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim())} onSheet={row => { setSheetId(row.id); setSheetName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); }} onMaintenance={row => { setMaintId(row.id); setMaintName(`${row.marca ?? ""} ${row.modelo ?? ""} ${row.idUps ?? ""}`.trim()); setMaintOpen(true); }} />)}
             </div>
       )}
 
@@ -2427,7 +2503,7 @@ function UpsTab() {
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10" title="Bitácora de Mantenimiento" onClick={() => { setMaintId(u.id); setMaintName(`${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSheetId(u.id); setSheetName(`${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim()); }}><FileText className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(u)}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteMut.mutate({ id: u.id })}><Trash2 className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => confirmDelete(u.id, `${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim())}><Trash2 className="w-3.5 h-3.5" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -2447,7 +2523,7 @@ function UpsTab() {
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={() => { setMaintId(u.id); setMaintName(`${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim()); setMaintOpen(true); }}><Wrench className="w-3 h-3" />Mantenimiento</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setSheetId(u.id); setSheetName(`${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim()); }}><FileText className="w-3 h-3" />Ficha Técnica</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => openEdit(u)}><Pencil className="w-3 h-3" />Editar</Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => deleteMut.mutate({ id: u.id })}><Trash2 className="w-3 h-3" />Eliminar</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10" onClick={() => confirmDelete(u.id, `${u.marca ?? ""} ${u.modelo ?? ""} ${u.idUps ?? ""}`.trim())}><Trash2 className="w-3 h-3" />Eliminar</Button>
                       </div>
                     </td></tr>
                   )}
@@ -2467,6 +2543,14 @@ function UpsTab() {
         category="ups"
         itemId={maintId ?? 0}
         itemName={maintName}
+      />
+      <DeleteConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        itemName={deleteName}
+        itemType="UPS"
+        onConfirm={() => { if (deleteId !== null) { deleteMut.mutate({ id: deleteId }); setDeleteOpen(false); } }}
+        isLoading={deleteMut.isPending}
       />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
