@@ -10,6 +10,7 @@ import { maintenanceRouter } from "./routers/maintenance";
 import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashboard";
 import { slaRouter } from "./routers/sla";
 import { cctvRouter } from "./routers/cctv";
+import { cctvImportRouter } from "./routers/cctvImport";
 import { getAllUsers } from "./db";
 import { protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
@@ -39,6 +40,7 @@ export const appRouter = router({
   maintenance: maintenanceRouter,
   sla: slaRouter,
   cctv: cctvRouter,
+  cctvImport: cctvImportRouter,
   audit: auditRouter,
   ai: aiAssistantRouter,
 

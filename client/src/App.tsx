@@ -30,6 +30,7 @@ import CCTVCapex from "./pages/cctv/CCTVCapex";
 import CCTVPolicy from "./pages/cctv/CCTVPolicy";
 import CCTVBackup from "./pages/cctv/CCTVBackup";
 import { AccessControlPage, StructuredCablingPage, PagingSystemPage } from "./pages/ComingSoon";
+import ImportInventory from "./pages/ImportInventory";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
@@ -68,6 +69,7 @@ function Router() {
       <Route path="/cctv/capex" component={() => <ProtectedRoute component={CCTVCapex} />} />
       <Route path="/cctv/policy" component={() => <ProtectedRoute component={CCTVPolicy} />} />
       <Route path="/cctv/backup" component={() => <ProtectedRoute component={CCTVBackup} />} />
+      <Route path="/cctv/import" component={() => <ProtectedRoute component={ImportInventory} />} />
       <Route path="/access-control" component={AccessControlPage} />
       <Route path="/structured-cabling" component={StructuredCablingPage} />
       <Route path="/paging" component={PagingSystemPage} />

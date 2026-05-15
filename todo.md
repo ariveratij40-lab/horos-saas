@@ -157,3 +157,15 @@
 - [x] UPS: vista lista expandible con panel de detalle
 - [x] Servidores: vista lista expandible con panel de detalle
 - [x] Pantallas/Monitores: vista lista expandible con panel de detalle
+
+## CCTV - Importación de Inventario
+- [x] Backend: endpoint tRPC parseFile que acepta archivo base64 + tipo + categoría
+- [x] Backend: parseo de CSV/Excel con xlsx, Word con mammoth, PDF con LLM
+- [x] Backend: mapeo inteligente de columnas con IA (LLM + fallback fuzzy)
+- [x] Backend: inserción masiva en la tabla correspondiente según categoría (importRows)
+- [x] Frontend: página /cctv/import con stepper de 4 pasos
+- [x] Frontend: Paso 1 - selección de categoría (7 tarjetas con ícono y número de columnas)
+- [x] Frontend: Paso 2 - subida de archivo drag & drop (PDF/Excel/Word/CSV)
+- [x] Frontend: Paso 3 - mapeo de columnas con sugerencias IA y vista previa de datos
+- [x] Frontend: Paso 4 - resultado con contadores de importados/errores/total
+- [x] Frontend: botón "Importar" en el toolbar del módulo CCTV

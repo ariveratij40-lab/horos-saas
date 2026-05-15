@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -322,6 +323,7 @@ function CameraCard({ cam, onEdit, onDelete, onSheet, onUploadScene }: {
 // TAB: CÁMARAS
 // ═══════════════════════════════════════════════════════════════════════════════
 function CamerasTab() {
+  const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [search, setSearch] = useState("");
@@ -496,6 +498,9 @@ function CamerasTab() {
         <button onClick={exportExcel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/30 text-xs text-emerald-400 hover:bg-emerald-500/10 transition-colors" title="Exportar Excel">
           <FileText className="w-3.5 h-3.5" /> Excel
         </button>
+        <Button size="sm" variant="outline" onClick={() => navigate("/cctv/import")} className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10">
+          <Upload className="w-4 h-4" />Importar
+        </Button>
         <Button size="sm" onClick={openCreate} className="gap-1.5"><Plus className="w-4 h-4" />Nueva Cámara</Button>
         <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => refetch()}><RefreshCw className="w-4 h-4" /></Button>
       </div>
@@ -1742,6 +1747,7 @@ function ResumenCCTVTab() {
 // PÁGINA PRINCIPAL CCTV
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function CCTVPage() {
+  const [, navigate] = useLocation();
   return (
     <div>
       <div className="space-y-5">
@@ -1756,6 +1762,9 @@ export default function CCTVPage() {
               Gestión completa de equipos del sistema de videovigilancia
             </p>
           </div>
+          <Button size="sm" variant="outline" onClick={() => navigate("/cctv/import")} className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10">
+            <Upload className="w-4 h-4" /> Importar Inventario
+          </Button>
         </div>
 
         {/* Tabs de equipos — Resumen primero */}
