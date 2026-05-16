@@ -443,22 +443,22 @@ export default function Branches() {
         <div className="w-72 shrink-0 flex flex-col bg-white border-r border-gray-200 overflow-hidden">
           {/* Header */}
           <div className="px-4 py-3 border-b border-gray-100">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-orange-500" />
-                <span className="text-sm font-semibold text-gray-800">Gestión de Sucursales</span>
-                <Badge variant="secondary" className="text-[10px] bg-gray-100 text-gray-500 font-normal">
-                  {branches?.length ?? 0} sucursales
-                </Badge>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => setShowCreate(true)}
-                className="h-7 px-2.5 text-xs bg-orange-500 hover:bg-orange-600 text-white font-medium gap-1 shadow-sm"
-              >
-                <Plus className="w-3 h-3" /> Nueva Sucursal
-              </Button>
+            {/* Título + badge */}
+            <div className="flex items-center gap-2 mb-2">
+              <Building2 className="w-4 h-4 text-orange-500 shrink-0" />
+              <span className="text-sm font-semibold text-gray-800 truncate">Sucursales</span>
+              <Badge variant="secondary" className="text-[10px] bg-gray-100 text-gray-500 font-normal shrink-0">
+                {branches?.length ?? 0}
+              </Badge>
             </div>
+            {/* Botón nueva sucursal */}
+            <Button
+              size="sm"
+              onClick={() => setShowCreate(true)}
+              className="w-full h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white font-medium gap-1 shadow-sm mb-3"
+            >
+              <Plus className="w-3 h-3" /> Nueva Sucursal
+            </Button>
 
             {/* Search + filter */}
             <div className="flex gap-2">
