@@ -857,3 +857,54 @@ export const passwordResetTokens = mysqlTable("password_reset_tokens", {
 });
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+
+// ─── FLOOR PLANS ─────────────────────────────────────────────────────────────
+export const floorPlans = mysqlTable("floor_plans", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  building: varchar("building", { length: 255 }),
+  floor: varchar("floor", { length: 100 }),
+  format: mysqlEnum("format", ["pdf", "dwg", "dxf", "png", "jpg"]).default("pdf"),
+  dimensions: varchar("dimensions", { length: 100 }),
+  scale: varchar("scale", { length: 50 }).default("1:100"),
+  status: mysqlEnum("status", ["active", "inactive", "draft"]).default("active"),
+  fileKey: varchar("fileKey", { length: 500 }),
+  fileUrl: varchar("fileUrl", { length: 1000 }),
+  fileSize: int("fileSize"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type FloorPlan = typeof floorPlans.$inferSelect;
+export type InsertFloorPlan = typeof floorPlans.$inferInsert;
+
+// ─── FLOOR PLAN LAYERS ───────────────────────────────────────────────────────
+export const floorPlanLayers = mysqlTable("floor_plan_layers", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  label: varchar("label", { length: 255 }).notNull(),
+  color: varchar("color", { length: 20 }).default("#3b82f6"),
+  icon: varchar("icon", { length: 10 }).default("📍"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type FloorPlanLayer = typeof floorPlanLayers.$inferSelect;
+export type InsertFloorPlanLayer = typeof floorPlanLayers.$inferInsert;
+
+// ─── FLOOR PLAN ANNOTATIONS ──────────────────────────────────────────────────
+export const floorPlanAnnotations = mysqlTable("floor_plan_annotations", {
+  id: int("id").autoincrement().primaryKey(),
+  planId: int("planId").notNull(),
+  tenantId: int("tenantId").notNull(),
+  layerId: int("layerId"),
+  type: varchar("type", { length: 50 }).default("marker"),
+  x: varchar("x", { length: 20 }).notNull(),
+  y: varchar("y", { length: 20 }).notNull(),
+  label: varchar("label", { length: 255 }),
+  color: varchar("color", { length: 20 }),
+  icon: varchar("icon", { length: 10 }),
+  data: text("data"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type FloorPlanAnnotation = typeof floorPlanAnnotations.$inferSelect;
+export type InsertFloorPlanAnnotation = typeof floorPlanAnnotations.$inferInsert;

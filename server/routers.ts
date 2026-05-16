@@ -13,6 +13,7 @@ import { cctvImportRouter } from "./routers/cctvImport";
 import { rfidRouter } from "./routers/rfid";
 import { cctvMaintenanceRouter } from "./routers/cctvMaintenance";
 import { cctvMaintenanceProgramsRouter } from "./routers/cctvMaintenancePrograms";
+import { floorPlansRouter, floorPlanLayersRouter, floorPlanAnnotationsRouter } from "./routers/floorPlans";
 import { getAllUsers } from "./db";
 import { protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
@@ -242,6 +243,9 @@ export const appRouter = router({
   rfid: rfidRouter,
   cctvMaintenance: cctvMaintenanceRouter,
   cctvPrograms: cctvMaintenanceProgramsRouter,
+  floorPlans: floorPlansRouter,
+  floorPlanLayers: floorPlanLayersRouter,
+  floorPlanAnnotations: floorPlanAnnotationsRouter,
   audit: auditRouter,
   ai: aiAssistantRouter,
 

@@ -7,6 +7,8 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  builtInForgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
+  builtInForgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   // SMTP — for password reset emails
   smtpHost: process.env.SMTP_HOST ?? "",
   smtpPort: parseInt(process.env.SMTP_PORT ?? "587", 10),

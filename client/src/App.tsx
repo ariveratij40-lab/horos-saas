@@ -36,6 +36,8 @@ import RfidScanner from "./pages/RfidScanner";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import FloorPlans from "./pages/FloorPlans";
+import FloorPlanViewer from "./pages/FloorPlanViewer";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
@@ -87,6 +89,14 @@ function Router() {
       <Route path="/rfid" component={() => <ProtectedRoute component={RfidManagement} />} />
       {/* Módulo móvil RFID: accesible sin DashboardLayout para mejor UX en móvil */}
       <Route path="/rfid/scan" component={RfidScanner} />
+      {/* El visor de planos NO usa DashboardLayout para aprovechar toda la pantalla */}
+      <Route path="/floor-plans/:id" component={() => {
+        const { isAuthenticated, loading } = useAuth();
+        if (loading) return null;
+        if (!isAuthenticated) { window.location.href = "/login"; return null; }
+        return <FloorPlanViewer />;
+      }} />
+      <Route path="/floor-plans" component={() => <ProtectedRoute component={FloorPlans} />} />
       <Route path="/access-control" component={AccessControlPage} />
       <Route path="/structured-cabling" component={StructuredCablingPage} />
       <Route path="/paging" component={PagingSystemPage} />

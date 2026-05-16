@@ -26,7 +26,7 @@ import {
   LayoutDashboard, FileText, Ticket, Package, Shield, Building2,
   Wrench, ClipboardList, Bot, Users, LogOut, ChevronDown, ChevronRight,
   Bell, Settings, Camera, Volume2, Lock, Cable,
-  CalendarDays, AlertTriangle, TrendingUp, ScrollText, Database, Tag,
+  CalendarDays, AlertTriangle, TrendingUp, ScrollText, Database, Tag, Map,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -70,6 +70,7 @@ const menuGroups: NavGroup[] = [
       { icon: FileText, label: "Pólizas", path: "/policies" },
       { icon: Ticket, label: "Tickets", path: "/tickets" },
       { icon: Shield, label: "SLA", path: "/sla" },
+      { icon: Map, label: "Planos", path: "/floor-plans" },
     ],
   },
   {

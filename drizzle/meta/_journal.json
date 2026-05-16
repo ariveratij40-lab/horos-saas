@@ -127,6 +127,13 @@
       "when": 1778894728756,
       "tag": "0017_right_tempest",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1778895915595,
+      "tag": "0018_loose_celestials",
+      "breakpoints": true
     }
   ]
 }

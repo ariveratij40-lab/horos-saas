@@ -390,3 +390,41 @@
 - [ ] Frontend: subida de fotos de evidencia de resolución (antes/después)
 - [ ] Frontend: generación de reporte PDF con datos del ticket, resolución, fotos y firma
 - [ ] Frontend: el reporte firmado aparece en la bitácora del ticket como entrada especial
+
+## Módulo de Planos de Planta
+- [ ] Schema BD: tabla floor_plans (id, tenantId, name, building, floor, format, dimensions, scale, status, fileKey, fileUrl, createdAt)
+- [ ] Schema BD: tabla floor_plan_layers (id, tenantId, name, label, color, icon, createdAt)
+- [ ] Schema BD: tabla floor_plan_annotations (id, planId, layerId, type, x, y, label, data, createdAt)
+- [ ] Migración 0018 aplicada
+- [ ] Backend: endpoints floorPlans.list, create, update, delete, getUploadUrl
+- [ ] Backend: endpoints floorPlanLayers.list, create, update, delete
+- [ ] Backend: endpoints floorPlanAnnotations.list, create, update, delete
+- [ ] Frontend: página FloorPlans.tsx con tabla de planos y acciones
+- [ ] Frontend: formulario Nuevo Plano con subida de archivo grande (>100 MB via S3 presigned URL)
+- [ ] Frontend: diálogo Gestionar Capas con CRUD de capas personalizadas
+- [ ] Frontend: visor FloorPlanViewer.tsx con PDF renderizado usando pdf.js
+- [ ] Frontend: visor con zoom/pan, herramientas de marcadores y panel de capas
+- [ ] Frontend: colocación de anotaciones sobre el plano con click
+- [ ] Frontend: panel lateral con lista de capas y visibilidad toggle
+- [ ] Rutas /floor-plans y /floor-plans/:id registradas en App.tsx
+- [ ] Entrada "Planos" en la navegación lateral bajo OPERACIONES
+
+## Módulo de Planos de Planta
+- [x] Schema BD: tabla floor_plans (nombre, edificio, piso, formato, dimensiones, escala, estado, fileKey, fileUrl, fileSize)
+- [x] Schema BD: tabla floor_plan_layers (nombre técnico, etiqueta, color, ícono)
+- [x] Schema BD: tabla floor_plan_annotations (planId, layerId, tipo, x%, y%, etiqueta, color, ícono, datos)
+- [x] Migración 0018 aplicada en la BD
+- [x] Backend: router floorPlansRouter (list, getById, create, update, delete, uploadFile, getUploadUrl, confirmUpload)
+- [x] Backend: router floorPlanLayersRouter (list, create, update, delete)
+- [x] Backend: router floorPlanAnnotationsRouter (listByPlan, create, update, delete)
+- [x] Backend: registrado en appRouter en server/routers.ts
+- [x] Frontend: página /floor-plans con tabla de planos, filtros, búsqueda
+- [x] Frontend: formulario "Nuevo Plano" con subida de archivos grandes (drag & drop, chunked upload, presigned URL)
+- [x] Frontend: diálogo "Gestionar Capas" con CRUD de capas personalizadas (nombre técnico, etiqueta, color, ícono emoji)
+- [x] Frontend: visor interactivo /floor-plans/:id con PDF embebido, zoom/pan con rueda del ratón
+- [x] Frontend: panel lateral con herramientas de marcadores (Cámara, Lector, Controladora, Puerta, Sensor, Bocina, Marcador)
+- [x] Frontend: overlay de anotaciones sobre el plano con íconos, etiquetas y botón de eliminar
+- [x] Frontend: toggle de visibilidad por capa con contador de marcadores
+- [x] Frontend: entrada "Planos" en la sección Operaciones del sidebar con ícono Map
+- [x] Rutas registradas en App.tsx (/floor-plans y /floor-plans/:id)
+- [x] 0 errores TypeScript, 41 pruebas pasando
