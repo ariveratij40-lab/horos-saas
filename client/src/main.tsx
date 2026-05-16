@@ -15,10 +15,13 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (typeof window === "undefined") return;
 
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-
   if (!isUnauthorized) return;
 
-  window.location.href = getLoginUrl();
+  // Already on login page — do not redirect again
+  if (window.location.pathname === "/login") return;
+
+  const hasManusOAuth = !!import.meta.env.VITE_OAUTH_PORTAL_URL && !!import.meta.env.VITE_APP_ID;
+  window.location.href = hasManusOAuth ? getLoginUrl() : "/login";
 };
 
 queryClient.getQueryCache().subscribe(event => {

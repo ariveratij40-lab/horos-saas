@@ -33,12 +33,19 @@ import { AccessControlPage, StructuredCablingPage, PagingSystemPage } from "./pa
 import ImportInventory from "./pages/ImportInventory";
 import RfidManagement from "./pages/RfidManagement";
 import RfidScanner from "./pages/RfidScanner";
+import Login from "./pages/Login";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return null;
   if (!isAuthenticated) {
-    window.location.href = getLoginUrl();
+    // Use local login page if Manus OAuth is not configured
+    const hasManusOAuth = !!import.meta.env.VITE_OAUTH_PORTAL_URL && !!import.meta.env.VITE_APP_ID;
+    if (hasManusOAuth) {
+      window.location.href = getLoginUrl();
+    } else {
+      window.location.href = "/login";
+    }
     return null;
   }
   return (
@@ -52,6 +59,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/login" component={Login} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/policies" component={() => <ProtectedRoute component={Policies} />} />
       <Route path="/policies/:id" component={() => <ProtectedRoute component={PolicyDetail} />} />

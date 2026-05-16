@@ -355,3 +355,14 @@
 - [ ] Frontend: pregunta de capacidad diaria (cuántas cámaras/equipos por día)
 - [ ] Frontend: vista previa del programa de obra generado (tabla día a día con equipos asignados)
 - [ ] Frontend: posibilidad de ajustar la distribución antes de guardar
+
+## Autenticación Propia (VPS)
+- [ ] Schema: agregar columna `passwordHash` a la tabla `users`
+- [ ] Schema: agregar columna `authProvider` (enum: 'manus' | 'local') a la tabla `users`
+- [ ] Migración BD aplicada
+- [ ] Backend: instalar bcryptjs y @types/bcryptjs
+- [ ] Backend: endpoint `auth.localLogin` (email + password → JWT cookie)
+- [ ] Backend: endpoint `auth.localRegister` (email + password + name → crear usuario)
+- [ ] Frontend: página /login con formulario email+password
+- [ ] Frontend: detección automática del provider disponible (Manus vs local)
+- [ ] Frontend: redirección correcta según el provider activo
