@@ -43,103 +43,132 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 // ─── Label print component ────────────────────────────────────────────────────
+const LOGO_URL = "/manus-storage/Logo_Horos_v12_Transparente_08ee2bf3.webp";
+
 function RfidLabel({ tag }: { tag: any }) {
   const labelRef = useRef<HTMLDivElement>(null);
   const appUrl = window.location.origin;
   const scanUrl = `${appUrl}/rfid/scan?tag=${encodeURIComponent(tag.rfidTag)}&tid=${tag.tenantId}`;
-  const cat = CAT_CONFIG[tag.category];
+  const modelText = [tag.itemBrand, tag.itemModel].filter(Boolean).join("-");
 
   function handlePrint() {
-    const printWindow = window.open("", "_blank", "width=400,height=600");
+    const printWindow = window.open("", "_blank", "width=600,height=300");
     if (!printWindow) return;
     const svgEl = labelRef.current?.querySelector("svg");
     const svgStr = svgEl ? svgEl.outerHTML : "";
+    const logoAbsUrl = `${appUrl}${LOGO_URL}`;
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Etiqueta RFID - ${tag.rfidTag}</title>
+        <title>Etiqueta - ${tag.rfidTag}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Courier New', monospace; background: white; color: black; }
-          .label { width: 90mm; padding: 4mm; border: 1px solid #ccc; border-radius: 3mm; }
-          .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3mm; }
-          .logo { font-weight: bold; font-size: 14pt; letter-spacing: 2px; }
-          .category { font-size: 8pt; color: #666; text-transform: uppercase; }
-          .tag-code { font-size: 13pt; font-weight: bold; letter-spacing: 1px; text-align: center; margin: 3mm 0; border: 1px solid #000; padding: 2mm; border-radius: 1mm; }
-          .qr-section { display: flex; gap: 4mm; align-items: flex-start; }
-          .qr-box { flex-shrink: 0; }
-          .info { flex: 1; font-size: 7pt; line-height: 1.6; }
-          .info-row { display: flex; gap: 2mm; }
-          .info-label { color: #666; min-width: 14mm; }
-          .info-value { font-weight: 500; word-break: break-all; }
-          .footer { margin-top: 3mm; font-size: 6pt; color: #999; text-align: center; }
-          @media print { @page { margin: 0; size: 90mm 60mm; } }
+          body { font-family: Arial, sans-serif; background: white; color: black; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+          .sticker {
+            width: 85mm;
+            height: 28mm;
+            background: #f5f5f5;
+            border: 1px solid #d0d0d0;
+            border-radius: 4mm;
+            display: flex;
+            align-items: stretch;
+            overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+          }
+          .qr-col {
+            width: 28mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2mm;
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            flex-shrink: 0;
+          }
+          .qr-col svg { display: block; }
+          .info-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 2.5mm 3mm;
+          }
+          .info-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 2mm;
+          }
+          .tag-code {
+            font-size: 10pt;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: #111;
+            line-height: 1.1;
+          }
+          .logo-box img {
+            height: 10mm;
+            width: auto;
+            object-fit: contain;
+          }
+          .model-text {
+            font-size: 9pt;
+            font-weight: 700;
+            color: #222;
+            margin-top: auto;
+          }
+          @media print {
+            body { min-height: unset; }
+            @page { margin: 0; size: 85mm 28mm; }
+          }
         </style>
       </head>
       <body>
-        <div class="label">
-          <div class="header">
-            <div>
-              <div class="logo">HOROS</div>
-              <div class="category">${cat?.label ?? tag.category}</div>
+        <div class="sticker">
+          <div class="qr-col">${svgStr}</div>
+          <div class="info-col">
+            <div class="info-top">
+              <div class="tag-code">${tag.rfidTag}</div>
+              <div class="logo-box"><img src="${logoAbsUrl}" alt="HOROS" /></div>
             </div>
-            <div style="font-size:7pt;color:#666;">${new Date(tag.generatedAt).toLocaleDateString("es-MX")}</div>
+            ${modelText ? `<div class="model-text">Modelo: ${modelText}</div>` : ""}
           </div>
-          <div class="tag-code">${tag.rfidTag}</div>
-          <div class="qr-section">
-            <div class="qr-box">${svgStr}</div>
-            <div class="info">
-              ${tag.itemName ? `<div class="info-row"><span class="info-label">Equipo:</span><span class="info-value">${tag.itemName}</span></div>` : ""}
-              ${tag.itemBrand ? `<div class="info-row"><span class="info-label">Marca:</span><span class="info-value">${tag.itemBrand}</span></div>` : ""}
-              ${tag.itemModel ? `<div class="info-row"><span class="info-label">Modelo:</span><span class="info-value">${tag.itemModel}</span></div>` : ""}
-              ${tag.itemSerial ? `<div class="info-row"><span class="info-label">Serie:</span><span class="info-value">${tag.itemSerial}</span></div>` : ""}
-              ${tag.itemLocation ? `<div class="info-row"><span class="info-label">Ubicación:</span><span class="info-value">${tag.itemLocation}</span></div>` : ""}
-              ${tag.itemStatus ? `<div class="info-row"><span class="info-label">Estado:</span><span class="info-value">${tag.itemStatus}</span></div>` : ""}
-            </div>
-          </div>
-          <div class="footer">Escanea el QR para ver la ficha completa del equipo</div>
         </div>
-        <script>window.onload = () => { window.print(); window.close(); }<\/script>
+        <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); }<\/script>
       </body>
       </html>
     `);
     printWindow.document.close();
   }
 
+  const modelDisplay = [tag.itemBrand, tag.itemModel].filter(Boolean).join("-");
+
   return (
     <div>
-      {/* Preview */}
-      <div ref={labelRef} className="bg-white text-black rounded-xl border border-border/30 p-4 w-full max-w-sm mx-auto shadow-lg">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="font-bold text-lg tracking-widest">HOROS</p>
-            <p className="text-xs text-gray-500 uppercase">{cat?.label ?? tag.category}</p>
-          </div>
-          <p className="text-xs text-gray-400">{new Date(tag.generatedAt).toLocaleDateString("es-MX")}</p>
+      {/* Preview — sticker horizontal */}
+      <div
+        ref={labelRef}
+        className="flex items-stretch bg-[#f5f5f5] border border-[#d0d0d0] rounded-[8px] overflow-hidden shadow-md mx-auto"
+        style={{ width: 340, height: 112 }}
+      >
+        {/* QR column */}
+        <div className="flex items-center justify-center bg-white border-r border-[#e0e0e0] shrink-0" style={{ width: 112 }}>
+          <QRCodeSVG value={scanUrl} size={88} level="M" />
         </div>
 
-        {/* Tag code */}
-        <div className="text-center font-mono font-bold text-base border border-black rounded px-2 py-1 mb-3 tracking-wider">
-          {tag.rfidTag}
-        </div>
-
-        {/* QR + info */}
-        <div className="flex gap-3 items-start">
-          <div className="shrink-0">
-            <QRCodeSVG value={scanUrl} size={80} level="M" />
+        {/* Info column */}
+        <div className="flex flex-col justify-between flex-1 px-4 py-3">
+          {/* Top row: tag code + logo */}
+          <div className="flex items-start justify-between gap-2">
+            <span className="font-bold text-[15px] tracking-wide text-black leading-tight">{tag.rfidTag}</span>
+            <img src={LOGO_URL} alt="HOROS" className="h-9 w-auto object-contain shrink-0" />
           </div>
-          <div className="flex-1 text-xs space-y-0.5">
-            {tag.itemName && <p><span className="text-gray-500">Equipo: </span><strong>{tag.itemName}</strong></p>}
-            {tag.itemBrand && <p><span className="text-gray-500">Marca: </span>{tag.itemBrand}</p>}
-            {tag.itemModel && <p><span className="text-gray-500">Modelo: </span>{tag.itemModel}</p>}
-            {tag.itemSerial && <p><span className="text-gray-500">Serie: </span>{tag.itemSerial}</p>}
-            {tag.itemLocation && <p><span className="text-gray-500">Ubic.: </span>{tag.itemLocation}</p>}
-          </div>
+          {/* Bottom: model */}
+          {modelDisplay && (
+            <p className="font-bold text-[13px] text-black mt-auto">Modelo: {modelDisplay}</p>
+          )}
         </div>
-
-        <p className="text-center text-[9px] text-gray-400 mt-2">Escanea el QR para ver la ficha completa</p>
       </div>
 
       {/* Print button */}
