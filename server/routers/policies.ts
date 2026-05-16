@@ -77,12 +77,24 @@ export const policiesRouter = router({
     const tenantId = ctx.user.tenantId ?? 1;
     // Normalise dates to YYYY-MM-DD strings — MySQL date columns reject Date objects with timezone
     const toDateStr = (s: string) => s.slice(0, 10);
+    // Normalise money fields — MySQL DECIMAL rejects empty strings, must be undefined/null
+    const normMoney = (v?: string) => (v && v.trim() !== "" ? v.trim() : undefined);
+    // Normalise optional strings — avoid inserting empty strings in optional varchar/text columns
+    const normStr = (v?: string) => (v && v.trim() !== "" ? v.trim() : undefined);
     const result = await createPolicy({
       ...input,
       tenantId,
       startDate: toDateStr(input.startDate) as any,
       endDate: toDateStr(input.endDate) as any,
       renewalDate: input.renewalDate ? toDateStr(input.renewalDate) as any : undefined,
+      monthlyValue: normMoney(input.monthlyValue) as any,
+      annualValue: normMoney(input.annualValue) as any,
+      clientName: normStr(input.clientName),
+      clientContact: normStr(input.clientContact),
+      clientEmail: normStr(input.clientEmail),
+      clientPhone: normStr(input.clientPhone),
+      description: normStr(input.description),
+      notes: normStr(input.notes),
       assignedUserId: ctx.user.id,
     });
     await createAuditLog({ tenantId, userId: ctx.user.id, userName: ctx.user.name ?? undefined, action: "CREATE", module: "policies", entityType: "policy", description: `Póliza creada: ${input.name} (${input.policyNumber})` });
