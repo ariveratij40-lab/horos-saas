@@ -287,7 +287,12 @@ function PdfCanvas({ url, onReady }: { url: string; onReady: (w: number, h: numb
     (async () => {
       try {
         const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+        // Use bundled worker via Vite import
+        const workerUrl = new URL(
+          "pdfjs-dist/build/pdf.worker.min.mjs",
+          import.meta.url
+        ).toString();
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
         const pdf = await pdfjsLib.getDocument(url).promise;
         if (cancelled) return;
         const page = await pdf.getPage(1);
