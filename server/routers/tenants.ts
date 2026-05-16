@@ -72,6 +72,10 @@ export const branchesRouter = router({
     phone: z.string().optional(),
     contactName: z.string().optional(),
     contactEmail: z.string().optional(),
+    postalCode: z.string().optional(),
+    latitude: z.string().optional(),
+    longitude: z.string().optional(),
+    notes: z.string().optional(),
   })).mutation(async ({ ctx, input }) => {
     if (!["admin", "supervisor"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
     const tenantId = ctx.user.tenantId ?? 1;
@@ -90,6 +94,10 @@ export const branchesRouter = router({
     phone: z.string().optional(),
     contactName: z.string().optional(),
     contactEmail: z.string().optional(),
+    postalCode: z.string().optional(),
+    latitude: z.string().optional(),
+    longitude: z.string().optional(),
+    notes: z.string().optional(),
     isActive: z.boolean().optional(),
   })).mutation(async ({ ctx, input }) => {
     if (!["admin", "supervisor"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
