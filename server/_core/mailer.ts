@@ -139,3 +139,35 @@ Si no solicitaste este cambio, puedes ignorar este correo.
     return false;
   }
 }
+
+/**
+ * Generic email sender — use for any transactional email beyond password reset.
+ */
+export async function sendEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+}): Promise<boolean> {
+  const transport = createTransport();
+  try {
+    const info = await transport.sendMail({
+      from: `"HOROS SaaS" <${ENV.smtpFrom ?? "noreply@horos.mx"}>`,
+      to: opts.to,
+      subject: opts.subject,
+      text: opts.text ?? opts.html.replace(/<[^>]+>/g, ""),
+      html: opts.html,
+    });
+
+    if (!ENV.smtpHost || !ENV.smtpUser) {
+      console.log("[Mailer] SMTP not configured — email would have been sent to:", opts.to);
+      console.log("[Mailer] Subject:", opts.subject);
+    } else {
+      console.log("[Mailer] Email sent to:", opts.to, "messageId:", info.messageId);
+    }
+    return true;
+  } catch (error) {
+    console.error("[Mailer] Failed to send email:", error);
+    return false;
+  }
+}

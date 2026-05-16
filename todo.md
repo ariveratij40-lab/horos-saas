@@ -377,3 +377,16 @@
 - [ ] Frontend: página /reset-password?token=xxx con formulario de nueva contraseña
 - [ ] Frontend: enlace "Olvidé mi contraseña" en la página /login
 - [ ] Frontend: mensajes de éxito y error claros en ambas páginas
+
+## Tickets - Resolución con Firma y Notificación
+- [ ] Schema: campos resolutionSignatureUrl, resolutionReportUrl, resolutionEvidenceUrls (json), resolvedByName en tickets
+- [ ] Migración BD aplicada
+- [ ] Backend: al cambiar status a "resolved", buscar email del usuario que creó el ticket y enviar notificación
+- [ ] Backend: email HTML de resolución con número de ticket, descripción, técnico y enlace al reporte
+- [ ] Backend: endpoint tickets.resolveWithReport (status, resolution, evidenceImages[], signatureData, reportData)
+- [ ] Backend: guardar reporte firmado en S3 y URL en ticket_history (bitácora)
+- [ ] Frontend: diálogo de resolución con 3 pestañas: Resolución, Evidencia (fotos), Firma
+- [ ] Frontend: canvas de firma electrónica del técnico en el diálogo de resolución
+- [ ] Frontend: subida de fotos de evidencia de resolución (antes/después)
+- [ ] Frontend: generación de reporte PDF con datos del ticket, resolución, fotos y firma
+- [ ] Frontend: el reporte firmado aparece en la bitácora del ticket como entrada especial

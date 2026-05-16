@@ -216,6 +216,14 @@ export const tickets = mysqlTable("tickets", {
   slaDeadlineHours: int("slaDeadlineHours"),
   evidenceImageUrl: text("evidenceImageUrl"),
   evidenceImageKey: varchar("evidenceImageKey", { length: 500 }),
+  // Resolution report fields
+  resolutionNotes: text("resolutionNotes"),
+  resolutionEvidenceUrls: json("resolutionEvidenceUrls").$type<string[]>(),
+  resolutionSignatureUrl: text("resolutionSignatureUrl"),
+  resolutionReportUrl: text("resolutionReportUrl"),
+  resolutionReportKey: varchar("resolutionReportKey", { length: 500 }),
+  resolvedByName: varchar("resolvedByName", { length: 255 }),
+  notificationSentAt: timestamp("notificationSentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -10,8 +10,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { ArrowLeft, MessageSquare, Clock, User, Activity, Send, Shield, Wrench } from "lucide-react";
+import { ArrowLeft, MessageSquare, Clock, User, Activity, Send, Shield, Wrench, CheckCircle, FileCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import TicketResolutionDialog from "@/components/TicketResolutionDialog";
 
 export default function TicketDetail() {
   const [, params] = useRoute("/tickets/:id");
@@ -34,6 +35,7 @@ export default function TicketDetail() {
   });
 
   const [comment, setComment] = useState("");
+  const [showResolveDialog, setShowResolveDialog] = useState(false);
 
   if (isLoading) {
     return (
@@ -120,6 +122,56 @@ export default function TicketDetail() {
             </CardContent>
           </Card>
 
+          {/* Resolution Report in Bitácora */}
+          {ticket.operationalStatus === "resolved" && ticket.resolutionNotes && (
+            <Card className="border-green-200 bg-green-50/50 card-elevated">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-green-700">
+                  <FileCheck className="w-4 h-4" /> Reporte de Resolución
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-3">
+                {ticket.resolvedByName && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">Resuelto por:</span>
+                    <span className="font-medium">{ticket.resolvedByName}</span>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Notas de resolución</p>
+                  <p className="text-xs bg-white rounded p-2 border border-green-200 whitespace-pre-wrap">{ticket.resolutionNotes}</p>
+                </div>
+                {(ticket.resolutionEvidenceUrls as string[] | null)?.length ? (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Evidencia fotográfica ({(ticket.resolutionEvidenceUrls as string[]).length} imagen{(ticket.resolutionEvidenceUrls as string[]).length !== 1 ? "es" : ""})</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(ticket.resolutionEvidenceUrls as string[]).map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                          <img src={url} alt={`Evidencia ${i + 1}`} className="w-full h-20 object-cover rounded border border-green-200 hover:opacity-80 transition-opacity" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {ticket.resolutionSignatureUrl && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Firma electrónica</p>
+                    <div className="border border-green-200 rounded p-2 bg-white inline-block">
+                      <img src={ticket.resolutionSignatureUrl} alt="Firma" className="h-16" />
+                    </div>
+                  </div>
+                )}
+                {ticket.notificationSentAt && (
+                  <div className="flex items-center gap-1.5 text-xs text-green-600">
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Notificación enviada al solicitante el {new Date(ticket.notificationSentAt).toLocaleString("es-MX")}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* History */}
           {ticket.history && ticket.history.length > 0 && (
             <Card className="border-border/50 card-elevated">
@@ -132,10 +184,19 @@ export default function TicketDetail() {
                 <div className="space-y-2">
                   {ticket.history.map((h: any) => (
                     <div key={h.id} className="flex items-start gap-2.5 text-xs">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                      <div className={cn(
+                        "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
+                        h.action === "RESOLVED_WITH_REPORT" ? "bg-green-500" : "bg-primary"
+                      )} />
                       <div className="flex-1 min-w-0">
-                        <span className="text-muted-foreground">{h.fieldChanged}: </span>
-                        <span className="text-foreground font-medium">{h.oldValue} → {h.newValue}</span>
+                        {h.action === "RESOLVED_WITH_REPORT" ? (
+                          <span className="text-green-600 font-medium">Resuelto con reporte firmado</span>
+                        ) : (
+                          <>
+                            <span className="text-muted-foreground">{h.fieldChanged}: </span>
+                            <span className="text-foreground font-medium">{h.oldValue} → {h.newValue}</span>
+                          </>
+                        )}
                       </div>
                       <span className="text-muted-foreground shrink-0">{new Date(h.createdAt).toLocaleString("es-MX")}</span>
                     </div>
@@ -158,7 +219,13 @@ export default function TicketDetail() {
                 <StatusBadge type="operational" value={ticket.operationalStatus} size="md" />
                 <Select
                   value={ticket.operationalStatus}
-                  onValueChange={(v) => updateOpStatus.mutate({ id, operationalStatus: v as any })}
+                  onValueChange={(v) => {
+                    if (v === "resolved") {
+                      setShowResolveDialog(true);
+                    } else {
+                      updateOpStatus.mutate({ id, operationalStatus: v as any });
+                    }
+                  }}
                 >
                   <SelectTrigger className="text-xs mt-2 h-8">
                     <SelectValue />
@@ -171,6 +238,16 @@ export default function TicketDetail() {
                     <SelectItem value="resolved">Resuelto</SelectItem>
                   </SelectContent>
                 </Select>
+                {ticket.operationalStatus !== "resolved" && (
+                  <Button
+                    size="sm"
+                    className="w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs h-8"
+                    onClick={() => setShowResolveDialog(true)}
+                  >
+                    <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                    Resolver con reporte
+                  </Button>
+                )}
               </div>
 
               <Separator />
@@ -222,6 +299,23 @@ export default function TicketDetail() {
           </Card>
         </div>
       </div>
+      {showResolveDialog && (
+        <TicketResolutionDialog
+          open={showResolveDialog}
+          onClose={() => setShowResolveDialog(false)}
+          ticket={{
+            id: ticket.id,
+            ticketNumber: ticket.ticketNumber,
+            title: ticket.title,
+            description: ticket.description,
+            assetName: ticket.assetName,
+            assetCategory: ticket.assetCategory,
+            priority: ticket.priority,
+            createdAt: ticket.createdAt,
+          }}
+          onResolved={() => utils.tickets.getById.invalidate({ id })}
+        />
+      )}
     </div>
   );
 }
