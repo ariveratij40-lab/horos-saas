@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function parseData(data: string | null): { rotation?: number; scale?: number; x1?: number; y1?: number; x2?: number; y2?: number } {
+function parseData(data: string | null): { rotation?: number; scale?: number; fov?: number; x1?: number; y1?: number; x2?: number; y2?: number } {
   if (!data) return {};
   try { return JSON.parse(data); } catch { return {}; }
 }
@@ -110,22 +110,34 @@ const BUILTIN_MARKERS = [
 ];
 
 // ─── SVG marker shapes ────────────────────────────────────────────────────────
-function MarkerShape({ type, color, size = 36, rotation = 0 }: { type: string; color: string; size?: number; rotation?: number }) {
+function MarkerShape({ type, color, size = 36, rotation = 0, fov = 60 }: { type: string; color: string; size?: number; rotation?: number; fov?: number }) {
   const s = size;
   const h = s * 1.5;
   const rotStyle: React.CSSProperties = rotation !== 0
     ? { transform: `rotate(${rotation}deg)`, transformOrigin: `${s / 2}px ${h / 2}px` }
     : {};
   switch (type) {
-    case "camera":
+    case "camera": {
+      // Build cone path using fov angle
+      const cx = s / 2;
+      const cy = s * 0.55;
+      const coneLen = s * 0.9; // length of cone from camera center
+      const halfAngle = (fov / 2) * (Math.PI / 180);
+      const lx = cx + coneLen * Math.sin(-halfAngle);
+      const ly = cy - coneLen * Math.cos(halfAngle);
+      const rx = cx + coneLen * Math.sin(halfAngle);
+      const ry = cy - coneLen * Math.cos(halfAngle);
+      // Arc: sweep from left to right
+      const largeArc = fov > 180 ? 1 : 0;
+      const conePath = `M${cx} ${cy} L${lx} ${ly} A${coneLen} ${coneLen} 0 ${largeArc} 1 ${rx} ${ry} Z`;
       return (
         <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
-          <path d={`M${s/2} ${s*0.55} L${s*0.08} ${s*0.1} A${s*0.5} ${s*0.5} 0 0 1 ${s*0.92} ${s*0.1} Z`} fill={color} fillOpacity="0.25" stroke={color} strokeWidth="1.2" />
-          <circle cx={s/2} cy={s*0.55} r={s*0.28} fill={color} stroke="white" strokeWidth="2" />
-          <circle cx={s/2} cy={s*0.55} r={s*0.13} fill="white" fillOpacity="0.5" />
-          <circle cx={s/2} cy={s*0.22} r={s*0.07} fill={color} />
+          <path d={conePath} fill={color} fillOpacity="0.22" stroke={color} strokeWidth="1.2" strokeOpacity="0.7" />
+          <circle cx={cx} cy={cy} r={s*0.28} fill={color} stroke="white" strokeWidth="2" />
+          <circle cx={cx} cy={cy} r={s*0.13} fill="white" fillOpacity="0.5" />
         </svg>
       );
+    }
     case "reader":
       return (
         <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
@@ -234,7 +246,7 @@ function DraggableMarker({
   zoom: number;
 }) {
   const color = ann.color ?? "#6366f1";
-  const { rotation = 0, scale: markerScale = 1 } = parseData(ann.data);
+  const { rotation = 0, scale: markerScale = 1, fov = 60 } = parseData(ann.data);
   const baseSize = Math.round(32 * markerScale);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -301,7 +313,7 @@ function DraggableMarker({
           filter: selected ? `drop-shadow(0 0 8px ${color})` : `drop-shadow(0 2px 4px rgba(0,0,0,0.5))`,
         }}
       >
-        <MarkerShape type={ann.type ?? "marker"} color={color} size={baseSize} rotation={rotation} />
+        <MarkerShape type={ann.type ?? "marker"} color={color} size={baseSize} rotation={rotation} fov={fov} />
       </div>
       {/* Label */}
       {ann.label && (
@@ -477,6 +489,7 @@ export default function FloorPlanViewer() {
   const [pdfDims, setPdfDims] = useState<{ w: number; h: number } | null>(null);
   const [localRotation, setLocalRotation] = useState(0);
   const [localScale, setLocalScale] = useState(1);
+  const [localFov, setLocalFov] = useState(60);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const contentRef = useRef<HTMLDivElement>(null);
@@ -590,9 +603,10 @@ export default function FloorPlanViewer() {
     if (selectedAnnotation === null) return;
     const ann = (annotations as Annotation[]).find((a) => a.id === selectedAnnotation);
     if (!ann) return;
-    const { rotation = 0, scale = 1 } = parseData(ann.data);
+    const { rotation = 0, scale = 1, fov = 60 } = parseData(ann.data);
     setLocalRotation(rotation);
     setLocalScale(scale);
+    setLocalFov(fov);
   }, [selectedAnnotation]);
 
   const handleRotationChange = useCallback((val: number) => {
@@ -620,6 +634,20 @@ export default function FloorPlanViewer() {
       try {
         await updateAnnotation.mutateAsync({ id: selectedAnnotation, data: JSON.stringify({ ...existing, scale: val }) });
       } catch { toast.error("Error al guardar tamaño"); }
+    }, 400);
+  }, [selectedAnnotation, annotations, updateAnnotation]);
+
+  const handleFovChange = useCallback((val: number) => {
+    setLocalFov(val);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      if (selectedAnnotation === null) return;
+      const ann = (annotations as Annotation[]).find((a) => a.id === selectedAnnotation);
+      if (!ann) return;
+      const existing = parseData(ann.data);
+      try {
+        await updateAnnotation.mutateAsync({ id: selectedAnnotation, data: JSON.stringify({ ...existing, fov: val }) });
+      } catch { toast.error("Error al guardar ángulo"); }
     }, 400);
   }, [selectedAnnotation, annotations, updateAnnotation]);
 
