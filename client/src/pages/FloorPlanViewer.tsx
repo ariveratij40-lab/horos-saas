@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function parseData(data: string | null): { rotation?: number; scale?: number; fov?: number; range?: number; x1?: number; y1?: number; x2?: number; y2?: number } {
+function parseData(data: string | null): { rotation?: number; scale?: number; fov?: number; range?: number; coneColor?: string; x1?: number; y1?: number; x2?: number; y2?: number } {
   if (!data) return {};
   try { return JSON.parse(data); } catch { return {}; }
 }
@@ -110,7 +110,7 @@ const BUILTIN_MARKERS = [
 ];
 
 // ─── SVG marker shapes ────────────────────────────────────────────────────────
-function MarkerShape({ type, color, size = 36, rotation = 0, fov = 60, range = 1 }: { type: string; color: string; size?: number; rotation?: number; fov?: number; range?: number }) {
+function MarkerShape({ type, color, size = 36, rotation = 0, fov = 60, range = 1, coneColor }: { type: string; color: string; size?: number; rotation?: number; fov?: number; range?: number; coneColor?: string }) {
   const s = size;
   const h = s * 1.5;
   const rotStyle: React.CSSProperties = rotation !== 0
@@ -130,9 +130,10 @@ function MarkerShape({ type, color, size = 36, rotation = 0, fov = 60, range = 1
       // Arc: sweep from left to right
       const largeArc = fov > 180 ? 1 : 0;
       const conePath = `M${cx} ${cy} L${lx} ${ly} A${coneLen} ${coneLen} 0 ${largeArc} 1 ${rx} ${ry} Z`;
+      const effectiveConeColor = coneColor && coneColor !== "" ? coneColor : color;
       return (
         <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
-          <path d={conePath} fill={color} fillOpacity="0.22" stroke={color} strokeWidth="1.2" strokeOpacity="0.7" />
+          <path d={conePath} fill={effectiveConeColor} fillOpacity="0.22" stroke={effectiveConeColor} strokeWidth="1.2" strokeOpacity="0.7" />
           <circle cx={cx} cy={cy} r={s*0.28} fill={color} stroke="white" strokeWidth="2" />
           <circle cx={cx} cy={cy} r={s*0.13} fill="white" fillOpacity="0.5" />
         </svg>
@@ -246,7 +247,7 @@ function DraggableMarker({
   zoom: number;
 }) {
   const color = ann.color ?? "#6366f1";
-  const { rotation = 0, scale: markerScale = 1, fov = 60, range = 1 } = parseData(ann.data);
+  const { rotation = 0, scale: markerScale = 1, fov = 60, range = 1, coneColor = "" } = parseData(ann.data);
   const baseSize = Math.round(32 * markerScale);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -313,7 +314,7 @@ function DraggableMarker({
           filter: selected ? `drop-shadow(0 0 8px ${color})` : `drop-shadow(0 2px 4px rgba(0,0,0,0.5))`,
         }}
       >
-        <MarkerShape type={ann.type ?? "marker"} color={color} size={baseSize} rotation={rotation} fov={fov} range={range} />
+        <MarkerShape type={ann.type ?? "marker"} color={color} size={baseSize} rotation={rotation} fov={fov} range={range} coneColor={coneColor} />
       </div>
       {/* Label */}
       {ann.label && (
@@ -491,6 +492,7 @@ export default function FloorPlanViewer() {
   const [localScale, setLocalScale] = useState(1);
   const [localFov, setLocalFov] = useState(60);
   const [localRange, setLocalRange] = useState(1);
+  const [localConeColor, setLocalConeColor] = useState("");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const contentRef = useRef<HTMLDivElement>(null);
@@ -604,11 +606,12 @@ export default function FloorPlanViewer() {
     if (selectedAnnotation === null) return;
     const ann = (annotations as Annotation[]).find((a) => a.id === selectedAnnotation);
     if (!ann) return;
-    const { rotation = 0, scale = 1, fov = 60, range = 1 } = parseData(ann.data);
+    const { rotation = 0, scale = 1, fov = 60, range = 1, coneColor = "" } = parseData(ann.data);
     setLocalRotation(rotation);
     setLocalScale(scale);
     setLocalFov(fov);
     setLocalRange(range);
+    setLocalConeColor(coneColor);
   }, [selectedAnnotation]);
 
   const handleRotationChange = useCallback((val: number) => {
@@ -665,8 +668,20 @@ export default function FloorPlanViewer() {
         await updateAnnotation.mutateAsync({ id: selectedAnnotation, data: JSON.stringify({ ...existing, range: val }) });
       } catch { toast.error("Error al guardar alcance"); }
     }, 400);
+    }, [selectedAnnotation, annotations, updateAnnotation]);
+  const handleConeColorChange = useCallback((val: string) => {
+    setLocalConeColor(val);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      if (selectedAnnotation === null) return;
+      const ann = (annotations as Annotation[]).find((a) => a.id === selectedAnnotation);
+      if (!ann) return;
+      const existing = parseData(ann.data);
+      try {
+        await updateAnnotation.mutateAsync({ id: selectedAnnotation, data: JSON.stringify({ ...existing, coneColor: val }) });
+      } catch { toast.error("Error al guardar color del cono"); }
+    }, 400);
   }, [selectedAnnotation, annotations, updateAnnotation]);
-
   const handleAnnotationMove = useCallback(async (id: number, x: string, y: string) => {
     try {
       await updateAnnotation.mutateAsync({ id, x, y });
@@ -1095,6 +1110,35 @@ export default function FloorPlanViewer() {
                 {/* FOV and Range — camera only */}
                 {ann.type === "camera" && (
                   <>
+                    <div className="mt-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-gray-400">Color del cono</label>
+                        <div
+                          className="w-5 h-5 rounded-full border-2 border-white/20 cursor-pointer"
+                          style={{ background: localConeColor || color }}
+                          title="Haz clic para cambiar el color"
+                        />
+                      </div>
+                      <div className="flex gap-1.5 flex-wrap mt-1">
+                        {["#3b82f6","#22c55e","#f59e0b","#ef4444","#8b5cf6","#06b6d4","#f97316","#ec4899","#ffffff","#facc15"].map((c) => (
+                          <button
+                            key={c}
+                            onClick={() => handleConeColorChange(c)}
+                            className="w-5 h-5 rounded-full border-2 transition-all"
+                            style={{
+                              background: c,
+                              borderColor: (localConeColor || color) === c ? "white" : "transparent",
+                              transform: (localConeColor || color) === c ? "scale(1.25)" : "scale(1)",
+                            }}
+                            title={c}
+                          />
+                        ))}
+                        <label className="w-5 h-5 rounded-full border-2 border-dashed border-gray-500 flex items-center justify-center cursor-pointer" title="Color personalizado">
+                          <span className="text-[8px] text-gray-400">+</span>
+                          <input type="color" className="sr-only" value={localConeColor || color} onChange={(e) => handleConeColorChange(e.target.value)} />
+                        </label>
+                      </div>
+                    </div>
                     <div className="mt-3 space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-[10px] text-gray-400">Ángulo de visión</label>
