@@ -106,6 +106,7 @@ const BUILTIN_MARKERS = [
   { type: "sensor",     icon: "🔍", label: "Sensor",       color: "#06b6d4" },
   { type: "speaker",    icon: "🔊", label: "Bocina",       color: "#f97316" },
   { type: "ladder",     icon: "🪜", label: "Escalerilla",  color: "#22c55e" },
+  { type: "idf",        icon: "🗄️", label: "IDF/MDF",      color: "#0ea5e9" },
   { type: "marker",     icon: "📍", label: "Marcador",     color: "#ef4444" },
 ];
 
@@ -222,6 +223,49 @@ function MarkerShape({ type, color, size = 36, rotation = 0, fov = 60, range = 1
           })}
           {/* Center dot anchor */}
           <circle cx={s / 2} cy={s * 0.75} r={s * 0.07} fill="white" fillOpacity="0.5" />
+        </svg>
+      );
+    }
+    case "idf": {
+      // IDF/MDF: rack de telecomunicaciones con puertos y patch panels
+      const rw = s * 0.8;
+      const rh = s * 1.2;
+      const rx0 = s * 0.1;
+      const ry0 = s * 0.05;
+      const numU = 6; // unidades de rack
+      const uH = rh / (numU + 1);
+      return (
+        <svg width={s} height={s * 1.4} viewBox={`0 0 ${s} ${s * 1.4}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
+          {/* Cuerpo del rack */}
+          <rect x={rx0} y={ry0} width={rw} height={rh} rx="3" fill={color} stroke="white" strokeWidth="1.5" fillOpacity="0.9" />
+          {/* Rieles laterales */}
+          <rect x={rx0} y={ry0} width={rw * 0.08} height={rh} rx="1" fill="white" fillOpacity="0.25" />
+          <rect x={rx0 + rw * 0.92} y={ry0} width={rw * 0.08} height={rh} rx="1" fill="white" fillOpacity="0.25" />
+          {/* Unidades de rack (patch panels / equipos) */}
+          {Array.from({ length: numU }).map((_, i) => {
+            const uy = ry0 + uH * (i + 0.5);
+            const isActive = i % 3 !== 2;
+            return (
+              <g key={i}>
+                <rect x={rx0 + rw * 0.1} y={uy} width={rw * 0.8} height={uH * 0.7} rx="1"
+                  fill={isActive ? "white" : "#1e3a5f"} fillOpacity={isActive ? 0.2 : 0.4}
+                  stroke="white" strokeWidth="0.5" strokeOpacity="0.4" />
+                {/* Puertos del patch panel */}
+                {isActive && Array.from({ length: 6 }).map((_, j) => (
+                  <circle key={j}
+                    cx={rx0 + rw * 0.18 + j * (rw * 0.12)}
+                    cy={uy + uH * 0.35}
+                    r={rw * 0.04}
+                    fill={j < 4 ? "#22c55e" : "#64748b"}
+                    stroke="white" strokeWidth="0.5"
+                  />
+                ))}
+              </g>
+            );
+          })}
+          {/* Etiqueta IDF */}
+          <text x={s / 2} y={ry0 + rh + s * 0.12} textAnchor="middle" fontSize={s * 0.18}
+            fill="white" fontWeight="bold" fontFamily="monospace">IDF</text>
         </svg>
       );
     }
