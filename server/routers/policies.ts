@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { invokeLLM } from "../_core/llm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
@@ -192,5 +193,95 @@ export const policiesRouter = router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     await db.insert(policyOperationalRules).values({ ...input, tenantId });
     return { success: true };
+  }),
+
+  // ─── Extract policy data from PDF or image using LLM ─────────────────────
+  extractFromDocument: protectedProcedure.input(z.object({
+    fileBase64: z.string(),
+    mimeType: z.string(),
+    fileName: z.string().optional(),
+  })).mutation(async ({ ctx, input }) => {
+    if (!['admin', 'supervisor'].includes(ctx.user.role)) throw new TRPCError({ code: 'FORBIDDEN' });
+
+    const isImage = input.mimeType.startsWith('image/');
+    const isPdf = input.mimeType === 'application/pdf';
+
+    if (!isImage && !isPdf) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Solo se aceptan archivos PDF o imágenes (JPG, PNG, WEBP)' });
+    }
+
+    const dataUrl = `data:${input.mimeType};base64,${input.fileBase64}`;
+
+    const systemPrompt = `Eres un asistente especializado en extracción de datos de pólizas de servicio y contratos de mantenimiento.
+Extrae TODOS los campos que puedas identificar del documento. Si un campo no está presente, devuelve null para ese campo.
+Devuelve ÚNICAMENTE un objeto JSON válido, sin texto adicional, sin markdown, sin explicaciones.`;
+
+    const userPrompt = `Analiza este documento (póliza de servicio / contrato de mantenimiento) y extrae los siguientes campos:
+
+- policyNumber: número o folio de la póliza/contrato
+- name: nombre o título de la póliza/contrato
+- description: descripción general del servicio
+- type: tipo de póliza (uno de: maintenance, warranty, support, comprehensive)
+- status: estado actual (uno de: draft, active, suspended, expired, cancelled) — si no se especifica, usa "active"
+- startDate: fecha de inicio en formato YYYY-MM-DD
+- endDate: fecha de vencimiento/fin en formato YYYY-MM-DD
+- renewalDate: fecha de renovación en formato YYYY-MM-DD (si aplica)
+- clientName: nombre del cliente o empresa contratante
+- clientContact: nombre del contacto del cliente
+- clientEmail: correo electrónico del cliente
+- clientPhone: teléfono del cliente
+- annualValue: valor anual del contrato como número (solo dígitos y punto decimal, sin símbolos)
+- monthlyValue: valor mensual del contrato como número (solo dígitos y punto decimal, sin símbolos)
+- currency: moneda (MXN, USD o EUR)
+- notes: observaciones o notas adicionales relevantes
+- maintenancesPerYear: número de mantenimientos preventivos cubiertos por año (si se menciona)
+- coverages: array de strings con los servicios/coberturas incluidos en la póliza
+- exclusions: array de strings con las exclusiones de la póliza
+- slaResponseTime: tiempo de respuesta SLA en horas (si se menciona)
+- slaResolutionTime: tiempo de resolución SLA en horas (si se menciona)
+
+Devuelve SOLO el JSON, sin texto adicional.`;
+
+    let response: any;
+    if (isImage) {
+      response = await invokeLLM({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: dataUrl, detail: 'high' } },
+              { type: 'text', text: userPrompt },
+            ],
+          },
+        ],
+        response_format: { type: 'json_object' },
+      });
+    } else {
+      // PDF: send as file_url
+      response = await invokeLLM({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: [
+              { type: 'file_url', file_url: { url: dataUrl, mime_type: 'application/pdf' } },
+              { type: 'text', text: userPrompt },
+            ],
+          },
+        ],
+        response_format: { type: 'json_object' },
+      });
+    }
+
+    const raw = response?.choices?.[0]?.message?.content ?? '{}';
+    let extracted: Record<string, any> = {};
+    try {
+      extracted = JSON.parse(typeof raw === 'string' ? raw : JSON.stringify(raw));
+    } catch {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'No se pudo interpretar la respuesta de la IA' });
+    }
+
+    return { extracted };
   }),
 });

@@ -331,3 +331,12 @@
 - [x] Frontend: subida de fotos antes/después con preview
 - [x] Frontend: canvas de firma digital del cliente
 - [x] Frontend: generación de reporte HTML imprimible/PDF con fotos, firma y observaciones
+
+## Pólizas - Lectura Inteligente de Documento (PDF/Imagen)
+- [x] Backend: endpoint policies.extractFromDocument que acepta PDF o imagen en base64 y usa LLM para extraer campos
+- [x] Backend: prompt estructurado para extraer policyNumber, name, clientName, clientEmail, clientPhone, startDate, endDate, monthlyValue, annualValue, type, status, notes, coverages, slaRules, services
+- [x] Frontend: zona de subida de PDF/imagen en el formulario de alta de póliza
+- [x] Frontend: botón "Leer documento con IA" que llama al endpoint y autollena los campos
+- [x] Frontend: indicador de carga mientras la IA procesa el documento
+- [x] Frontend: resaltado visual de los campos autollenados para que el usuario pueda revisarlos
+- [x] Frontend: posibilidad de editar cualquier campo autollenado antes de guardar
