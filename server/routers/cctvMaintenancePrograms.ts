@@ -71,7 +71,7 @@ async function getItemName(
   category: string,
   itemId: number,
   tenantId: number,
-): Promise<{ name: string; location: string }> {
+): Promise<{ name: string; location: string; area: string }> {
   try {
     const tableMap: Record<string, any> = {
       cameras: cctvCameras,
@@ -82,18 +82,19 @@ async function getItemName(
       ups: cctvUps,
     };
     const table = tableMap[category];
-    if (!table) return { name: `${category} #${itemId}`, location: "" };
+    if (!table) return { name: `${category} #${itemId}`, location: "", area: "" };
     const [row] = await db
       .select()
       .from(table)
       .where(and(eq(table.id, itemId), eq(table.tenantId, tenantId)))
       .limit(1);
-    if (!row) return { name: `${category} #${itemId}`, location: "" };
+    if (!row) return { name: `${category} #${itemId}`, location: "", area: "" };
     const name = [row.marca, row.modelo].filter(Boolean).join(" ") || `${category} #${itemId}`;
     const location = row.ubicacion ?? row.zona ?? row.area ?? "";
-    return { name, location };
+    const area = row.area ?? row.zona ?? row.ubicacion ?? "";
+    return { name, location, area };
   } catch {
-    return { name: `${category} #${itemId}`, location: "" };
+    return { name: `${category} #${itemId}`, location: "", area: "" };
   }
 }
 
@@ -220,6 +221,7 @@ export const cctvMaintenanceProgramsRouter = router({
         technician: z.string().optional(),
         schedule: z.string().optional(),
         visitWeekStart: z.string().optional(),
+        programMonth: z.string().optional(),
         // Equipment items to include
         items: z.array(
           z.object({
@@ -232,6 +234,7 @@ export const cctvMaintenanceProgramsRouter = router({
             noTechnicians: z.number().int().optional(),
             observations: z.string().optional(),
             sortOrder: z.number().int().optional(),
+            scheduledDays: z.string().optional(), // "1,3,5" comma-separated day numbers
           }),
         ),
         // Whether to auto-generate scheduled log entries
@@ -257,29 +260,39 @@ export const cctvMaintenanceProgramsRouter = router({
         technician: input.technician ?? null,
         schedule: input.schedule ?? null,
         visitWeekStart: input.visitWeekStart ? toDate(input.visitWeekStart) as Date : null,
+        programMonth: input.programMonth ?? null,
         status: "active",
         createdByUserId: ctx.user.id,
         createdByUserName: ctx.user.name ?? ctx.user.email ?? null,
       });
       const programId = (progResult as any).insertId as number;
 
-      // Insert items
+      // Insert items — auto-populate area from inventory if not provided
       if (input.items.length > 0) {
-        await db.insert(cctvMaintenanceProgramItems).values(
-          input.items.map((item, idx) => ({
-            programId,
-            tenantId,
-            category: item.category,
-            itemId: item.itemId,
-            itemName: item.itemName ?? null,
-            itemLocation: item.itemLocation ?? null,
-            area: item.area ?? null,
-            requiresLift: item.requiresLift ?? false,
-            noTechnicians: item.noTechnicians ?? 1,
-            observations: item.observations ?? null,
-            sortOrder: item.sortOrder ?? idx,
-          })),
+        const itemsWithArea = await Promise.all(
+          input.items.map(async (item, idx) => {
+            let area = item.area ?? null;
+            if (!area) {
+              const info = await getItemName(db, item.category, item.itemId, tenantId);
+              area = info.area || null;
+            }
+            return {
+              programId,
+              tenantId,
+              category: item.category,
+              itemId: item.itemId,
+              itemName: item.itemName ?? null,
+              itemLocation: item.itemLocation ?? null,
+              area,
+              requiresLift: item.requiresLift ?? false,
+              noTechnicians: item.noTechnicians ?? 1,
+              observations: item.observations ?? null,
+              sortOrder: item.sortOrder ?? idx,
+              scheduledDays: item.scheduledDays ?? null,
+            };
+          }),
         );
+        await db.insert(cctvMaintenanceProgramItems).values(itemsWithArea);
       }
 
       // Auto-generate scheduled maintenance log entries
@@ -392,6 +405,7 @@ export const cctvMaintenanceProgramsRouter = router({
         noTechnicians: z.number().int().optional(),
         observations: z.string().optional(),
         sortOrder: z.number().int().optional(),
+        scheduledDays: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -405,6 +419,7 @@ export const cctvMaintenanceProgramsRouter = router({
       if (rest.noTechnicians !== undefined) updateData.noTechnicians = rest.noTechnicians;
       if (rest.observations !== undefined) updateData.observations = rest.observations;
       if (rest.sortOrder !== undefined) updateData.sortOrder = rest.sortOrder;
+      if (rest.scheduledDays !== undefined) updateData.scheduledDays = rest.scheduledDays;
       await db
         .update(cctvMaintenanceProgramItems)
         .set(updateData)

@@ -118,9 +118,12 @@ function WeeklyScheduleView({
   const MONTH_NAMES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
   const formatShort = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(2)}`;
-  const monthLabel = selectedProg?.startDate
-    ? (() => { const d = new Date(selectedProg.startDate + "T12:00:00"); return `${MONTH_NAMES[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`; })()
-    : `${MONTH_NAMES[weekDays[0].getMonth()]}-${String(weekDays[0].getFullYear()).slice(2)}`;
+  // Use programMonth from program if available, otherwise derive from startDate
+  const monthLabel = selectedProg?.programMonth
+    ? selectedProg.programMonth
+    : selectedProg?.startDate
+      ? (() => { const d = new Date(selectedProg.startDate + "T12:00:00"); return `${MONTH_NAMES[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`; })()
+      : `${MONTH_NAMES[weekDays[0].getMonth()]}-${String(weekDays[0].getFullYear()).slice(2)}`;
 
   const [localItems, setLocalItems] = useState<any[]>(items);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
@@ -210,8 +213,10 @@ function WeeklyScheduleView({
                 {selectedProg?.name ?? "—"}
               </td>
               <td colSpan={2} className="px-3 py-2 border-r border-border">
-                <span className="font-semibold">INICIO</span> <span className="ml-1">{selectedProg?.startDate ? formatShort(new Date(selectedProg.startDate + "T12:00:00")) : "—"}</span>
-                <span className="font-semibold ml-3">FIN</span> <span className="ml-1">{selectedProg?.endDate ? formatShort(new Date(selectedProg.endDate + "T12:00:00")) : "—"}</span>
+                <span className="font-semibold">INICIO</span>
+                <span className="ml-1 text-foreground">{selectedProg?.startDate ? formatShort(new Date(selectedProg.startDate + "T12:00:00")) : "—"}</span>
+                <span className="font-semibold ml-4">FIN</span>
+                <span className="ml-1 text-foreground">{selectedProg?.endDate ? formatShort(new Date(selectedProg.endDate + "T12:00:00")) : "—"}</span>
               </td>
               <td colSpan={2} className="px-3 py-2 border-r border-border"></td>
               {DAY_NAMES.map((d) => (
@@ -342,10 +347,33 @@ function WeeklyScheduleView({
                         >{item.observations || <span className="text-muted-foreground/50 italic">—</span>}</span>
                       )}
                     </td>
-                    {/* Day columns - empty checkable cells */}
-                    {weekDays.map((d) => (
-                      <td key={d.toISOString()} className="px-2 py-2 text-center border-l border-border/20 w-16"></td>
-                    ))}
+                    {/* Day columns - mark scheduled days */}
+                    {weekDays.map((d, di) => {
+                      // weekDays[0]=Mon(1), [1]=Tue(2)... [6]=Sun(7)
+                      const dayNum = di + 1; // 1=Lun...7=Dom
+                      const scheduledDays = (item.scheduledDays ?? "").split(",").filter(Boolean).map(Number);
+                      const isScheduled = scheduledDays.includes(dayNum);
+                      return (
+                        <td key={d.toISOString()} className={cn(
+                          "px-2 py-2 text-center border-l border-border/20 w-16 cursor-pointer transition-colors",
+                          isScheduled ? "bg-blue-100" : "hover:bg-muted/30",
+                        )}
+                          onClick={() => {
+                            const current = (item.scheduledDays ?? "").split(",").filter(Boolean).map(Number);
+                            const updated = current.includes(dayNum)
+                              ? current.filter((x: number) => x !== dayNum)
+                              : [...current, dayNum].sort();
+                            const newVal = updated.join(",");
+                            updateItem.mutate({ id: item.id, scheduledDays: newVal });
+                            setLocalItems((prev) => prev.map((it) => it.id === item.id ? { ...it, scheduledDays: newVal } : it));
+                          }}
+                        >
+                          {isScheduled && (
+                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">✓</span>
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })
@@ -749,6 +777,8 @@ function NewProgramDialog({
     startDate: "",
     endDate: "",
     technician: "",
+    programMonth: "",
+    schedule: "8:00AM - 5:00 PM",
     generateSchedule: true,
   });
   const f = (k: string, v: any) => setForm((p) => ({ ...p, [k]: v }));
@@ -761,6 +791,17 @@ function NewProgramDialog({
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
   const [inventorySearch, setInventorySearch] = useState("");
   const [inventoryFilter, setInventoryFilter] = useState("all");
+
+  // Scheduled days per item: { "cameras-123": "1,3" }
+  const [itemScheduledDays, setItemScheduledDays] = useState<Record<string, string>>({});
+  const toggleItemDay = (itemKey: string, dayNum: number) => {
+    setItemScheduledDays((prev) => {
+      const current = (prev[itemKey] ?? "").split(",").filter(Boolean).map(Number);
+      const exists = current.includes(dayNum);
+      const updated = exists ? current.filter((d) => d !== dayNum) : [...current, dayNum].sort();
+      return { ...prev, [itemKey]: updated.join(",") };
+    });
+  };
 
   // Capacity per day
   const [perDay, setPerDay] = useState(5);
@@ -779,7 +820,7 @@ function NewProgramDialog({
     setInventoryFilter("all");
     setPerDay(5);
     setShowSchedulePreview(false);
-    setForm({ name: "", description: "", policyId: "", totalVisits: 4, frequency: "quarterly", startDate: "", endDate: "", technician: "", generateSchedule: true });
+    setForm({ name: "", description: "", policyId: "", totalVisits: 4, frequency: "quarterly", startDate: "", endDate: "", technician: "", programMonth: "", schedule: "8:00AM - 5:00 PM", generateSchedule: true });
     onClose();
   };
 
@@ -788,7 +829,7 @@ function NewProgramDialog({
     if (exists) {
       setSelectedItems((p) => p.filter((i) => !(i.itemId === item.id && i.category === item.category)));
     } else {
-      setSelectedItems((p) => [...p, { category: item.category, itemId: item.id, itemName: item.name, itemLocation: item.location }]);
+      setSelectedItems((p) => [...p, { category: item.category, itemId: item.id, itemName: item.name, itemLocation: item.location, area: item.area ?? item.location ?? "" }]);
     }
   };
 
@@ -827,7 +868,11 @@ function NewProgramDialog({
     if (!form.name.trim()) { toast.error("El nombre es obligatorio"); return; }
     if (!form.startDate || !form.endDate) { toast.error("Las fechas son obligatorias"); return; }
     if (selectedItems.length === 0) { toast.error("Selecciona al menos un equipo"); return; }
-    onSave({ ...form, policyId: form.policyId ? Number(form.policyId) : undefined, items: selectedItems });
+    const itemsWithDays = selectedItems.map((item) => ({
+      ...item,
+      scheduledDays: itemScheduledDays[`${item.category}-${item.itemId}`] ?? "",
+    }));
+    onSave({ ...form, policyId: form.policyId ? Number(form.policyId) : undefined, items: itemsWithDays });
   };
 
   const STEPS = ["Información", "Inventario", "Programa de Obra", "Confirmar"];
@@ -949,6 +994,17 @@ function NewProgramDialog({
                 <Label>Técnico Responsable</Label>
                 <Input placeholder="Nombre del técnico" value={form.technician} onChange={(e) => f("technician", e.target.value)} />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Mes del Programa</Label>
+                  <Input placeholder="ej: may-26" value={form.programMonth} onChange={(e) => f("programMonth", e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Se muestra en el encabezado del Programa Semanal</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Horario de Trabajo</Label>
+                  <Input placeholder="ej: 8:00AM - 5:00 PM" value={form.schedule} onChange={(e) => f("schedule", e.target.value)} />
+                </div>
+              </div>
             </div>
           )}
 
@@ -1013,35 +1069,69 @@ function NewProgramDialog({
                   )}
                 </div>
               ) : (
-                <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
-                  {filteredInventory.map((item: any) => {
-                    const isSelected = !!selectedItems.find((i) => i.itemId === item.id && i.category === item.category);
-                    return (
-                      <button
-                        key={`${item.category}-${item.id}`}
-                        onClick={() => toggleItem(item)}
-                        className={cn(
-                          "w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-all duration-150",
-                          isSelected
-                            ? "border-blue-400 bg-blue-50/60 dark:bg-blue-900/20 dark:border-blue-600"
-                            : "border-border/50 hover:border-blue-300 hover:bg-muted/30",
-                        )}
-                      >
-                        <div className={cn("w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors",
-                          isSelected ? "text-blue-600" : "text-muted-foreground")}>
-                          {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{item.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {item.location || "Sin ubicación"}
-                            {item.extra && <span className="ml-1.5 text-blue-500">· {item.extra}</span>}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="text-[10px] shrink-0">{item.categoryLabel}</Badge>
-                      </button>
-                    );
-                  })}
+                <div className="overflow-x-auto rounded-lg border border-border/50 max-h-80 overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
+                      <tr className="border-b border-border">
+                        <th className="px-2 py-2 text-left w-8"></th>
+                        <th className="px-2 py-2 text-left font-semibold">Equipo</th>
+                        <th className="px-2 py-2 text-left font-semibold">Área</th>
+                        <th className="px-2 py-2 text-left font-semibold">Tipo</th>
+                        <th className="px-2 py-2 text-center font-semibold" colSpan={7}>Día de Mantenimiento</th>
+                      </tr>
+                      <tr className="border-b border-border bg-muted/60">
+                        <th colSpan={4}></th>
+                        {["L","M","Mi","J","V","S","D"].map((d, i) => (
+                          <th key={i} className="px-1 py-1 text-center text-muted-foreground font-medium w-8">{d}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredInventory.map((item: any, idx: number) => {
+                        const isSelected = !!selectedItems.find((i) => i.itemId === item.id && i.category === item.category);
+                        const itemKey = `${item.category}-${item.id}`;
+                        const selectedDays = (itemScheduledDays[itemKey] ?? "").split(",").filter(Boolean).map(Number);
+                        // Day numbers: 1=Lun, 2=Mar, 3=Mie, 4=Jue, 5=Vie, 6=Sab, 7=Dom
+                        return (
+                          <tr key={itemKey} className={cn(
+                            "border-b border-border/30 transition-colors",
+                            idx % 2 === 0 ? "bg-background" : "bg-muted/10",
+                            isSelected ? "bg-blue-50/40" : "",
+                          )}>
+                            <td className="px-2 py-2 text-center">
+                              <button onClick={() => toggleItem(item)} className="text-muted-foreground hover:text-blue-600 transition-colors">
+                                {isSelected ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4" />}
+                              </button>
+                            </td>
+                            <td className="px-2 py-2">
+                              <p className="font-medium truncate max-w-[160px]">{item.name}</p>
+                              <p className="text-muted-foreground truncate max-w-[160px]">{item.location || ""}</p>
+                            </td>
+                            <td className="px-2 py-2 text-muted-foreground">{item.area || item.location || "—"}</td>
+                            <td className="px-2 py-2">
+                              <Badge variant="outline" className="text-[10px]">{item.categoryLabel}</Badge>
+                            </td>
+                            {[1,2,3,4,5,6,7].map((dayNum) => (
+                              <td key={dayNum} className="px-1 py-2 text-center">
+                                <button
+                                  onClick={() => { if (!isSelected) toggleItem(item); toggleItemDay(itemKey, dayNum); }}
+                                  className={cn(
+                                    "w-6 h-6 rounded text-[10px] font-bold border transition-all",
+                                    selectedDays.includes(dayNum)
+                                      ? "bg-blue-600 text-white border-blue-600"
+                                      : "border-border/50 text-muted-foreground hover:border-blue-400 hover:text-blue-600",
+                                  )}
+                                  title={["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"][dayNum-1]}
+                                >
+                                  {dayNum}
+                                </button>
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
 

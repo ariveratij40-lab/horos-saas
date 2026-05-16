@@ -826,6 +826,7 @@ export const cctvMaintenancePrograms = mysqlTable("cctv_maintenance_programs", {
   technician: varchar("technician", { length: 255 }),
   schedule: varchar("schedule", { length: 100 }),    // Horario ej: "8:00AM - 5:00 PM"
   visitWeekStart: date("visitWeekStart"),             // Inicio de la semana de visita actual
+  programMonth: varchar("programMonth", { length: 20 }), // Mes del programa ej: "may-26"
   status: mysqlEnum("status", ["active", "completed", "cancelled"]).default("active").notNull(),
   createdByUserId: int("createdByUserId"),
   createdByUserName: varchar("createdByUserName", { length: 255 }),
@@ -850,6 +851,7 @@ export const cctvMaintenanceProgramItems = mysqlTable("cctv_maintenance_program_
   noTechnicians: int("noTechnicians").default(1),    // Número de técnicos
   observations: text("observations"),               // Observaciones
   sortOrder: int("sortOrder").default(0),            // Orden en la tabla
+  scheduledDays: varchar("scheduledDays", { length: 50 }), // Días asignados ej: "1,3,5" (0=dom,1=lun...6=sab)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type CctvMaintenanceProgramItem = typeof cctvMaintenanceProgramItems.$inferSelect;
