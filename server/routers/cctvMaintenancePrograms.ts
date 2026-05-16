@@ -303,37 +303,74 @@ export const cctvMaintenanceProgramsRouter = router({
 
       // Auto-generate scheduled maintenance log entries
       if (input.generateSchedule && input.items.length > 0) {
-        const visitDates = generateVisitDates(
-          toDate(input.startDate) as Date,
-          toDate(input.endDate) as Date,
-          input.totalVisits,
-          input.frequency,
-        );
+        // Check if any items have explicit scheduledDates from the Programa de Obra step
+        const hasExplicitDates = input.items.some(item => item.scheduledDates && item.scheduledDates.trim().length > 0);
 
         const logEntries: any[] = [];
-        for (const visitDate of visitDates) {
+
+        if (hasExplicitDates) {
+          // Use exact dates selected per item in the Programa de Obra
           for (const item of input.items) {
             const itemInfo = item.itemName
               ? { name: item.itemName, location: item.itemLocation ?? "" }
               : await getItemName(db, item.category, item.itemId, tenantId);
-            logEntries.push({
-              tenantId,
-              category: item.category,
-              itemId: item.itemId,
-              itemName: itemInfo.name,
-              type: "preventive" as const,
-              status: "scheduled" as const,
-              title: `Mantenimiento preventivo — ${itemInfo.name}`,
-              description: input.description ?? null,
-              technician: input.technician ?? null,
-              scheduledDate: visitDate,
-              policyId: input.policyId ?? null,
-              programId,
-              createdByUserId: ctx.user.id,
-              createdByUserName: ctx.user.name ?? ctx.user.email ?? null,
-            });
+            const dates = item.scheduledDates
+              ? item.scheduledDates.split(",").map(d => d.trim()).filter(Boolean)
+              : [];
+            for (const dateStr of dates) {
+              const visitDate = toDate(dateStr) as Date;
+              if (!visitDate || isNaN(visitDate.getTime())) continue;
+              logEntries.push({
+                tenantId,
+                category: item.category,
+                itemId: item.itemId,
+                itemName: itemInfo.name,
+                type: "preventive" as const,
+                status: "scheduled" as const,
+                title: `Mantenimiento preventivo — ${itemInfo.name}`,
+                description: input.description ?? null,
+                technician: input.technician ?? null,
+                scheduledDate: visitDate,
+                policyId: input.policyId ?? null,
+                programId,
+                createdByUserId: ctx.user.id,
+                createdByUserName: ctx.user.name ?? ctx.user.email ?? null,
+              });
+            }
+          }
+        } else {
+          // Fallback: auto-generate dates from frequency/range
+          const visitDates = generateVisitDates(
+            toDate(input.startDate) as Date,
+            toDate(input.endDate) as Date,
+            input.totalVisits,
+            input.frequency,
+          );
+          for (const visitDate of visitDates) {
+            for (const item of input.items) {
+              const itemInfo = item.itemName
+                ? { name: item.itemName, location: item.itemLocation ?? "" }
+                : await getItemName(db, item.category, item.itemId, tenantId);
+              logEntries.push({
+                tenantId,
+                category: item.category,
+                itemId: item.itemId,
+                itemName: itemInfo.name,
+                type: "preventive" as const,
+                status: "scheduled" as const,
+                title: `Mantenimiento preventivo — ${itemInfo.name}`,
+                description: input.description ?? null,
+                technician: input.technician ?? null,
+                scheduledDate: visitDate,
+                policyId: input.policyId ?? null,
+                programId,
+                createdByUserId: ctx.user.id,
+                createdByUserName: ctx.user.name ?? ctx.user.email ?? null,
+              });
+            }
           }
         }
+
         if (logEntries.length > 0) {
           // Insert in batches of 50
           for (let i = 0; i < logEntries.length; i += 50) {
