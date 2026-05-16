@@ -75,12 +75,14 @@ export const policiesRouter = router({
   })).mutation(async ({ ctx, input }) => {
     if (!["admin", "supervisor"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
     const tenantId = ctx.user.tenantId ?? 1;
+    // Normalise dates to YYYY-MM-DD strings — MySQL date columns reject Date objects with timezone
+    const toDateStr = (s: string) => s.slice(0, 10);
     const result = await createPolicy({
       ...input,
       tenantId,
-      startDate: new Date(input.startDate) as any,
-      endDate: new Date(input.endDate) as any,
-      renewalDate: input.renewalDate ? new Date(input.renewalDate) as any : undefined,
+      startDate: toDateStr(input.startDate) as any,
+      endDate: toDateStr(input.endDate) as any,
+      renewalDate: input.renewalDate ? toDateStr(input.renewalDate) as any : undefined,
       assignedUserId: ctx.user.id,
     });
     await createAuditLog({ tenantId, userId: ctx.user.id, userName: ctx.user.name ?? undefined, action: "CREATE", module: "policies", entityType: "policy", description: `Póliza creada: ${input.name} (${input.policyNumber})` });
@@ -107,11 +109,12 @@ export const policiesRouter = router({
     if (!["admin", "supervisor"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
     const tenantId = ctx.user.tenantId ?? 1;
     const { id, startDate, endDate, renewalDate, ...rest } = input;
+    const toDateStr = (s: string) => s.slice(0, 10);
     const data = {
       ...rest,
-      ...(startDate ? { startDate: new Date(startDate) as any } : {}),
-      ...(endDate ? { endDate: new Date(endDate) as any } : {}),
-      ...(renewalDate ? { renewalDate: new Date(renewalDate) as any } : {}),
+      ...(startDate ? { startDate: toDateStr(startDate) as any } : {}),
+      ...(endDate ? { endDate: toDateStr(endDate) as any } : {}),
+      ...(renewalDate ? { renewalDate: toDateStr(renewalDate) as any } : {}),
     };
     await updatePolicy(id, tenantId, data);
     await createAuditLog({ tenantId, userId: ctx.user.id, userName: ctx.user.name ?? undefined, action: "UPDATE", module: "policies", entityType: "policy", entityId: id, description: `Póliza actualizada: ID ${id}` });
