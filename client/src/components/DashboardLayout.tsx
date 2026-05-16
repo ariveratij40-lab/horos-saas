@@ -41,6 +41,7 @@ type NavItem = {
   icon: React.ElementType;
   label: string;
   path: string;
+  exact?: boolean;
 };
 
 type NavGroup = {
@@ -86,14 +87,14 @@ const menuGroups: NavGroup[] = [
         label: "CCTV",
         color: "text-blue-500",
         items: [
-          { icon: Package,       label: "Inventario",     path: "/cctv" },
+          { icon: Package,       label: "Inventario",     path: "/cctv",             exact: true },
           { icon: Wrench,        label: "Mantenimiento",  path: "/cctv/maintenance" },
           { icon: CalendarDays,  label: "Calendario",     path: "/cctv/calendar" },
           { icon: AlertTriangle, label: "Incidentes y SLA", path: "/cctv/incidents" },
           { icon: TrendingUp,    label: "Capex",          path: "/cctv/capex" },
           { icon: ScrollText,    label: "Póliza",         path: "/cctv/policy" },
           { icon: Database,      label: "Respaldo BD",    path: "/cctv/backup" },
-          { icon: Tag,           label: "Etiquetas RFID", path: "/rfid" },
+          { icon: Tag,           label: "Etiquetas RFID", path: "/rfid",             exact: true },
         ],
       },
       {
@@ -164,7 +165,9 @@ function SystemSubGroup({ system, location, navigate, isCollapsed }: {
     return (
       <SidebarMenu>
         {system.items.map((item) => {
-          const isActive = location === item.path || location.startsWith(item.path + "/");
+          const isActive = item.exact
+            ? location === item.path
+            : location === item.path || location.startsWith(item.path + "/");
           return (
             <SidebarMenuItem key={item.path}>
               <SidebarMenuButton
@@ -214,7 +217,9 @@ function SystemSubGroup({ system, location, navigate, isCollapsed }: {
         <div className="ml-3 mt-0.5 border-l border-border/40 pl-2">
           <SidebarMenu>
             {system.items.map((item) => {
-              const isActive = location === item.path || location.startsWith(item.path + "/");
+              const isActive = item.exact
+                ? location === item.path
+                : location === item.path || location.startsWith(item.path + "/");
               return (
                 <SidebarMenuItem key={item.path}>
                   <SidebarMenuButton
