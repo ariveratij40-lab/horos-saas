@@ -1,9 +1,42 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function parseData(data: string | null): { rotation?: number; scale?: number; fov?: number; range?: number; coneColor?: string; x1?: number; y1?: number; x2?: number; y2?: number } {
+function parseData(data: string | null): { rotation?: number; scale?: number; fov?: number; range?: number; coneColor?: string; x1?: number; y1?: number; x2?: number; y2?: number; connColor?: string } {
   if (!data) return {};
   try { return JSON.parse(data); } catch { return {}; }
+}
+
+// ─── Connection line SVG ────────────────────────────────────────────────────
+function ConnectionSvg({ x1, y1, x2, y2, color, selected }: { x1: number; y1: number; x2: number; y2: number; color: string; selected: boolean }) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 2) return null;
+  // Arrow head
+  const arrowLen = 12;
+  const arrowAngle = 0.4;
+  const ux = dx / len;
+  const uy = dy / len;
+  const ax1 = x2 - arrowLen * (ux * Math.cos(arrowAngle) - uy * Math.sin(arrowAngle));
+  const ay1 = y2 - arrowLen * (uy * Math.cos(arrowAngle) + ux * Math.sin(arrowAngle));
+  const ax2 = x2 - arrowLen * (ux * Math.cos(-arrowAngle) - uy * Math.sin(-arrowAngle));
+  const ay2 = y2 - arrowLen * (uy * Math.cos(-arrowAngle) + ux * Math.sin(-arrowAngle));
+  const sw = selected ? 2.5 : 1.8;
+  return (
+    <g>
+      {/* Dashed line */}
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={sw} strokeDasharray={selected ? "none" : "6 3"} strokeLinecap="round" opacity={0.9} />
+      {/* Arrow head */}
+      <line x1={ax1} y1={ay1} x2={x2} y2={y2} stroke={color} strokeWidth={sw} strokeLinecap="round" />
+      <line x1={ax2} y1={ay2} x2={x2} y2={y2} stroke={color} strokeWidth={sw} strokeLinecap="round" />
+      {/* Endpoint circles */}
+      <circle cx={x1} cy={y1} r={selected ? 5 : 3.5} fill={color} opacity={0.8} />
+      <circle cx={x2} cy={y2} r={selected ? 5 : 3.5} fill={color} opacity={0.8} />
+      {selected && (
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={8} strokeOpacity={0.12} strokeLinecap="round" />
+      )}
+    </g>
+  );
 }
 
 // Draw a ladder SVG between two absolute pixel points
@@ -107,6 +140,7 @@ const BUILTIN_MARKERS = [
   { type: "speaker",    icon: "🔊", label: "Bocina",       color: "#f97316" },
   { type: "ladder",     icon: "🪜", label: "Escalerilla",  color: "#22c55e" },
   { type: "idf",        icon: "🗄️", label: "IDF/MDF",      color: "#0ea5e9" },
+  { type: "connection", icon: "🔗", label: "Conexión",     color: "#a78bfa" },
   { type: "marker",     icon: "📍", label: "Marcador",     color: "#ef4444" },
 ];
 
@@ -526,6 +560,8 @@ export default function FloorPlanViewer() {
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
   const [ladderStart, setLadderStart] = useState<{ x: number; y: number } | null>(null);
   const [ladderPreview, setLadderPreview] = useState<{ x: number; y: number } | null>(null);
+  const [connectionStart, setConnectionStart] = useState<{ x: number; y: number } | null>(null);
+  const [connectionPreview, setConnectionPreview] = useState<{ x: number; y: number } | null>(null);
   const [pendingAnnotation, setPendingAnnotation] = useState<{
     x: string; y: string; icon: string; color: string; type: string; layerId: number | null;
   } | null>(null);
@@ -570,7 +606,14 @@ export default function FloorPlanViewer() {
         setLadderPreview({ x: e.clientX - rect.left, y: e.clientY - rect.top });
       }
     }
-  }, [isPanning, panStart, panOrigin, selectedTool, ladderStart]);
+    // Update connection preview
+    if (selectedTool === "connection" && connectionStart) {
+      const rect = contentRef.current?.getBoundingClientRect();
+      if (rect) {
+        setConnectionPreview({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      }
+    }
+  }, [isPanning, panStart, panOrigin, selectedTool, ladderStart, connectionStart]);
 
   const handleMouseUp = useCallback(() => setIsPanning(false), []);
 
@@ -585,6 +628,28 @@ export default function FloorPlanViewer() {
     const xPx = e.clientX - rect.left;
     const yPx = e.clientY - rect.top;
 
+    // Connection: two-point drawing mode
+    if (selectedTool === "connection") {
+      if (!connectionStart) {
+        setConnectionStart({ x: xPx, y: yPx });
+        return;
+      }
+      // Second click: create the connection annotation
+      const color = "#a78bfa";
+      const data = JSON.stringify({ x1: connectionStart.x, y1: connectionStart.y, x2: xPx, y2: yPx, connColor: color });
+      setConnectionStart(null);
+      setConnectionPreview(null);
+      createAnnotation.mutate({
+        planId,
+        type: "connection",
+        x: xPct.toFixed(2),
+        y: yPct.toFixed(2),
+        color,
+        icon: "🔗",
+        data,
+      });
+      return;
+    }
     // Ladder: two-point drawing mode
     if (selectedTool === "ladder") {
       if (!ladderStart) {
@@ -776,6 +841,10 @@ export default function FloorPlanViewer() {
       setLadderStart(null);
       setLadderPreview(null);
     }
+    if (selectedTool !== "connection") {
+      setConnectionStart(null);
+      setConnectionPreview(null);
+    }
   }, [selectedTool]);
 
   // ── Loading / not found ───────────────────────────────────────────────────
@@ -848,6 +917,10 @@ export default function FloorPlanViewer() {
               <p className="text-green-400">Clic para definir el punto final de la escalerilla</p>
             ) : selectedTool === "ladder" ? (
               <p className="text-green-400">Clic para definir el punto inicial de la escalerilla</p>
+            ) : selectedTool === "connection" && connectionStart ? (
+              <p className="text-purple-400">Clic en el elemento destino para conectar</p>
+            ) : selectedTool === "connection" ? (
+              <p className="text-purple-400">Clic en el elemento origen de la conexión</p>
             ) : selectedTool ? (
               <p className="text-blue-400">Clic en el plano para colocar</p>
             ) : (
@@ -950,7 +1023,7 @@ export default function FloorPlanViewer() {
 
                   {/* Annotation markers */}
                   {visibleAnnotations.map((ann) => (
-                    ann.type === "ladder" ? null : (
+                    ann.type === "ladder" || ann.type === "connection" ? null : (
                       <DraggableMarker
                         key={ann.id}
                         ann={ann}
@@ -962,6 +1035,49 @@ export default function FloorPlanViewer() {
                       />
                     )
                   ))}
+                  {/* Connection lines rendered as SVG overlay */}
+                  {(() => {
+                    const connAnns = visibleAnnotations.filter((a) => a.type === "connection");
+                    if (connAnns.length === 0 && !connectionStart) return null;
+                    const rect = contentRef.current;
+                    const w = rect?.offsetWidth ?? 1000;
+                    const h = rect?.offsetHeight ?? 800;
+                    return (
+                      <svg
+                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 29 }}
+                        viewBox={`0 0 ${w} ${h}`}
+                        preserveAspectRatio="none"
+                      >
+                        {connAnns.map((ann) => {
+                          const d = parseData(ann.data);
+                          if (d.x1 === undefined) return null;
+                          const col = d.connColor ?? ann.color ?? "#a78bfa";
+                          return (
+                            <g key={ann.id} style={{ pointerEvents: "all", cursor: "pointer" }} onClick={() => setSelectedAnnotation(selectedAnnotation === ann.id ? null : ann.id)}>
+                              <ConnectionSvg x1={d.x1!} y1={d.y1!} x2={d.x2!} y2={d.y2!} color={col} selected={selectedAnnotation === ann.id} />
+                              {selectedAnnotation === ann.id && (
+                                <g>
+                                  <circle cx={(d.x1! + d.x2!) / 2} cy={(d.y1! + d.y2!) / 2} r={10} fill="#ef4444" style={{ cursor: "pointer", pointerEvents: "all" }}
+                                    onClick={(ev) => { ev.stopPropagation(); handleDeleteAnnotation(ann.id); }} />
+                                  <text x={(d.x1! + d.x2!) / 2} y={(d.y1! + d.y2!) / 2 + 4} textAnchor="middle" fill="white" fontSize="12" style={{ pointerEvents: "none" }}>×</text>
+                                </g>
+                              )}
+                              {ann.label && (
+                                <text x={(d.x1! + d.x2!) / 2} y={(d.y1! + d.y2!) / 2 - 12} textAnchor="middle" fill={col} fontSize="11" fontWeight="600" style={{ pointerEvents: "none", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.8))" }}>{ann.label}</text>
+                              )}
+                            </g>
+                          );
+                        })}
+                        {/* Preview while drawing */}
+                        {connectionStart && connectionPreview && (
+                          <ConnectionSvg x1={connectionStart.x} y1={connectionStart.y} x2={connectionPreview.x} y2={connectionPreview.y} color="#a78bfa" selected={false} />
+                        )}
+                        {connectionStart && (
+                          <circle cx={connectionStart.x} cy={connectionStart.y} r={6} fill="#a78bfa" fillOpacity="0.8" />
+                        )}
+                      </svg>
+                    );
+                  })()}
                   {/* Ladder annotations rendered as SVG overlay */}
                   {(() => {
                     const ladderAnns = visibleAnnotations.filter((a) => a.type === "ladder");
