@@ -37,6 +37,7 @@ import {
   ListChecks, Layers, ChevronRight, Info, Users, Trash2, Pencil,
 } from "lucide-react";
 import MaintenanceReportDialog from "@/components/MaintenanceReportDialog";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -517,6 +518,7 @@ export default function CCTVMaintenance() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [openNew, setOpenNew] = useState(false);
   const [reportLogId, setReportLogId] = useState<number | null>(null);
+  const [deleteConfirmProg, setDeleteConfirmProg] = useState<{ id: number; name: string } | null>(null);
 
   // ── Data ──
   const { data: programs = [], refetch: refetchPrograms } = trpc.cctvPrograms.list.useQuery();
@@ -761,9 +763,7 @@ export default function CCTVMaintenance() {
                             className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 ml-auto"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (confirm(`¿Eliminar el programa "${prog.name}"? Esta acción no se puede deshacer.`)) {
-                                deleteProgram.mutate({ id: prog.id });
-                              }
+                              setDeleteConfirmProg({ id: prog.id, name: prog.name });
                             }}
                           >
                             <Trash2 className="w-3.5 h-3.5" /> Eliminar Programa
@@ -899,6 +899,21 @@ export default function CCTVMaintenance() {
           saving={updateProgram.isPending}
         />
       )}
+
+      {/* ── Delete Confirm Dialog ── */}
+      <DeleteConfirmDialog
+        open={deleteConfirmProg !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirmProg(null); }}
+        itemName={deleteConfirmProg?.name ?? ""}
+        itemType="programa de mantenimiento"
+        onConfirm={() => {
+          if (deleteConfirmProg) {
+            deleteProgram.mutate({ id: deleteConfirmProg.id });
+            setDeleteConfirmProg(null);
+          }
+        }}
+        isLoading={deleteProgram.isPending}
+      />
     </div>
   );
 }
