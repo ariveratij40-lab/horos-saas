@@ -539,7 +539,7 @@ function CableadoTabContent() {
 }
 
 // ─── Pestaña Resumen (global) ─────────────────────────────────────────────────
-function ResumenTabContent() {
+function ResumenKPIs() {
   const { data: kpis, isLoading } = trpc.dashboard.kpis.useQuery();
 
   return (
@@ -560,7 +560,159 @@ function ResumenTabContent() {
         <KPICard title="Total Activos"     value={kpis?.totalAssets ?? 0}      subtitle="En inventario"     icon={Package}      variant="default"  loading={isLoading} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
+      
+    </div>
+  );
+}
+
+// ─── Sección de sistema (encabezado + fichas horizontales) ───────────────────
+function SystemSection({
+  icon: Icon, title, description, color, bgColor, borderColor, navPath, children,
+}: {
+  icon: LucideIcon; title: string; description: string;
+  color: string; bgColor: string; borderColor: string;
+  navPath: string; children: React.ReactNode;
+}) {
+  const [, navigate] = useLocation();
+  return (
+    <div className="mb-8">
+      {/* Encabezado del sistema */}
+      <div className={cn("flex items-center gap-3 px-4 py-3 rounded-xl border mb-4", bgColor, borderColor)}>
+        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", bgColor)}>
+          <Icon className={cn("w-5 h-5", color)} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={cn("text-sm font-bold font-display", color)}>{title}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Button size="sm" variant="outline" className="text-xs gap-1.5" onClick={() => navigate(navPath)}>
+            <ArrowRight className="w-3.5 h-3.5" /> Ver módulo
+          </Button>
+        </div>
+      </div>
+      {/* Fichas en fila horizontal */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─── Ficha compacta de métrica ────────────────────────────────────────────────
+function MetricChip({
+  label, value, icon: Icon, color, bgColor, loading,
+}: {
+  label: string; value: number; icon: LucideIcon;
+  color: string; bgColor: string; loading?: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-border/50 p-3 bg-card/60">
+        <Skeleton className="h-3 w-16 mb-2" />
+        <Skeleton className="h-7 w-10" />
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-border/50 p-3 bg-card/60 hover:shadow-sm transition-all">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <div className={cn("w-5 h-5 rounded-md flex items-center justify-center", bgColor)}>
+          <Icon className={cn("w-3 h-3", color)} />
+        </div>
+        <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide truncate">{label}</span>
+      </div>
+      <p className="text-2xl font-bold font-display text-foreground">{value.toLocaleString()}</p>
+    </div>
+  );
+}
+
+// ─── Sección de todos los sistemas ───────────────────────────────────────────
+function AllSystemsSection() {
+  const { data, isLoading } = trpc.dashboard.kpisDetailed.useQuery();
+  const cctv = data?.cctv;
+  const ac = data?.accessControl;
+  const voc = data?.voceo;
+  const cab = data?.cableado;
+
+  return (
+    <div className="space-y-2">
+      {/* CCTV */}
+      <SystemSection
+        icon={Camera} title="CCTV" description="Videovigilancia — Cámaras y Grabadores NVR/DVR"
+        color="text-sky-600 dark:text-sky-400" bgColor="bg-sky-50 dark:bg-sky-900/20" borderColor="border-sky-200 dark:border-sky-800"
+        navPath="/cctv">
+        <MetricChip label="Cámaras" value={cctv?.camarasTotal ?? 0} icon={Camera} color="text-sky-600" bgColor="bg-sky-100 dark:bg-sky-900/40" loading={isLoading} />
+        <MetricChip label="Activas" value={cctv?.camarasActivas ?? 0} icon={CheckCircle2} color="text-emerald-600" bgColor="bg-emerald-100 dark:bg-emerald-900/40" loading={isLoading} />
+        <MetricChip label="Críticas" value={cctv?.camarasCriticas ?? 0} icon={TriangleAlert} color="text-red-600" bgColor="bg-red-100 dark:bg-red-900/40" loading={isLoading} />
+        <MetricChip label="NVR/DVR" value={cctv?.nvrTotal ?? 0} icon={MonitorPlay} color="text-indigo-600" bgColor="bg-indigo-100 dark:bg-indigo-900/40" loading={isLoading} />
+        <MetricChip label="Tickets" value={cctv?.ticketsAbiertos ?? 0} icon={Ticket} color="text-blue-600" bgColor="bg-blue-100 dark:bg-blue-900/40" loading={isLoading} />
+        <MetricChip label="Fuera SLA" value={cctv?.ticketsFueraSla ?? 0} icon={AlertTriangle} color="text-amber-600" bgColor="bg-amber-100 dark:bg-amber-900/40" loading={isLoading} />
+      </SystemSection>
+
+      {/* Control de Acceso */}
+      <SystemSection
+        icon={Lock} title="Control de Acceso" description="Lectores biométricos, controladoras y puertas controladas"
+        color="text-violet-600 dark:text-violet-400" bgColor="bg-violet-50 dark:bg-violet-900/20" borderColor="border-violet-200 dark:border-violet-800"
+        navPath="/access-control">
+        <MetricChip label="Lectores" value={ac?.lectoresTotal ?? 0} icon={Lock} color="text-violet-600" bgColor="bg-violet-100 dark:bg-violet-900/40" loading={isLoading} />
+        <MetricChip label="Activos" value={ac?.lectoresActivos ?? 0} icon={CheckCircle2} color="text-emerald-600" bgColor="bg-emerald-100 dark:bg-emerald-900/40" loading={isLoading} />
+        <MetricChip label="Críticos" value={ac?.lectoresCriticos ?? 0} icon={TriangleAlert} color="text-red-600" bgColor="bg-red-100 dark:bg-red-900/40" loading={isLoading} />
+        <MetricChip label="Puertas" value={ac?.puertasControladas ?? 0} icon={DoorOpen} color="text-purple-600" bgColor="bg-purple-100 dark:bg-purple-900/40" loading={isLoading} />
+        <MetricChip label="Tickets" value={ac?.ticketsAbiertos ?? 0} icon={Ticket} color="text-blue-600" bgColor="bg-blue-100 dark:bg-blue-900/40" loading={isLoading} />
+        <MetricChip label="Fuera SLA" value={ac?.ticketsFueraSla ?? 0} icon={AlertTriangle} color="text-amber-600" bgColor="bg-amber-100 dark:bg-amber-900/40" loading={isLoading} />
+      </SystemSection>
+
+      {/* Cableado Estructurado */}
+      <SystemSection
+        icon={Network} title="Cableado Estructurado" description="Switches, patch panels, rosetas y canaletas"
+        color="text-emerald-600 dark:text-emerald-400" bgColor="bg-emerald-50 dark:bg-emerald-900/20" borderColor="border-emerald-200 dark:border-emerald-800"
+        navPath="/structured-cabling">
+        <MetricChip label="Switches" value={cab?.switchesTotal ?? 0} icon={Network} color="text-emerald-600" bgColor="bg-emerald-100 dark:bg-emerald-900/40" loading={isLoading} />
+        <MetricChip label="Activos" value={cab?.switchesActivos ?? 0} icon={CheckCircle2} color="text-emerald-600" bgColor="bg-emerald-100 dark:bg-emerald-900/40" loading={isLoading} />
+        <MetricChip label="Críticos" value={cab?.switchesCriticos ?? 0} icon={TriangleAlert} color="text-red-600" bgColor="bg-red-100 dark:bg-red-900/40" loading={isLoading} />
+        <MetricChip label="Servidores" value={cab?.servidoresTotal ?? 0} icon={Server} color="text-teal-600" bgColor="bg-teal-100 dark:bg-teal-900/40" loading={isLoading} />
+        <MetricChip label="Tickets" value={cab?.ticketsAbiertos ?? 0} icon={Ticket} color="text-blue-600" bgColor="bg-blue-100 dark:bg-blue-900/40" loading={isLoading} />
+        <MetricChip label="Fuera SLA" value={cab?.ticketsFueraSla ?? 0} icon={AlertTriangle} color="text-amber-600" bgColor="bg-amber-100 dark:bg-amber-900/40" loading={isLoading} />
+      </SystemSection>
+
+      {/* Voceo */}
+      <SystemSection
+        icon={Volume2} title="Voceo" description="Amplificadores, bocinas, consolas y fuentes de poder"
+        color="text-amber-600 dark:text-amber-400" bgColor="bg-amber-50 dark:bg-amber-900/20" borderColor="border-amber-200 dark:border-amber-800"
+        navPath="/paging-system">
+        <MetricChip label="Bocinas" value={voc?.altavocesTotal ?? 0} icon={Speaker} color="text-amber-600" bgColor="bg-amber-100 dark:bg-amber-900/40" loading={isLoading} />
+        <MetricChip label="Activas" value={voc?.altavocesActivos ?? 0} icon={CheckCircle2} color="text-emerald-600" bgColor="bg-emerald-100 dark:bg-emerald-900/40" loading={isLoading} />
+        <MetricChip label="Amplif." value={voc?.amplificadoresTotal ?? 0} icon={Radio} color="text-orange-600" bgColor="bg-orange-100 dark:bg-orange-900/40" loading={isLoading} />
+        <MetricChip label="Críticos" value={voc?.criticos ?? 0} icon={TriangleAlert} color="text-red-600" bgColor="bg-red-100 dark:bg-red-900/40" loading={isLoading} />
+        <MetricChip label="Tickets" value={voc?.ticketsAbiertos ?? 0} icon={Ticket} color="text-blue-600" bgColor="bg-blue-100 dark:bg-blue-900/40" loading={isLoading} />
+        <MetricChip label="Fuera SLA" value={voc?.ticketsFueraSla ?? 0} icon={AlertTriangle} color="text-amber-600" bgColor="bg-amber-100 dark:bg-amber-900/40" loading={isLoading} />
+      </SystemSection>
+    </div>
+  );
+}
+
+// ─── Dashboard principal ──────────────────────────────────────────────────────
+export default function Dashboard() {
+  return (
+    <div className="animate-fade-up">
+      <PageHeader />
+
+      {/* KPIs globales */}
+      <ResumenKPIs />
+
+      {/* Separador */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="h-px flex-1 bg-border/50" />
+        <span className="text-xs text-muted-foreground font-medium uppercase tracking-widest">Sistemas</span>
+        <div className="h-px flex-1 bg-border/50" />
+      </div>
+
+      {/* Secciones por sistema */}
+      <AllSystemsSection />
+
+      {/* Gráficas y tickets recientes */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-2 mb-6">
         <Card className="lg:col-span-2 border-border/50 card-elevated">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold font-display">Tendencia de Tickets</CardTitle>
@@ -589,7 +741,6 @@ function ResumenTabContent() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-
         <Card className="border-border/50 card-elevated">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold font-display">Cumplimiento SLA</CardTitle>
@@ -613,41 +764,6 @@ function ResumenTabContent() {
         <RecentTickets />
         <RecentPolicies />
       </div>
-    </div>
-  );
-}
-
-// ─── Dashboard principal ──────────────────────────────────────────────────────
-export default function Dashboard() {
-  return (
-    <div className="animate-fade-up">
-      <PageHeader />
-
-      <Tabs defaultValue="resumen" className="w-full">
-        <TabsList className="mb-6 flex flex-wrap gap-1 h-auto p-1">
-          <TabsTrigger value="resumen" className="gap-2 text-xs">
-            <Activity className="w-3.5 h-3.5" /> Resumen
-          </TabsTrigger>
-          <TabsTrigger value="cctv" className="gap-2 text-xs">
-            <Camera className="w-3.5 h-3.5" /> CCTV
-          </TabsTrigger>
-          <TabsTrigger value="access_control" className="gap-2 text-xs">
-            <Lock className="w-3.5 h-3.5" /> Control de Acceso
-          </TabsTrigger>
-          <TabsTrigger value="voceo" className="gap-2 text-xs">
-            <Volume2 className="w-3.5 h-3.5" /> Voceo
-          </TabsTrigger>
-          <TabsTrigger value="cableado" className="gap-2 text-xs">
-            <Network className="w-3.5 h-3.5" /> Cableado Estructurado
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="resumen"><ResumenTabContent /></TabsContent>
-        <TabsContent value="cctv"><CCTVTabContent /></TabsContent>
-        <TabsContent value="access_control"><AccessControlTabContent /></TabsContent>
-        <TabsContent value="voceo"><VoceoTabContent /></TabsContent>
-        <TabsContent value="cableado"><CableadoTabContent /></TabsContent>
-      </Tabs>
     </div>
   );
 }
