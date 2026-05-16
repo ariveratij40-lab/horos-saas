@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Eye, EyeOff, Lock, Mail, User, AlertCircle, Loader2 } from "lucide-react";
 import { getLoginUrl } from "@/const";
+import { Link } from "wouter";
 
 type Mode = "login" | "register";
 
@@ -145,6 +146,16 @@ export default function Login() {
                   </button>
                 </div>
               </div>
+
+              {mode === "login" && (
+                <div className="text-right">
+                  <Link href="/forgot-password">
+                    <button type="button" className="text-xs text-muted-foreground hover:text-primary transition-colors">
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </Link>
+                </div>
+              )}
 
               {error && (
                 <Alert variant="destructive">

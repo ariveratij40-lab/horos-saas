@@ -23,6 +23,10 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { sdk } from "./_core/sdk";
 import { ONE_YEAR_MS, COOKIE_NAME } from "@shared/const";
+import { sendPasswordResetEmail } from "./_core/mailer";
+import { passwordResetTokens } from "../drizzle/schema";
+import { and, lt, isNull, gt } from "drizzle-orm";
+import crypto from "crypto";
 
 export const appRouter = router({
   system: systemRouter,
@@ -131,6 +135,97 @@ export const appRouter = router({
         });
 
         return { success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role } };
+      }),
+
+    // ── PASSWORD RESET ───────────────────────────────────────────────────────────────────
+    requestPasswordReset: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        origin: z.string().optional(), // frontend origin for building the reset URL
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        // Always return success to avoid email enumeration
+        const [user] = await db.select().from(users)
+          .where(and(eq(users.email, input.email), eq(users.authProvider, "local")))
+          .limit(1);
+
+        if (user) {
+          // Invalidate any existing tokens for this user
+          await db.update(passwordResetTokens)
+            .set({ usedAt: new Date() })
+            .where(and(
+              eq(passwordResetTokens.userId, user.id),
+              isNull(passwordResetTokens.usedAt)
+            ));
+
+          // Generate a secure random token
+          const token = crypto.randomBytes(48).toString("hex");
+          const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+          await db.insert(passwordResetTokens).values({
+            userId: user.id,
+            token,
+            expiresAt,
+          });
+
+          const origin = input.origin ?? "http://localhost:3000";
+          const resetUrl = `${origin}/reset-password?token=${token}`;
+
+          await sendPasswordResetEmail({
+            to: user.email!,
+            name: user.name,
+            resetUrl,
+          });
+        }
+
+        // Always return success (security: don't reveal if email exists)
+        return { success: true };
+      }),
+
+    confirmPasswordReset: publicProcedure
+      .input(z.object({
+        token: z.string().min(10),
+        newPassword: z.string().min(6),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        const now = new Date();
+
+        // Find valid, unused, non-expired token
+        const [resetToken] = await db.select().from(passwordResetTokens)
+          .where(and(
+            eq(passwordResetTokens.token, input.token),
+            isNull(passwordResetTokens.usedAt),
+            gt(passwordResetTokens.expiresAt, now)
+          ))
+          .limit(1);
+
+        if (!resetToken) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "El enlace de restablecimiento es inválido o ha expirado",
+          });
+        }
+
+        // Hash the new password
+        const passwordHash = await bcrypt.hash(input.newPassword, 12);
+
+        // Update user password
+        await db.update(users)
+          .set({ passwordHash, updatedAt: now })
+          .where(eq(users.id, resetToken.userId));
+
+        // Mark token as used
+        await db.update(passwordResetTokens)
+          .set({ usedAt: now })
+          .where(eq(passwordResetTokens.id, resetToken.id));
+
+        return { success: true };
       }),
   }),
 

@@ -837,3 +837,15 @@ export const cctvMaintenanceProgramItems = mysqlTable("cctv_maintenance_program_
 });
 export type CctvMaintenanceProgramItem = typeof cctvMaintenanceProgramItems.$inferSelect;
 export type InsertCctvMaintenanceProgramItem = typeof cctvMaintenanceProgramItems.$inferInsert;
+
+// ─── PASSWORD RESET TOKENS ───────────────────────────────────────────────────
+export const passwordResetTokens = mysqlTable("password_reset_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  token: varchar("token", { length: 128 }).notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;

@@ -34,6 +34,8 @@ import ImportInventory from "./pages/ImportInventory";
 import RfidManagement from "./pages/RfidManagement";
 import RfidScanner from "./pages/RfidScanner";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
@@ -60,6 +62,8 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/policies" component={() => <ProtectedRoute component={Policies} />} />
       <Route path="/policies/:id" component={() => <ProtectedRoute component={PolicyDetail} />} />

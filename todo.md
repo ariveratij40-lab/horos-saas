@@ -366,3 +366,14 @@
 - [ ] Frontend: página /login con formulario email+password
 - [ ] Frontend: detección automática del provider disponible (Manus vs local)
 - [ ] Frontend: redirección correcta según el provider activo
+
+## Recuperación de Contraseña
+- [ ] Schema: tabla password_reset_tokens (id, userId, token, expiresAt, usedAt, createdAt)
+- [ ] Migración BD aplicada
+- [ ] Backend: endpoint auth.requestPasswordReset (email → genera token, envía email)
+- [ ] Backend: endpoint auth.confirmPasswordReset (token + newPassword → actualiza hash)
+- [ ] Backend: envío de email con nodemailer o API de notificaciones
+- [ ] Frontend: página /forgot-password con formulario de email
+- [ ] Frontend: página /reset-password?token=xxx con formulario de nueva contraseña
+- [ ] Frontend: enlace "Olvidé mi contraseña" en la página /login
+- [ ] Frontend: mensajes de éxito y error claros en ambas páginas
