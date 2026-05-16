@@ -976,6 +976,161 @@ function UtpNodeDialog({
   );
 }
 
+// ─── UTP Route Dialog ─────────────────────────────────────────────────────────
+/**
+ * Dialog for confirming a multi-point UTP route.
+ * Shows each segment length, ceiling height, rack margin, and total.
+ */
+function UtpRouteDialog({
+  open, points, color, category, planScale, containerPx,
+  onColorChange, onCategoryChange, onConfirm, onCancel,
+}: {
+  open: boolean;
+  points: { x: number; y: number }[];
+  color: string;
+  category: string;
+  planScale: string | null | undefined;
+  containerPx: { w: number; h: number } | null;
+  onColorChange: (c: string) => void;
+  onCategoryChange: (c: string) => void;
+  onConfirm: (ceilingHeight: number, rackMargin: number) => void;
+  onCancel: () => void;
+}) {
+  const [ceilingHeight, setCeilingHeight] = useState(2.8);
+  const [rackMargin, setRackMargin] = useState(1.5);
+
+  const segmentsPx = points.slice(1).map((pt, i) => {
+    const prev = points[i];
+    return Math.sqrt((pt.x - prev.x) ** 2 + (pt.y - prev.y) ** 2);
+  });
+  const totalPxLen = segmentsPx.reduce((a, b) => a + b, 0);
+  const segmentsM = segmentsPx.map((px) => calcUtpLengthMeters(px, null, containerPx, planScale));
+  const horizontalMeters = segmentsM.every((m) => m != null)
+    ? segmentsM.reduce((a, b) => a! + b!, 0)!
+    : null;
+  const totalLength = horizontalMeters != null
+    ? horizontalMeters + 2 * ceilingHeight + rackMargin
+    : null;
+  const isOver = totalLength != null && totalLength > UTP_MAX_METERS;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Trayecto UTP Multipunto</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-xs text-gray-400">
+            {points.length - 1} segmento{points.length - 1 !== 1 ? "s" : ""} · {points.length} puntos
+          </p>
+          {/* Segments table */}
+          <div className="rounded-lg overflow-hidden" style={{ border: "1px solid #2e3340" }}>
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{ background: "#1a1d23" }}>
+                  <th className="px-2 py-1.5 text-left text-gray-500 font-medium">Segmento</th>
+                  <th className="px-2 py-1.5 text-right text-gray-500 font-medium">Longitud</th>
+                </tr>
+              </thead>
+              <tbody>
+                {segmentsPx.map((px, i) => {
+                  const m = segmentsM[i];
+                  return (
+                    <tr key={i} style={{ borderTop: "1px solid #2e3340", background: i % 2 === 0 ? "#22262e" : "#1e2229" }}>
+                      <td className="px-2 py-1 text-gray-400">
+                        <span className="inline-flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+                          Seg. {i + 1}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1 text-right font-mono font-semibold" style={{ color }}>
+                        {m != null ? formatMeters(m) : `${Math.round(px)} px`}
+                      </td>
+                    </tr>
+                  );
+                })}
+                <tr style={{ borderTop: "2px solid #3b82f6", background: "#1a1d23" }}>
+                  <td className="px-2 py-1.5 font-semibold text-white">Total horizontal</td>
+                  <td className="px-2 py-1.5 text-right font-mono font-bold" style={{ color: "#3b82f6" }}>
+                    {horizontalMeters != null ? formatMeters(horizontalMeters) : `${Math.round(totalPxLen)} px`}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {/* Ceiling height */}
+          <div>
+            <Label className="mb-1 block text-xs">Altura del techo (m)</Label>
+            <div className="flex items-center gap-2">
+              <input type="range" min={1.5} max={12} step={0.1} value={ceilingHeight}
+                onChange={(e) => setCeilingHeight(parseFloat(e.target.value))}
+                className="flex-1" />
+              <span className="text-sm font-mono font-bold w-12 text-right" style={{ color: "#94a3b8" }}>{ceilingHeight.toFixed(1)} m</span>
+            </div>
+            <p className="text-[10px] text-gray-500 mt-0.5">Sube + baja = 2 × {ceilingHeight.toFixed(1)} = {(2*ceilingHeight).toFixed(1)} m</p>
+          </div>
+          {/* Rack margin */}
+          <div>
+            <Label className="mb-1 block text-xs">Margen en rack/patch panel (m)</Label>
+            <div className="flex items-center gap-2">
+              <input type="range" min={0.5} max={5} step={0.1} value={rackMargin}
+                onChange={(e) => setRackMargin(parseFloat(e.target.value))}
+                className="flex-1" />
+              <span className="text-sm font-mono font-bold w-12 text-right" style={{ color: "#94a3b8" }}>{rackMargin.toFixed(1)} m</span>
+            </div>
+          </div>
+          {/* Grand total */}
+          <div className="px-3 py-2 rounded-lg" style={{
+            background: isOver ? "#450a0a" : "#0f172a",
+            border: `1px solid ${isOver ? "#ef4444" : "#1e3a5f"}`,
+          }}>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold" style={{ color: isOver ? "#fca5a5" : "#94a3b8" }}>Longitud total del cable</span>
+              {isOver && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#ef4444", color: "white" }}>LÍMITE</span>}
+            </div>
+            <p className="text-2xl font-bold mt-1" style={{ color: isOver ? "#ef4444" : "#3b82f6" }}>
+              {totalLength != null ? formatMeters(totalLength) : "Sin escala"}
+            </p>
+            {horizontalMeters != null && (
+              <p className="text-[10px] text-gray-500 mt-0.5">
+                {formatMeters(horizontalMeters)} horiz. + {formatMeters(2*ceilingHeight)} vert. + {formatMeters(rackMargin)} rack
+              </p>
+            )}
+            {isOver && <p className="text-[11px] mt-1" style={{ color: "#fca5a5" }}>⚠ Supera el límite IEEE 802.3 de 90 m</p>}
+          </div>
+          {/* Color + Category */}
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <Label className="mb-1 block text-xs">Color del cable</Label>
+              <div className="flex flex-wrap gap-1">
+                {UTP_COLORS.map((c) => (
+                  <button key={c.hex} title={c.label} onClick={() => onColorChange(c.hex)}
+                    className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
+                    style={{ background: c.hex, borderColor: color === c.hex ? "white" : "transparent" }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex-1">
+              <Label className="mb-1 block text-xs">Categoría</Label>
+              <Select value={category} onValueChange={onCategoryChange}>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {UTP_CATEGORIES.map((cat) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button onClick={() => onConfirm(ceilingHeight, rackMargin)} style={{ background: color, color: "white" }}>
+            Guardar Trayecto
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── PDF Canvas Renderer ──────────────────────────────────────────────────────
 function PdfCanvas({ url, onReady }: { url: string; onReady: (w: number, h: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1316,6 +1471,12 @@ export default function FloorPlanViewer() {
   const [utpCategory, setUtpCategory] = useState("Cat6");
   const [utpNodeDialogOpen, setUtpNodeDialogOpen] = useState(false);
   const [utpNodePending, setUtpNodePending] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  // UTP Route: multi-point polyline mode
+  const [utpRoutePoints, setUtpRoutePoints] = useState<{ x: number; y: number }[]>([]);
+  const [utpRoutePreview, setUtpRoutePreview] = useState<{ x: number; y: number } | null>(null);
+  const [utpRouteDialogOpen, setUtpRouteDialogOpen] = useState(false);
+  const [utpRouteColor, setUtpRouteColor] = useState("#3b82f6");
+  const [utpRouteCategory, setUtpRouteCategory] = useState("Cat6");
   const [editingScale, setEditingScale] = useState(false);
   const [scaleInput, setScaleInput] = useState("");
   const [pendingAnnotation, setPendingAnnotation] = useState<{
@@ -1376,7 +1537,14 @@ export default function FloorPlanViewer() {
         setUtpPreview({ x: e.clientX - rect.left, y: e.clientY - rect.top });
       }
     }
-  }, [isPanning, panStart, panOrigin, selectedTool, ladderStart, connectionStart, utpStart]);
+    // Update UTP Route preview
+    if (selectedTool === "utp-route" && utpRoutePoints.length > 0) {
+      const rect = contentRef.current?.getBoundingClientRect();
+      if (rect) {
+        setUtpRoutePreview({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      }
+    }
+  }, [isPanning, panStart, panOrigin, selectedTool, ladderStart, connectionStart, utpStart, utpRoutePoints]);
 
   const handleMouseUp = useCallback(() => setIsPanning(false), []);
 
@@ -1415,6 +1583,22 @@ export default function FloorPlanViewer() {
       setUtpStart(null);
       setUtpPreview(null);
       setUtpNodeDialogOpen(true);
+      return;
+    }
+    // UTP Route: multi-point polyline — each click adds a waypoint; double-click finishes
+    if (selectedTool === "utp-route") {
+      // Detect double-click: if last point is very close to current click, finish
+      if (utpRoutePoints.length >= 2) {
+        const last = utpRoutePoints[utpRoutePoints.length - 1];
+        const dist = Math.sqrt((xPx - last.x) ** 2 + (yPx - last.y) ** 2);
+        if (dist < 12) {
+          // Double-click detected: open route dialog
+          setUtpRoutePreview(null);
+          setUtpRouteDialogOpen(true);
+          return;
+        }
+      }
+      setUtpRoutePoints((prev) => [...prev, { x: xPx, y: yPx }]);
       return;
     }
     // Connection: two-point drawing mode
@@ -1564,6 +1748,62 @@ export default function FloorPlanViewer() {
   };
 
   const handleUtpNodeCancel = () => { setUtpNodeDialogOpen(false); setUtpNodePending(null); };
+
+  // ── UTP Route (multi-point) confirm/cancel ───────────────────────────────────────
+  const handleUtpRouteConfirm = async (ceilingHeight: number, rackMargin: number) => {
+    if (utpRoutePoints.length < 2) return;
+    setUtpRouteDialogOpen(false);
+    try {
+      const containerEl = contentRef.current;
+      const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
+      // Calculate total horizontal distance in meters
+      let totalPxLen = 0;
+      for (let i = 1; i < utpRoutePoints.length; i++) {
+        const dx = utpRoutePoints[i].x - utpRoutePoints[i-1].x;
+        const dy = utpRoutePoints[i].y - utpRoutePoints[i-1].y;
+        totalPxLen += Math.sqrt(dx*dx + dy*dy);
+      }
+      const horizMeters = calcUtpLengthMeters(totalPxLen, pdfDims, containerPx, plan?.scale) ?? 0;
+      const totalMeters = horizMeters + 2 * ceilingHeight + rackMargin;
+      const data = JSON.stringify({
+        points: utpRoutePoints,
+        utpColor: utpRouteColor,
+        utpCategory: utpRouteCategory,
+        ceilingHeight,
+        rackMargin,
+        totalMeters,
+        isRoute: true,
+      });
+      const activeLayer = layers && layers.length > 0 ? layers[0].id : undefined;
+      await createAnnotation.mutateAsync({
+        planId,
+        layerId: activeLayer,
+        type: "utp-route",
+        x: "0", y: "0",
+        label: `Trayecto ${utpRouteCategory} (${formatMeters(totalMeters)})`,
+        icon: "🟦",
+        color: utpRouteColor,
+        data,
+      });
+      toast.success(`Trayecto UTP creado: ${formatMeters(totalMeters)} (${utpRoutePoints.length - 1} segmentos)`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Error al crear trayecto UTP");
+    }
+    setUtpRoutePoints([]);
+    setUtpRoutePreview(null);
+  };
+
+  const handleUtpRouteCancel = () => {
+    setUtpRouteDialogOpen(false);
+    // Keep points so user can continue drawing after cancel
+  };
+
+  const handleUtpRouteFinish = () => {
+    if (utpRoutePoints.length >= 2) {
+      setUtpRoutePreview(null);
+      setUtpRouteDialogOpen(true);
+    }
+  };
 
   // ── Export DXF ───────────────────────────────────────────────────────────
   const handleExportDXF = () => {
@@ -1722,6 +1962,10 @@ export default function FloorPlanViewer() {
       setUtpStart(null);
       setUtpPreview(null);
     }
+    if (selectedTool !== "utp-route") {
+      setUtpRoutePoints([]);
+      setUtpRoutePreview(null);
+    }
   }, [selectedTool]);
 
   // ── Loading / not found ───────────────────────────────────────────────────
@@ -1790,6 +2034,12 @@ export default function FloorPlanViewer() {
                 icon={<span>🔵</span>}
                 label="Nodo UTP"
               />
+              <ToolButton
+                active={selectedTool === "utp-route"}
+                onClick={() => setSelectedTool("utp-route")}
+                icon={<span>🟦</span>}
+                label="Trayecto UTP"
+              />
               {(layers as Layer[]).map((layer) => (
                 <ToolButton key={layer.id} active={selectedTool === `layer_${layer.id}`} onClick={() => setSelectedTool(`layer_${layer.id}`)} icon={<span>{layer.icon ?? "📍"}</span>} label={layer.label} />
               ))}
@@ -1830,6 +2080,16 @@ export default function FloorPlanViewer() {
               <p className="text-cyan-400">Clic para definir el punto final del nodo UTP</p>
             ) : selectedTool === "utp-node" ? (
               <p className="text-cyan-400">Clic para definir el punto inicial del nodo UTP</p>
+            ) : selectedTool === "utp-route" && utpRoutePoints.length >= 2 ? (
+              <div>
+                <p className="text-indigo-400">{utpRoutePoints.length} puntos · {utpRoutePoints.length - 1} segmentos</p>
+                <p className="text-indigo-300 text-[10px]">Doble clic para finalizar · o usa el botón ↓</p>
+                <button onClick={handleUtpRouteFinish} className="mt-1 px-2 py-0.5 rounded text-[10px] font-medium" style={{ background: "#4f46e5", color: "white" }}>Finalizar trayecto</button>
+              </div>
+            ) : selectedTool === "utp-route" && utpRoutePoints.length === 1 ? (
+              <p className="text-indigo-400">Clic para agregar puntos del trayecto</p>
+            ) : selectedTool === "utp-route" ? (
+              <p className="text-indigo-400">Clic para iniciar el trayecto multipunto</p>
             ) : selectedTool ? (
               <p className="text-blue-400">Clic en el plano para colocar</p>
             ) : (
@@ -2117,6 +2377,125 @@ export default function FloorPlanViewer() {
                         {utpStart && (
                           <circle cx={utpStart.x} cy={utpStart.y} r={6} fill={utpColor} fillOpacity="0.8" />
                         )}
+                      </svg>
+                    );
+                  })()}
+
+                  {/* UTP Route annotations (multi-point polyline) */}
+                  {(() => {
+                    const routeAnns = visibleAnnotations.filter((a) => a.type === "utp-route");
+                    const isDrawing = selectedTool === "utp-route" && utpRoutePoints.length > 0;
+                    if (routeAnns.length === 0 && !isDrawing) return null;
+                    const rect = contentRef.current;
+                    const w = rect?.offsetWidth ?? 1000;
+                    const h = rect?.offsetHeight ?? 800;
+                    const containerPx = rect ? { w: rect.offsetWidth, h: rect.offsetHeight } : null;
+                    return (
+                      <svg
+                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 32 }}
+                        viewBox={`0 0 ${w} ${h}`}
+                        preserveAspectRatio="none"
+                      >
+                        {/* Saved routes */}
+                        {routeAnns.map((ann) => {
+                          const d = parseData(ann.data);
+                          const pts: { x: number; y: number }[] = (d as any).points ?? [];
+                          if (pts.length < 2) return null;
+                          const col = (d as any).utpColor ?? ann.color ?? "#6366f1";
+                          const totalMeters: number | null = (d as any).totalMeters ?? null;
+                          const isOver = totalMeters != null && totalMeters > UTP_MAX_METERS;
+                          const cat = (d as any).utpCategory ?? "UTP";
+                          const label = totalMeters != null ? `${cat} · ${formatMeters(totalMeters)}` : cat;
+                          // Build polyline points string
+                          const polyPts = pts.map((p) => `${p.x},${p.y}`).join(" ");
+                          // Midpoint for label
+                          const mid = pts[Math.floor(pts.length / 2)];
+                          const selected = selectedAnnotation === ann.id;
+                          return (
+                            <g key={ann.id} style={{ pointerEvents: "all", cursor: "pointer" }} onClick={() => setSelectedAnnotation(selected ? null : ann.id)}>
+                              {/* Glow when selected or over limit */}
+                              {(selected || isOver) && (
+                                <polyline points={polyPts} fill="none"
+                                  stroke={isOver ? "#ef4444" : col} strokeWidth={8} strokeOpacity={0.2}
+                                  strokeLinejoin="round" strokeLinecap="round"
+                                  style={isOver ? { animation: "utp-alert-pulse 1.2s ease-in-out infinite" } : {}}
+                                />
+                              )}
+                              {/* Main line */}
+                              <polyline points={polyPts} fill="none"
+                                stroke={isOver ? "#ef4444" : col} strokeWidth={3}
+                                strokeDasharray={isOver ? "6 3" : undefined}
+                                strokeLinejoin="round" strokeLinecap="round"
+                              />
+                              {/* Waypoint dots */}
+                              {pts.map((p, i) => (
+                                <circle key={i} cx={p.x} cy={p.y} r={i === 0 || i === pts.length - 1 ? 5 : 3}
+                                  fill={isOver ? "#ef4444" : col} fillOpacity={0.9}
+                                />
+                              ))}
+                              {/* Label at midpoint */}
+                              <rect x={mid.x - 2} y={mid.y - 14} width={label.length * 6 + 8} height={16} rx={3}
+                                fill={isOver ? "#450a0a" : "#1a1d23"} fillOpacity={0.85}
+                              />
+                              <text x={mid.x + 2} y={mid.y - 3} fontSize={10} fill={isOver ? "#ef4444" : col} fontFamily="monospace" fontWeight="bold">
+                                {isOver ? "⚠ " : ""}{label}
+                              </text>
+                              {/* Segment count badge */}
+                              <text x={mid.x + 2} y={mid.y + 9} fontSize={8} fill="#6b7280" fontFamily="monospace">
+                                {pts.length - 1} seg.
+                              </text>
+                              {/* Delete button when selected */}
+                              {selected && (
+                                <g>
+                                  <circle cx={mid.x + label.length * 3 + 12} cy={mid.y - 6} r={9} fill="#ef4444" style={{ cursor: "pointer", pointerEvents: "all" }}
+                                    onClick={(ev) => { ev.stopPropagation(); handleDeleteAnnotation(ann.id); }} />
+                                  <text x={mid.x + label.length * 3 + 12} y={mid.y - 2} textAnchor="middle" fill="white" fontSize="12" style={{ pointerEvents: "none" }}>×</text>
+                                </g>
+                              )}
+                            </g>
+                          );
+                        })}
+
+                        {/* Live preview while drawing */}
+                        {isDrawing && (() => {
+                          const allPts = utpRoutePreview
+                            ? [...utpRoutePoints, utpRoutePreview]
+                            : utpRoutePoints;
+                          if (allPts.length < 2) return null;
+                          const polyPts = allPts.map((p) => `${p.x},${p.y}`).join(" ");
+                          // Calculate live total px length
+                          let totalPx = 0;
+                          for (let i = 1; i < allPts.length; i++) {
+                            const dx = allPts[i].x - allPts[i-1].x;
+                            const dy = allPts[i].y - allPts[i-1].y;
+                            totalPx += Math.sqrt(dx*dx + dy*dy);
+                          }
+                          const meters = calcUtpLengthMeters(totalPx, pdfDims, containerPx, plan.scale);
+                          const isOver = meters != null && meters > UTP_MAX_METERS;
+                          const liveLabel = meters != null ? formatMeters(meters) : `${Math.round(totalPx)} px`;
+                          const lastPt = allPts[allPts.length - 1];
+                          return (
+                            <g>
+                              <polyline points={polyPts} fill="none"
+                                stroke={isOver ? "#ef4444" : utpRouteColor} strokeWidth={2.5}
+                                strokeDasharray="6 3" strokeLinejoin="round" strokeLinecap="round"
+                                strokeOpacity={0.8}
+                              />
+                              {utpRoutePoints.map((p, i) => (
+                                <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 5 : 3}
+                                  fill={utpRouteColor} fillOpacity={0.9}
+                                />
+                              ))}
+                              {/* Live length label near cursor */}
+                              <rect x={lastPt.x + 8} y={lastPt.y - 14} width={liveLabel.length * 7 + 8} height={16} rx={3}
+                                fill={isOver ? "#450a0a" : "#1a1d23"} fillOpacity={0.9}
+                              />
+                              <text x={lastPt.x + 12} y={lastPt.y - 3} fontSize={10} fill={isOver ? "#ef4444" : utpRouteColor} fontFamily="monospace" fontWeight="bold">
+                                {liveLabel}
+                              </text>
+                            </g>
+                          );
+                        })()}
                       </svg>
                     );
                   })()}
@@ -2422,6 +2801,18 @@ export default function FloorPlanViewer() {
         onCategoryChange={setUtpCategory}
         onConfirm={handleUtpNodeConfirm}
         onCancel={handleUtpNodeCancel}
+      />
+      <UtpRouteDialog
+        open={utpRouteDialogOpen}
+        points={utpRoutePoints}
+        color={utpRouteColor}
+        category={utpRouteCategory}
+        planScale={plan.scale}
+        containerPx={contentRef.current ? { w: contentRef.current.offsetWidth, h: contentRef.current.offsetHeight } : null}
+        onColorChange={setUtpRouteColor}
+        onCategoryChange={setUtpRouteCategory}
+        onConfirm={handleUtpRouteConfirm}
+        onCancel={handleUtpRouteCancel}
       />
     </>
   );
