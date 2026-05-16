@@ -1,4 +1,10 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function parseData(data: string | null): { rotation?: number; scale?: number } {
+  if (!data) return {};
+  try { return JSON.parse(data); } catch { return {}; }
+}
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -48,13 +54,16 @@ const BUILTIN_MARKERS = [
 ];
 
 // ─── SVG marker shapes ────────────────────────────────────────────────────────
-function MarkerShape({ type, color, size = 36 }: { type: string; color: string; size?: number }) {
+function MarkerShape({ type, color, size = 36, rotation = 0 }: { type: string; color: string; size?: number; rotation?: number }) {
   const s = size;
   const h = s * 1.5;
+  const rotStyle: React.CSSProperties = rotation !== 0
+    ? { transform: `rotate(${rotation}deg)`, transformOrigin: `${s / 2}px ${h / 2}px` }
+    : {};
   switch (type) {
     case "camera":
       return (
-        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block" }}>
+        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
           <path d={`M${s/2} ${s*0.55} L${s*0.08} ${s*0.1} A${s*0.5} ${s*0.5} 0 0 1 ${s*0.92} ${s*0.1} Z`} fill={color} fillOpacity="0.25" stroke={color} strokeWidth="1.2" />
           <circle cx={s/2} cy={s*0.55} r={s*0.28} fill={color} stroke="white" strokeWidth="2" />
           <circle cx={s/2} cy={s*0.55} r={s*0.13} fill="white" fillOpacity="0.5" />
@@ -63,7 +72,7 @@ function MarkerShape({ type, color, size = 36 }: { type: string; color: string; 
       );
     case "reader":
       return (
-        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block" }}>
+        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
           <rect x={s*0.2} y={s*0.08} width={s*0.6} height={s*0.8} rx="3" fill={color} stroke="white" strokeWidth="1.5" />
           <rect x={s*0.3} y={s*0.22} width={s*0.4} height={s*0.07} rx="1" fill="white" fillOpacity="0.8" />
           <rect x={s*0.3} y={s*0.36} width={s*0.4} height={s*0.07} rx="1" fill="white" fillOpacity="0.8" />
@@ -73,7 +82,7 @@ function MarkerShape({ type, color, size = 36 }: { type: string; color: string; 
       );
     case "controller":
       return (
-        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block" }}>
+        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
           <rect x={s*0.1} y={s*0.08} width={s*0.8} height={s*0.7} rx="4" fill={color} stroke="white" strokeWidth="1.5" />
           <circle cx={s*0.3} cy={s*0.32} r={s*0.1} fill="white" fillOpacity="0.5" />
           <circle cx={s*0.5} cy={s*0.32} r={s*0.1} fill="white" fillOpacity="0.5" />
@@ -84,7 +93,7 @@ function MarkerShape({ type, color, size = 36 }: { type: string; color: string; 
       );
     case "door":
       return (
-        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block" }}>
+        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
           <rect x={s*0.15} y={s*0.08} width={s*0.7} height={s*0.8} rx="2" fill={color} stroke="white" strokeWidth="1.5" />
           <path d={`M${s*0.15} ${s*0.88} Q${s*0.15} ${s*0.08} ${s*0.85} ${s*0.08}`} fill="none" stroke={color} strokeWidth="1.2" strokeDasharray="3,2" strokeOpacity="0.5" />
           <circle cx={s*0.7} cy={s*0.48} r={s*0.07} fill="white" />
@@ -93,7 +102,7 @@ function MarkerShape({ type, color, size = 36 }: { type: string; color: string; 
       );
     case "sensor":
       return (
-        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block" }}>
+        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
           <path d={`M${s/2} ${s*0.5} m-${s*0.42} 0 a${s*0.42} ${s*0.42} 0 0 1 ${s*0.84} 0`} fill="none" stroke={color} strokeWidth="1.5" strokeOpacity="0.35" />
           <path d={`M${s/2} ${s*0.5} m-${s*0.28} 0 a${s*0.28} ${s*0.28} 0 0 1 ${s*0.56} 0`} fill="none" stroke={color} strokeWidth="1.5" strokeOpacity="0.6" />
           <circle cx={s/2} cy={s*0.5} r={s*0.16} fill={color} stroke="white" strokeWidth="2" />
@@ -103,7 +112,7 @@ function MarkerShape({ type, color, size = 36 }: { type: string; color: string; 
       );
     case "speaker":
       return (
-        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block" }}>
+        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
           <polygon points={`${s*0.45},${s*0.2} ${s*0.7},${s*0.08} ${s*0.7},${s*0.72} ${s*0.45},${s*0.6}`} fill={color} stroke="white" strokeWidth="1.5" />
           <rect x={s*0.22} y={s*0.3} width={s*0.23} height={s*0.3} rx="1" fill={color} stroke="white" strokeWidth="1.5" />
           <path d={`M${s*0.72} ${s*0.2} Q${s*0.95} ${s*0.4} ${s*0.72} ${s*0.6}`} fill="none" stroke={color} strokeWidth="1.8" strokeOpacity="0.7" />
@@ -113,7 +122,7 @@ function MarkerShape({ type, color, size = 36 }: { type: string; color: string; 
       );
     default:
       return (
-        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block" }}>
+        <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
           <path d={`M${s/2} ${s*0.08} C${s*0.18} ${s*0.08} ${s*0.08} ${s*0.3} ${s*0.08} ${s*0.45} C${s*0.08} ${s*0.7} ${s/2} ${s*1.1} ${s/2} ${s*1.1} C${s/2} ${s*1.1} ${s*0.92} ${s*0.7} ${s*0.92} ${s*0.45} C${s*0.92} ${s*0.3} ${s*0.82} ${s*0.08} ${s/2} ${s*0.08} Z`} fill={color} stroke="white" strokeWidth="2" />
           <circle cx={s/2} cy={s*0.45} r={s*0.18} fill="white" fillOpacity="0.4" />
         </svg>
@@ -133,6 +142,8 @@ function DraggableMarker({
   zoom: number;
 }) {
   const color = ann.color ?? "#6366f1";
+  const { rotation = 0, scale: markerScale = 1 } = parseData(ann.data);
+  const baseSize = Math.round(32 * markerScale);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -198,7 +209,7 @@ function DraggableMarker({
           filter: selected ? `drop-shadow(0 0 8px ${color})` : `drop-shadow(0 2px 4px rgba(0,0,0,0.5))`,
         }}
       >
-        <MarkerShape type={ann.type ?? "marker"} color={color} size={32} />
+        <MarkerShape type={ann.type ?? "marker"} color={color} size={baseSize} rotation={rotation} />
       </div>
       {/* Label */}
       {ann.label && (
@@ -370,6 +381,9 @@ export default function FloorPlanViewer() {
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
   const [selectedAnnotation, setSelectedAnnotation] = useState<number | null>(null);
   const [pdfDims, setPdfDims] = useState<{ w: number; h: number } | null>(null);
+  const [localRotation, setLocalRotation] = useState(0);
+  const [localScale, setLocalScale] = useState(1);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -443,6 +457,44 @@ export default function FloorPlanViewer() {
   const handleLabelCancel = () => { setLabelDialogOpen(false); setPendingAnnotation(null); };
 
   // ── Move annotation (drag end) ────────────────────────────────────────────
+  // Sync local rotation/scale when selection changes
+  useEffect(() => {
+    if (selectedAnnotation === null) return;
+    const ann = (annotations as Annotation[]).find((a) => a.id === selectedAnnotation);
+    if (!ann) return;
+    const { rotation = 0, scale = 1 } = parseData(ann.data);
+    setLocalRotation(rotation);
+    setLocalScale(scale);
+  }, [selectedAnnotation]);
+
+  const handleRotationChange = useCallback((val: number) => {
+    setLocalRotation(val);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      if (selectedAnnotation === null) return;
+      const ann = (annotations as Annotation[]).find((a) => a.id === selectedAnnotation);
+      if (!ann) return;
+      const existing = parseData(ann.data);
+      try {
+        await updateAnnotation.mutateAsync({ id: selectedAnnotation, data: JSON.stringify({ ...existing, rotation: val }) });
+      } catch { toast.error("Error al guardar rotación"); }
+    }, 400);
+  }, [selectedAnnotation, annotations, updateAnnotation]);
+
+  const handleScaleChange = useCallback((val: number) => {
+    setLocalScale(val);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      if (selectedAnnotation === null) return;
+      const ann = (annotations as Annotation[]).find((a) => a.id === selectedAnnotation);
+      if (!ann) return;
+      const existing = parseData(ann.data);
+      try {
+        await updateAnnotation.mutateAsync({ id: selectedAnnotation, data: JSON.stringify({ ...existing, scale: val }) });
+      } catch { toast.error("Error al guardar tamaño"); }
+    }, 400);
+  }, [selectedAnnotation, annotations, updateAnnotation]);
+
   const handleAnnotationMove = useCallback(async (id: number, x: string, y: string) => {
     try {
       await updateAnnotation.mutateAsync({ id, x, y });
@@ -480,7 +532,11 @@ export default function FloorPlanViewer() {
 
   // ── Dismiss selection on canvas click ────────────────────────────────────
   const handleCanvasBgClick = useCallback(() => {
-    if (!selectedTool) setSelectedAnnotation(null);
+    if (!selectedTool) {
+      setSelectedAnnotation(null);
+      setLocalRotation(0);
+      setLocalScale(1);
+    }
   }, [selectedTool]);
 
   // ── Loading / not found ───────────────────────────────────────────────────
@@ -737,6 +793,80 @@ export default function FloorPlanViewer() {
               </div>
             </div>
           </div>
+
+          {/* Selected annotation controls */}
+          {selectedAnnotation !== null && (() => {
+            const ann = (annotations as Annotation[]).find((a) => a.id === selectedAnnotation);
+            if (!ann) return null;
+            const color = ann.color ?? "#6366f1";
+            return (
+              <div className="px-3 py-3 border-t" style={{ borderColor: "#2e3340" }}>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">Editar marcador</p>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+                  <span className="text-xs text-gray-300 truncate">{ann.label || ann.type}</span>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-gray-400">Rotación</label>
+                    <span className="text-[10px] font-mono text-blue-300">{localRotation}°</span>
+                  </div>
+                  <input
+                    type="range" min={0} max={359} step={1}
+                    value={localRotation}
+                    onChange={(e) => handleRotationChange(parseInt(e.target.value))}
+                    className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                    style={{ accentColor: color }}
+                  />
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+                      <button
+                        key={deg}
+                        onClick={() => handleRotationChange(deg)}
+                        className="text-[9px] px-1.5 py-0.5 rounded transition-colors"
+                        style={{
+                          background: localRotation === deg ? color + "44" : "#2e3340",
+                          color: localRotation === deg ? color : "#9ca3af",
+                          border: `1px solid ${localRotation === deg ? color + "66" : "transparent"}`,
+                        }}
+                      >
+                        {deg}°
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-3 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-gray-400">Tamaño</label>
+                    <span className="text-[10px] font-mono text-blue-300">{Math.round(localScale * 100)}%</span>
+                  </div>
+                  <input
+                    type="range" min={0.3} max={4} step={0.1}
+                    value={localScale}
+                    onChange={(e) => handleScaleChange(parseFloat(e.target.value))}
+                    className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                    style={{ accentColor: color }}
+                  />
+                  <div className="flex gap-1 mt-1">
+                    {[0.5, 1, 1.5, 2, 3].map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => handleScaleChange(s)}
+                        className="text-[9px] px-1.5 py-0.5 rounded transition-colors"
+                        style={{
+                          background: Math.abs(localScale - s) < 0.05 ? color + "44" : "#2e3340",
+                          color: Math.abs(localScale - s) < 0.05 ? color : "#9ca3af",
+                          border: `1px solid ${Math.abs(localScale - s) < 0.05 ? color + "66" : "transparent"}`,
+                        }}
+                      >
+                        {s}×
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Bottom info */}
           <div className="px-3 py-2 border-t text-xs" style={{ borderColor: "#2e3340" }}>
