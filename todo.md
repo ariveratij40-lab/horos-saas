@@ -340,3 +340,10 @@
 - [x] Frontend: indicador de carga mientras la IA procesa el documento
 - [x] Frontend: resaltado visual de los campos autollenados para que el usuario pueda revisarlos
 - [x] Frontend: posibilidad de editar cualquier campo autollenado antes de guardar
+
+## Pólizas - Vista Previa del Documento junto al Formulario
+- [x] Frontend: rediseñar CreatePolicyDialog con layout de dos columnas (documento | formulario)
+- [x] Frontend: panel izquierdo muestra imagen directamente con zoom/pan
+- [x] Frontend: panel izquierdo muestra PDF embebido con iframe o visor nativo del navegador
+- [x] Frontend: el diálogo se expande a pantalla completa cuando hay documento cargado
+- [x] Frontend: botón para quitar el documento y volver al layout de una columna
