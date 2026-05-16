@@ -5,6 +5,8 @@ import {
   floorPlans,
   floorPlanLayers,
   floorPlanAnnotations,
+  floorPlanVersions,
+  floorPlanShares,
 } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { storagePut } from "../storage";
@@ -371,6 +373,190 @@ export const floorPlanAnnotationsRouter = router({
             eq(floorPlanAnnotations.tenantId, tenantId)
           )
         );
+      return { success: true };
+    }),
+});
+
+// ─── FLOOR PLAN VERSIONS ─────────────────────────────────────────────────────
+export const floorPlanVersionsRouter = router({
+  list: protectedProcedure
+    .input(z.object({ planId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const tenantId = ctx.user.tenantId ?? 1;
+      return db
+        .select()
+        .from(floorPlanVersions)
+        .where(and(eq(floorPlanVersions.planId, input.planId), eq(floorPlanVersions.tenantId, tenantId)))
+        .orderBy(floorPlanVersions.createdAt);
+    }),
+
+  create: protectedProcedure
+    .input(z.object({
+      planId: z.number(),
+      name: z.string().min(1),
+      description: z.string().optional(),
+      layers: z.string(),                  // JSON array de tipos de capa incluidos
+      annotationsSnapshot: z.string(),     // JSON snapshot de anotaciones
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const tenantId = ctx.user.tenantId ?? 1;
+      const [result] = await db.insert(floorPlanVersions).values({
+        ...input,
+        tenantId,
+        createdBy: ctx.user.id,
+      });
+      return { id: (result as { insertId: number }).insertId };
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const tenantId = ctx.user.tenantId ?? 1;
+      await db.delete(floorPlanVersions).where(
+        and(eq(floorPlanVersions.id, input.id), eq(floorPlanVersions.tenantId, tenantId))
+      );
+      return { success: true };
+    }),
+
+  restore: protectedProcedure
+    .input(z.object({ versionId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const tenantId = ctx.user.tenantId ?? 1;
+      const [version] = await db
+        .select()
+        .from(floorPlanVersions)
+        .where(and(eq(floorPlanVersions.id, input.versionId), eq(floorPlanVersions.tenantId, tenantId)));
+      if (!version) throw new TRPCError({ code: "NOT_FOUND" });
+      // Devolver el snapshot para que el cliente lo aplique
+      return { annotationsSnapshot: version.annotationsSnapshot, layers: version.layers };
+    }),
+});
+
+// ─── FLOOR PLAN SHARES ───────────────────────────────────────────────────────
+import crypto from "crypto";
+
+export const floorPlanSharesRouter = router({
+  list: protectedProcedure
+    .input(z.object({ planId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const tenantId = ctx.user.tenantId ?? 1;
+      return db
+        .select()
+        .from(floorPlanShares)
+        .where(and(eq(floorPlanShares.planId, input.planId), eq(floorPlanShares.tenantId, tenantId)))
+        .orderBy(floorPlanShares.createdAt);
+    }),
+
+  create: protectedProcedure
+    .input(z.object({
+      planId: z.number(),
+      name: z.string().optional(),
+      layers: z.string().optional(),        // JSON array de tipos de capa visibles
+      expiresInDays: z.number().optional(), // null = no expira
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const tenantId = ctx.user.tenantId ?? 1;
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = input.expiresInDays
+        ? new Date(Date.now() + input.expiresInDays * 86400000)
+        : null;
+      const [result] = await db.insert(floorPlanShares).values({
+        planId: input.planId,
+        tenantId,
+        token,
+        name: input.name,
+        layers: input.layers,
+        expiresAt: expiresAt ?? undefined,
+        createdBy: ctx.user.id,
+      });
+      return { id: (result as { insertId: number }).insertId, token };
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const tenantId = ctx.user.tenantId ?? 1;
+      await db.delete(floorPlanShares).where(
+        and(eq(floorPlanShares.id, input.id), eq(floorPlanShares.tenantId, tenantId))
+      );
+      return { success: true };
+    }),
+
+  // Endpoint público: obtener plano por token (sin autenticación)
+  getByToken: protectedProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [share] = await db
+        .select()
+        .from(floorPlanShares)
+        .where(eq(floorPlanShares.token, input.token));
+      if (!share) throw new TRPCError({ code: "NOT_FOUND" });
+      if (share.expiresAt && share.expiresAt < new Date()) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "El enlace ha expirado" });
+      }
+      // Incrementar contador de vistas
+      await db.update(floorPlanShares)
+        .set({ viewCount: (share.viewCount ?? 0) + 1 })
+        .where(eq(floorPlanShares.id, share.id));
+      // Obtener el plano y sus anotaciones
+      const [plan] = await db.select().from(floorPlans).where(eq(floorPlans.id, share.planId));
+      if (!plan) throw new TRPCError({ code: "NOT_FOUND" });
+      const annotations = await db
+        .select()
+        .from(floorPlanAnnotations)
+        .where(eq(floorPlanAnnotations.planId, share.planId));
+      return { share, plan, annotations };
+    }),
+
+  sendEmail: protectedProcedure
+    .input(z.object({
+      planId: z.number(),
+      to: z.string().email(),
+      subject: z.string().optional(),
+      message: z.string().optional(),
+      shareToken: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const tenantId = ctx.user.tenantId ?? 1;
+      const [plan] = await db.select().from(floorPlans)
+        .where(and(eq(floorPlans.id, input.planId), eq(floorPlans.tenantId, tenantId)));
+      if (!plan) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Usar el sistema de notificaciones del owner como canal de email
+      const { notifyOwner } = await import("../_core/notification");
+      const shareUrl = input.shareToken
+        ? `${(process.env.VITE_OAUTH_PORTAL_URL ?? "").replace("oauth.", "")}/floor-plans/shared/${input.shareToken}`
+        : "";
+      const body = [
+        `**Plano:** ${plan.name}`,
+        `**Edificio:** ${plan.building ?? "—"}  |  **Piso:** ${plan.floor ?? "—"}`,
+        input.message ? `\n**Mensaje:**\n${input.message}` : "",
+        shareUrl ? `\n**Enlace de visualización:** ${shareUrl}` : "",
+        `\n*Enviado desde HOROS SaaS por ${ctx.user.name ?? ctx.user.email}*`,
+      ].filter(Boolean).join("\n");
+
+      await notifyOwner({
+        title: input.subject ?? `Plano compartido: ${plan.name}`,
+        content: `Para: ${input.to}\n\n${body}`,
+      });
       return { success: true };
     }),
 });

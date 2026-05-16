@@ -1593,6 +1593,24 @@ export default function FloorPlanViewer() {
   const updatePlan = trpc.floorPlans.update.useMutation({
     onSuccess: () => utils.floorPlans.getById.invalidate({ id: planId }),
   });
+  const createVersion = trpc.floorPlanVersions.create.useMutation({
+    onSuccess: () => { toast.success("Versión guardada"); setSaveVersionOpen(false); setVersionName(""); setVersionDesc(""); setVersionLayers([]); utils.floorPlanVersions.list.invalidate({ planId }); },
+  });
+  const deleteVersion = trpc.floorPlanVersions.delete.useMutation({
+    onSuccess: () => utils.floorPlanVersions.list.invalidate({ planId }),
+  });
+  const createShare = trpc.floorPlanShares.create.useMutation({
+    onSuccess: (data) => { setShareToken(data.token); utils.floorPlanShares.list.invalidate({ planId }); },
+  });
+  const deleteShare = trpc.floorPlanShares.delete.useMutation({
+    onSuccess: () => utils.floorPlanShares.list.invalidate({ planId }),
+  });
+  const sendEmail = trpc.floorPlanShares.sendEmail.useMutation({
+    onSuccess: () => { toast.success("Correo enviado"); setEmailOpen(false); setEmailTo(""); setEmailMessage(""); },
+    onError: (e) => toast.error(e.message),
+  });
+  const { data: versions = [] } = trpc.floorPlanVersions.list.useQuery({ planId });
+  const { data: shares = [] } = trpc.floorPlanShares.list.useQuery({ planId });
 
   // ── State ─────────────────────────────────────────────────────────────────
   const [zoom, setZoom] = useState(1);
@@ -1627,6 +1645,23 @@ export default function FloorPlanViewer() {
   const [calibPxLen, setCalibPxLen] = useState(0);
   const [editingScale, setEditingScale] = useState(false);
   const [scaleInput, setScaleInput] = useState("");
+  // ─── Nuevas funciones: exportar por capas, versiones, compartir, email, imprimir
+  const [exportLayersOpen, setExportLayersOpen] = useState(false);
+  const [exportSelectedLayers, setExportSelectedLayers] = useState<string[]>([]);
+  const [saveVersionOpen, setSaveVersionOpen] = useState(false);
+  const [versionName, setVersionName] = useState("");
+  const [versionDesc, setVersionDesc] = useState("");
+  const [versionLayers, setVersionLayers] = useState<string[]>([]);
+  const [versionsListOpen, setVersionsListOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareName, setShareName] = useState("");
+  const [shareExpireDays, setShareExpireDays] = useState<string>("0");
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const [pendingAnnotation, setPendingAnnotation] = useState<{
     x: string; y: string; icon: string; color: string; type: string; layerId: number | null;
   } | null>(null);
@@ -2034,6 +2069,73 @@ export default function FloorPlanViewer() {
     toast.success("Archivo DXF exportado");
   };
 
+  // ── Exportar por capas ────────────────────────────────────────────────────
+  const handleExportByLayers = () => {
+    const containerEl = contentRef.current;
+    const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
+    const filtered = (annotations as Annotation[]).filter((ann) => {
+      if (exportSelectedLayers.length === 0) return true;
+      return exportSelectedLayers.includes(ann.type ?? "marker");
+    });
+    const dxf = generateDXF(filtered, pdfDims, containerPx, plan?.scale);
+    const blob = new Blob([dxf], { type: "application/dxf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const layerSuffix = exportSelectedLayers.length > 0 ? `_${exportSelectedLayers.join("-")}` : "_todas";
+    a.download = `${plan?.name ?? "plano"}${layerSuffix}.dxf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`DXF exportado (${filtered.length} elementos)`);
+    setExportLayersOpen(false);
+  };
+
+  // ── Guardar versión ───────────────────────────────────────────────────────
+  const handleSaveVersion = () => {
+    if (!versionName.trim()) { toast.error("Ingresa un nombre para la versión"); return; }
+    const filtered = versionLayers.length > 0
+      ? (annotations as Annotation[]).filter((a) => versionLayers.includes(a.type ?? "marker"))
+      : (annotations as Annotation[]);
+    createVersion.mutate({
+      planId,
+      name: versionName.trim(),
+      description: versionDesc.trim() || undefined,
+      layers: JSON.stringify(versionLayers.length > 0 ? versionLayers : ["all"]),
+      annotationsSnapshot: JSON.stringify(filtered),
+    });
+  };
+
+  // ── Imprimir ──────────────────────────────────────────────────────────────
+  const handlePrint = () => { window.print(); };
+
+  // ── Compartir ─────────────────────────────────────────────────────────────
+  const handleCreateShare = () => {
+    createShare.mutate({
+      planId,
+      name: shareName.trim() || undefined,
+      expiresInDays: shareExpireDays !== "0" ? Number(shareExpireDays) : undefined,
+    });
+  };
+  const getShareUrl = (token: string) => `${window.location.origin}/floor-plans/shared/${token}`;
+  const copyShareUrl = (token: string) => {
+    navigator.clipboard.writeText(getShareUrl(token));
+    toast.success("Enlace copiado al portapapeles");
+  };
+
+  // ── Enviar por correo ─────────────────────────────────────────────────────
+  const handleSendEmail = () => {
+    if (!emailTo.trim()) { toast.error("Ingresa el correo del destinatario"); return; }
+    sendEmail.mutate({
+      planId,
+      to: emailTo.trim(),
+      subject: emailSubject.trim() || `Plano: ${plan?.name}`,
+      message: emailMessage.trim() || undefined,
+      shareToken: shareToken ?? undefined,
+    });
+  };
+
   // ── Move annotation (drag end) ────────────────────────────────────────────
   // Sync local rotation/scale when selection changes
   useEffect(() => {
@@ -2275,20 +2377,42 @@ export default function FloorPlanViewer() {
                 <ToolButton key={layer.id} active={selectedTool === `layer_${layer.id}`} onClick={() => setSelectedTool(`layer_${layer.id}`)} icon={<span>{layer.icon ?? "📍"}</span>} label={layer.label} />
               ))}
             </div>
-            {/* Export DXF */}
-            <div className="px-2 pb-2 pt-1">
-              <button
-                onClick={handleExportDXF}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
-                style={{ background: "#0ea5e922", color: "#0ea5e9", border: "1px solid #0ea5e944" }}
-                title="Exportar anotaciones a AutoCAD DXF"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <rect x="2" y="1" width="10" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-                  <path d="M5 5h4M5 7.5h4M5 10h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  <path d="M9 9l2 2M11 9l-2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                </svg>
+            {/* Acciones del plano */}
+            <div className="px-2 pb-2 pt-1 flex flex-col gap-1">
+              {/* Exportar DXF completo */}
+              <button onClick={handleExportDXF} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80" style={{ background: "#0ea5e922", color: "#0ea5e9", border: "1px solid #0ea5e944" }} title="Exportar todas las anotaciones a DXF">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M5 5h4M5 7.5h4M5 10h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
                 Exportar DXF
+              </button>
+              {/* Exportar por capas */}
+              <button onClick={() => { setExportSelectedLayers([]); setExportLayersOpen(true); }} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80" style={{ background: "#8b5cf622", color: "#a78bfa", border: "1px solid #8b5cf644" }} title="Exportar DXF filtrando por capas">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 4l5-2 5 2-5 2-5-2zM2 7l5 2 5-2M2 10l5 2 5-2" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>
+                Por capas
+              </button>
+              {/* Guardar versión */}
+              <button onClick={() => { setVersionName(""); setVersionDesc(""); setVersionLayers([]); setSaveVersionOpen(true); }} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80" style={{ background: "#10b98122", color: "#34d399", border: "1px solid #10b98144" }} title="Guardar versión del plano con nombre">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 2h8l2 2v8a1 1 0 01-1 1H3a1 1 0 01-1-1V2z" stroke="currentColor" strokeWidth="1.2"/><path d="M5 2v4h4V2M4 9h6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                Guardar versión
+              </button>
+              {/* Ver versiones */}
+              <button onClick={() => setVersionsListOpen(true)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80" style={{ background: "#f59e0b22", color: "#fbbf24", border: "1px solid #f59e0b44" }} title="Ver versiones guardadas">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.2"/><path d="M7 4v3l2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                Historial
+              </button>
+              {/* Compartir */}
+              <button onClick={() => { setShareName(""); setShareExpireDays("0"); setShareToken(null); setShareOpen(true); }} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80" style={{ background: "#06b6d422", color: "#22d3ee", border: "1px solid #06b6d444" }} title="Generar enlace público de visualización">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="11" cy="3" r="1.5" stroke="currentColor" strokeWidth="1.2"/><circle cx="11" cy="11" r="1.5" stroke="currentColor" strokeWidth="1.2"/><circle cx="3" cy="7" r="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 6.2l5-2.5M4.5 7.8l5 2.5" stroke="currentColor" strokeWidth="1.2"/></svg>
+                Compartir
+              </button>
+              {/* Enviar por correo */}
+              <button onClick={() => { setEmailTo(""); setEmailSubject(""); setEmailMessage(""); setEmailOpen(true); }} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80" style={{ background: "#ec489922", color: "#f472b6", border: "1px solid #ec489944" }} title="Enviar plano por correo electrónico">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="8" rx="1" stroke="currentColor" strokeWidth="1.2"/><path d="M1 4l6 4 6-4" stroke="currentColor" strokeWidth="1.2"/></svg>
+                Enviar correo
+              </button>
+              {/* Imprimir */}
+              <button onClick={handlePrint} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80" style={{ background: "#64748b22", color: "#94a3b8", border: "1px solid #64748b44" }} title="Imprimir plano">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M4 1h6v4H4V1z" stroke="currentColor" strokeWidth="1.2"/><path d="M1 5h12v6H1V5z" stroke="currentColor" strokeWidth="1.2"/><path d="M4 9h6M4 11h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><circle cx="11" cy="7.5" r="0.8" fill="currentColor"/></svg>
+                Imprimir
               </button>
             </div>
           </div>
@@ -3123,6 +3247,178 @@ export default function FloorPlanViewer() {
         onConfirm={handleCalibConfirm}
         onCancel={handleCalibCancel}
       />
+
+      {/* ── Exportar por capas ─────────────────────────────────────────── */}
+      <Dialog open={exportLayersOpen} onOpenChange={setExportLayersOpen}>
+        <DialogContent style={{ background: "#1a1d23", border: "1px solid #2e3340", color: "#e2e8f0" }}>
+          <DialogHeader><DialogTitle>Exportar DXF por capas</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-slate-400">Selecciona las capas a incluir en el archivo DXF. Si no seleccionas ninguna, se exportan todas.</p>
+            <div className="grid grid-cols-2 gap-2">
+              {["utp","utp-node","utp-route","ladder","connection","camera","marker"].map((t) => {
+                const count = (annotations as Annotation[]).filter((a) => (a.type ?? "marker") === t).length;
+                if (count === 0) return null;
+                const checked = exportSelectedLayers.includes(t);
+                return (
+                  <label key={t} className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs" style={{ background: checked ? "#3b82f622" : "#2e334022", border: `1px solid ${checked ? "#3b82f6" : "#2e3340"}` }}>
+                    <input type="checkbox" checked={checked} onChange={(e) => setExportSelectedLayers(e.target.checked ? [...exportSelectedLayers, t] : exportSelectedLayers.filter((x) => x !== t))} className="accent-blue-500" />
+                    <span className="capitalize">{t}</span>
+                    <span className="ml-auto text-slate-500">({count})</span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleExportByLayers} className="flex-1">Exportar DXF</Button>
+              <Button variant="outline" onClick={() => setExportLayersOpen(false)} className="flex-1">Cancelar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Guardar versión ────────────────────────────────────────────── */}
+      <Dialog open={saveVersionOpen} onOpenChange={setSaveVersionOpen}>
+        <DialogContent style={{ background: "#1a1d23", border: "1px solid #2e3340", color: "#e2e8f0" }}>
+          <DialogHeader><DialogTitle>Guardar versión del plano</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-slate-400">Nombre de la versión *</Label>
+              <Input value={versionName} onChange={(e) => setVersionName(e.target.value)} placeholder="Ej: Rev. A — Cableado UTP" style={{ background: "#2e3340", border: "1px solid #3e4450", color: "#e2e8f0" }} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs text-slate-400">Descripción (opcional)</Label>
+              <Input value={versionDesc} onChange={(e) => setVersionDesc(e.target.value)} placeholder="Notas sobre esta versión..." style={{ background: "#2e3340", border: "1px solid #3e4450", color: "#e2e8f0" }} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs text-slate-400 mb-2 block">Capas a incluir (vacío = todas)</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {["utp","utp-node","utp-route","ladder","connection","camera","marker"].map((t) => {
+                  const count = (annotations as Annotation[]).filter((a) => (a.type ?? "marker") === t).length;
+                  if (count === 0) return null;
+                  const checked = versionLayers.includes(t);
+                  return (
+                    <label key={t} className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs" style={{ background: checked ? "#10b98122" : "#2e334022", border: `1px solid ${checked ? "#10b981" : "#2e3340"}` }}>
+                      <input type="checkbox" checked={checked} onChange={(e) => setVersionLayers(e.target.checked ? [...versionLayers, t] : versionLayers.filter((x) => x !== t))} className="accent-green-500" />
+                      <span className="capitalize">{t}</span>
+                      <span className="ml-auto text-slate-500">({count})</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleSaveVersion} disabled={createVersion.isPending} className="flex-1">{createVersion.isPending ? "Guardando..." : "Guardar versión"}</Button>
+              <Button variant="outline" onClick={() => setSaveVersionOpen(false)} className="flex-1">Cancelar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Historial de versiones ─────────────────────────────────────── */}
+      <Dialog open={versionsListOpen} onOpenChange={setVersionsListOpen}>
+        <DialogContent style={{ background: "#1a1d23", border: "1px solid #2e3340", color: "#e2e8f0", maxWidth: "520px" }}>
+          <DialogHeader><DialogTitle>Historial de versiones</DialogTitle></DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+            {(versions as unknown as {id:number;name:string;description?:string|null;layers?:string|null;createdAt:Date|number}[]).length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-6">No hay versiones guardadas</p>
+            ) : (versions as unknown as {id:number;name:string;description?:string|null;layers?:string|null;createdAt:Date|number}[]).map((v) => (
+              <div key={v.id} className="flex items-start gap-3 px-3 py-2 rounded-lg" style={{ background: "#2e334088", border: "1px solid #3e4450" }}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-200 truncate">{v.name}</p>
+                  {v.description && <p className="text-xs text-slate-400 mt-0.5 truncate">{v.description}</p>}
+                  <p className="text-xs text-slate-500 mt-1">{new Date(typeof v.createdAt === 'number' ? v.createdAt : v.createdAt).toLocaleString()}</p>
+                  {v.layers && <p className="text-xs text-slate-500">Capas: {(() => { try { const l = JSON.parse(v.layers!); return l.join(", "); } catch { return v.layers; } })()}</p>}
+                </div>
+                <button onClick={() => { if (confirm("¿Eliminar esta versión?")) deleteVersion.mutate({ id: v.id }); }} className="text-red-400 hover:text-red-300 text-xs px-2 py-1 rounded" style={{ background: "#ef444422" }}>✕</button>
+              </div>
+            ))}
+          </div>
+          <Button variant="outline" onClick={() => setVersionsListOpen(false)} className="mt-2 w-full">Cerrar</Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Compartir ──────────────────────────────────────────────────── */}
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent style={{ background: "#1a1d23", border: "1px solid #2e3340", color: "#e2e8f0" }}>
+          <DialogHeader><DialogTitle>Compartir plano</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            {!shareToken ? (
+              <>
+                <div>
+                  <Label className="text-xs text-slate-400">Nombre del enlace (opcional)</Label>
+                  <Input value={shareName} onChange={(e) => setShareName(e.target.value)} placeholder="Ej: Cliente ABC — Revisión" style={{ background: "#2e3340", border: "1px solid #3e4450", color: "#e2e8f0" }} className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-400">Expiración</Label>
+                  <select value={shareExpireDays} onChange={(e) => setShareExpireDays(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg text-sm" style={{ background: "#2e3340", border: "1px solid #3e4450", color: "#e2e8f0" }}>
+                    <option value="0">Sin expiración</option>
+                    <option value="1">1 día</option>
+                    <option value="7">7 días</option>
+                    <option value="30">30 días</option>
+                    <option value="90">90 días</option>
+                  </select>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button onClick={handleCreateShare} disabled={createShare.isPending} className="flex-1">{createShare.isPending ? "Generando..." : "Generar enlace"}</Button>
+                  <Button variant="outline" onClick={() => setShareOpen(false)} className="flex-1">Cancelar</Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="p-3 rounded-lg" style={{ background: "#10b98122", border: "1px solid #10b98144" }}>
+                  <p className="text-xs text-green-400 mb-2">✓ Enlace generado</p>
+                  <p className="text-xs text-slate-300 break-all font-mono">{getShareUrl(shareToken)}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => copyShareUrl(shareToken!)} className="flex-1">Copiar enlace</Button>
+                  <Button variant="outline" onClick={() => { setEmailTo(""); setEmailSubject(`Plano: ${plan?.name}`); setEmailMessage(""); setEmailOpen(true); setShareOpen(false); }} className="flex-1">Enviar por correo</Button>
+                </div>
+                <div className="pt-1">
+                  <p className="text-xs text-slate-500 mb-2">Todos los enlaces activos:</p>
+                  {(shares as {id:number;name?:string|null;token:string;expiresAt?:number|null}[]).map((s) => (
+                    <div key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded mb-1" style={{ background: "#2e334088" }}>
+                      <span className="text-xs text-slate-300 flex-1 truncate">{s.name || getShareUrl(s.token).slice(-20)}</span>
+                      <button onClick={() => copyShareUrl(s.token)} className="text-xs text-cyan-400 hover:text-cyan-300">Copiar</button>
+                      <button onClick={() => { if (confirm("¿Revocar este enlace?")) deleteShare.mutate({ id: s.id }); }} className="text-xs text-red-400 hover:text-red-300">✕</button>
+                    </div>
+                  ))}
+                </div>
+                <Button variant="outline" onClick={() => setShareOpen(false)} className="w-full">Cerrar</Button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Enviar por correo ──────────────────────────────────────────── */}
+      <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+        <DialogContent style={{ background: "#1a1d23", border: "1px solid #2e3340", color: "#e2e8f0" }}>
+          <DialogHeader><DialogTitle>Enviar plano por correo</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-slate-400">Para *</Label>
+              <Input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="correo@ejemplo.com" style={{ background: "#2e3340", border: "1px solid #3e4450", color: "#e2e8f0" }} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs text-slate-400">Asunto</Label>
+              <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder={`Plano: ${plan?.name}`} style={{ background: "#2e3340", border: "1px solid #3e4450", color: "#e2e8f0" }} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs text-slate-400">Mensaje (opcional)</Label>
+              <textarea value={emailMessage} onChange={(e) => setEmailMessage(e.target.value)} placeholder="Mensaje adicional..." rows={3} className="w-full mt-1 px-3 py-2 rounded-lg text-sm resize-none" style={{ background: "#2e3340", border: "1px solid #3e4450", color: "#e2e8f0" }} />
+            </div>
+            {shareToken && (
+              <div className="p-2 rounded-lg text-xs" style={{ background: "#06b6d422", border: "1px solid #06b6d444" }}>
+                <span className="text-cyan-400">✓ Se incluirá el enlace de visualización en el correo</span>
+              </div>
+            )}
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleSendEmail} disabled={sendEmail.isPending} className="flex-1">{sendEmail.isPending ? "Enviando..." : "Enviar correo"}</Button>
+              <Button variant="outline" onClick={() => setEmailOpen(false)} className="flex-1">Cancelar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

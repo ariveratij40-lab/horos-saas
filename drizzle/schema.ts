@@ -909,3 +909,34 @@ export const floorPlanAnnotations = mysqlTable("floor_plan_annotations", {
 });
 export type FloorPlanAnnotation = typeof floorPlanAnnotations.$inferSelect;
 export type InsertFloorPlanAnnotation = typeof floorPlanAnnotations.$inferInsert;
+
+// ─── FLOOR PLAN VERSIONS ─────────────────────────────────────────────────────
+export const floorPlanVersions = mysqlTable("floor_plan_versions", {
+  id: int("id").autoincrement().primaryKey(),
+  planId: int("planId").notNull(),
+  tenantId: int("tenantId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),          // nombre de la versión
+  description: text("description"),                           // notas opcionales
+  layers: text("layers").notNull(),                           // JSON: array de tipos de capa incluidos
+  annotationsSnapshot: text("annotationsSnapshot").notNull(), // JSON: snapshot de anotaciones
+  createdBy: int("createdBy"),                                // userId
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type FloorPlanVersion = typeof floorPlanVersions.$inferSelect;
+export type InsertFloorPlanVersion = typeof floorPlanVersions.$inferInsert;
+
+// ─── FLOOR PLAN SHARES ───────────────────────────────────────────────────────
+export const floorPlanShares = mysqlTable("floor_plan_shares", {
+  id: int("id").autoincrement().primaryKey(),
+  planId: int("planId").notNull(),
+  tenantId: int("tenantId").notNull(),
+  token: varchar("token", { length: 64 }).notNull().unique(), // token público
+  name: varchar("name", { length: 255 }),                    // nombre del share
+  layers: text("layers"),                                     // JSON: capas visibles (null = todas)
+  expiresAt: timestamp("expiresAt"),                          // null = no expira
+  viewCount: int("viewCount").default(0),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type FloorPlanShare = typeof floorPlanShares.$inferSelect;
+export type InsertFloorPlanShare = typeof floorPlanShares.$inferInsert;

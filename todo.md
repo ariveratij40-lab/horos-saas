@@ -428,3 +428,10 @@
 - [x] Frontend: entrada "Planos" en la sección Operaciones del sidebar con ícono Map
 - [x] Rutas registradas en App.tsx (/floor-plans y /floor-plans/:id)
 - [x] 0 errores TypeScript, 41 pruebas pasando
+
+## Módulo de Planos — Exportar/Compartir/Imprimir (Mayo 2026)
+- [ ] Exportar plano por capas: diálogo para seleccionar qué capas incluir en el DXF
+- [ ] Guardar versión del plano con nombre personalizado (tabla floor_plan_versions en BD)
+- [ ] Imprimir plano: generar PDF con anotaciones visibles usando html2canvas + jsPDF
+- [ ] Compartir plano: generar link público con token (tabla floor_plan_shares en BD)
+- [ ] Enviar plano por correo: formulario con destinatario + mensaje + adjunto DXF/PDF

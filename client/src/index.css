@@ -231,3 +231,38 @@
   /* Button active state */
   button:active { transform: scale(0.97); }
 }
+
+/* ── Estilos de impresión del visor de planos ─────────────────────────── */
+@media print {
+  /* Ocultar todo excepto el visor de planos */
+  body > *:not(#root) { display: none !important; }
+  .print-hide,
+  nav, header, aside,
+  [class*="sidebar"],
+  [class*="toolbar"],
+  [class*="DashboardLayout"] > *:not([class*="content"]) {
+    display: none !important;
+  }
+  /* El contenedor del plano ocupa toda la página */
+  .floor-plan-print-area {
+    position: fixed !important;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100vw !important;
+    height: 100vh !important;
+    overflow: visible !important;
+    page-break-inside: avoid;
+  }
+  /* Forzar fondo blanco para impresión */
+  .floor-plan-canvas-container {
+    background: white !important;
+  }
+  /* Ocultar controles del visor */
+  .floor-plan-controls,
+  .floor-plan-status-bar {
+    display: none !important;
+  }
+  @page {
+    margin: 0.5cm;
+    size: A3 landscape;
+  }
+}

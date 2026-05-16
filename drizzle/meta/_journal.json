@@ -141,6 +141,13 @@
       "when": 1778936157268,
       "tag": "0019_lazy_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1778939447775,
+      "tag": "0020_ambitious_smasher",
+      "breakpoints": true
     }
   ]
 }
