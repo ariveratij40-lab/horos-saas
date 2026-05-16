@@ -347,25 +347,28 @@ function WeeklyScheduleView({
                         >{item.observations || <span className="text-muted-foreground/50 italic">—</span>}</span>
                       )}
                     </td>
-                    {/* Day columns - mark scheduled days */}
+                    {/* Day columns - mark scheduled dates */}
                     {weekDays.map((d, di) => {
-                      // weekDays[0]=Mon(1), [1]=Tue(2)... [6]=Sun(7)
                       const dayNum = di + 1; // 1=Lun...7=Dom
-                      const scheduledDays = (item.scheduledDays ?? "").split(",").filter(Boolean).map(Number);
-                      const isScheduled = scheduledDays.includes(dayNum);
+                      const dateStr = d.toISOString().split("T")[0];
+                      // Check both exact dates (scheduledDates) and day-of-week (scheduledDays)
+                      const scheduledDates = (item.scheduledDates ?? "").split(",").filter(Boolean);
+                      const scheduledDayNums = (item.scheduledDays ?? "").split(",").filter(Boolean).map(Number);
+                      const isScheduled = scheduledDates.includes(dateStr) || scheduledDayNums.includes(dayNum);
                       return (
                         <td key={d.toISOString()} className={cn(
                           "px-2 py-2 text-center border-l border-border/20 w-16 cursor-pointer transition-colors",
                           isScheduled ? "bg-blue-100" : "hover:bg-muted/30",
                         )}
                           onClick={() => {
-                            const current = (item.scheduledDays ?? "").split(",").filter(Boolean).map(Number);
-                            const updated = current.includes(dayNum)
-                              ? current.filter((x: number) => x !== dayNum)
-                              : [...current, dayNum].sort();
+                            // Toggle exact date
+                            const current = (item.scheduledDates ?? "").split(",").filter(Boolean);
+                            const updated = current.includes(dateStr)
+                              ? current.filter((x: string) => x !== dateStr)
+                              : [...current, dateStr].sort();
                             const newVal = updated.join(",");
-                            updateItem.mutate({ id: item.id, scheduledDays: newVal });
-                            setLocalItems((prev) => prev.map((it) => it.id === item.id ? { ...it, scheduledDays: newVal } : it));
+                            updateItem.mutate({ id: item.id, scheduledDates: newVal });
+                            setLocalItems((prev) => prev.map((it) => it.id === item.id ? { ...it, scheduledDates: newVal } : it));
                           }}
                         >
                           {isScheduled && (
@@ -899,10 +902,14 @@ function NewProgramDialog({
     if (!form.name.trim()) { toast.error("El nombre es obligatorio"); return; }
     if (!form.startDate || !form.endDate) { toast.error("Las fechas son obligatorias"); return; }
     if (selectedItems.length === 0) { toast.error("Selecciona al menos un equipo"); return; }
-    const itemsWithDays = selectedItems.map((item) => ({
-      ...item,
-      scheduledDays: itemScheduledDays[`${item.category}-${item.itemId}`] ?? "",
-    }));
+    const itemsWithDays = selectedItems.map((item) => {
+      const itemKey = `${item.category}-${item.itemId}`;
+      return {
+        ...item,
+        scheduledDays: itemScheduledDays[itemKey] ?? "",
+        scheduledDates: itemScheduledDays[`${itemKey}_dates`] ?? "",
+      };
+    });
     onSave({ ...form, policyId: form.policyId ? Number(form.policyId) : undefined, items: itemsWithDays, programYear: form.programYear || undefined });
   };
 

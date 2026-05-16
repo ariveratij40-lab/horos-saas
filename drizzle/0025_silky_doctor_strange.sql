@@ -1,0 +1,1 @@
+ALTER TABLE `cctv_maintenance_program_items` ADD `scheduledDates` text;

@@ -237,6 +237,7 @@ export const cctvMaintenanceProgramsRouter = router({
             observations: z.string().optional(),
             sortOrder: z.number().int().optional(),
             scheduledDays: z.string().optional(), // "1,3,5" comma-separated day numbers
+            scheduledDates: z.string().optional(), // "2026-05-11,2026-05-13" exact dates
           }),
         ),
         // Whether to auto-generate scheduled log entries
@@ -292,6 +293,7 @@ export const cctvMaintenanceProgramsRouter = router({
               observations: item.observations ?? null,
               sortOrder: item.sortOrder ?? idx,
               scheduledDays: item.scheduledDays ?? null,
+              scheduledDates: item.scheduledDates ?? null,
             };
           }),
         );
@@ -409,6 +411,7 @@ export const cctvMaintenanceProgramsRouter = router({
         observations: z.string().optional(),
         sortOrder: z.number().int().optional(),
         scheduledDays: z.string().optional(),
+        scheduledDates: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -423,6 +426,7 @@ export const cctvMaintenanceProgramsRouter = router({
       if (rest.observations !== undefined) updateData.observations = rest.observations;
       if (rest.sortOrder !== undefined) updateData.sortOrder = rest.sortOrder;
       if (rest.scheduledDays !== undefined) updateData.scheduledDays = rest.scheduledDays;
+      if (rest.scheduledDates !== undefined) updateData.scheduledDates = rest.scheduledDates;
       await db
         .update(cctvMaintenanceProgramItems)
         .set(updateData)

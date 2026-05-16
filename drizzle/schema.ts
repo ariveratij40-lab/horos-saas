@@ -853,6 +853,7 @@ export const cctvMaintenanceProgramItems = mysqlTable("cctv_maintenance_program_
   observations: text("observations"),               // Observaciones
   sortOrder: int("sortOrder").default(0),            // Orden en la tabla
   scheduledDays: varchar("scheduledDays", { length: 50 }), // Días asignados ej: "1,3,5" (0=dom,1=lun...6=sab)
+  scheduledDates: text("scheduledDates"), // Fechas exactas seleccionadas ej: "2026-05-11,2026-05-13"
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type CctvMaintenanceProgramItem = typeof cctvMaintenanceProgramItems.$inferSelect;
