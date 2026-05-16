@@ -218,6 +218,8 @@ export const cctvMaintenanceProgramsRouter = router({
         startDate: z.string(),
         endDate: z.string(),
         technician: z.string().optional(),
+        schedule: z.string().optional(),
+        visitWeekStart: z.string().optional(),
         // Equipment items to include
         items: z.array(
           z.object({
@@ -225,6 +227,11 @@ export const cctvMaintenanceProgramsRouter = router({
             itemId: z.number(),
             itemName: z.string().optional(),
             itemLocation: z.string().optional(),
+            area: z.string().optional(),
+            requiresLift: z.boolean().optional(),
+            noTechnicians: z.number().int().optional(),
+            observations: z.string().optional(),
+            sortOrder: z.number().int().optional(),
           }),
         ),
         // Whether to auto-generate scheduled log entries
@@ -248,6 +255,8 @@ export const cctvMaintenanceProgramsRouter = router({
         startDate: toDate(input.startDate) as Date,
         endDate: toDate(input.endDate) as Date,
         technician: input.technician ?? null,
+        schedule: input.schedule ?? null,
+        visitWeekStart: input.visitWeekStart ? toDate(input.visitWeekStart) as Date : null,
         status: "active",
         createdByUserId: ctx.user.id,
         createdByUserName: ctx.user.name ?? ctx.user.email ?? null,
@@ -257,13 +266,18 @@ export const cctvMaintenanceProgramsRouter = router({
       // Insert items
       if (input.items.length > 0) {
         await db.insert(cctvMaintenanceProgramItems).values(
-          input.items.map((item) => ({
+          input.items.map((item, idx) => ({
             programId,
             tenantId,
             category: item.category,
             itemId: item.itemId,
             itemName: item.itemName ?? null,
             itemLocation: item.itemLocation ?? null,
+            area: item.area ?? null,
+            requiresLift: item.requiresLift ?? false,
+            noTechnicians: item.noTechnicians ?? 1,
+            observations: item.observations ?? null,
+            sortOrder: item.sortOrder ?? idx,
           })),
         );
       }
@@ -337,6 +351,64 @@ export const cctvMaintenanceProgramsRouter = router({
         .update(cctvMaintenancePrograms)
         .set(updateData)
         .where(and(eq(cctvMaintenancePrograms.id, id), eq(cctvMaintenancePrograms.tenantId, tenantId)));
+      return { success: true };
+    }),
+
+  // ── UPDATE PROGRAM SCHEDULE FIELDS ──────────────────────────────────────────
+  updateSchedule: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        schedule: z.string().optional(),
+        visitWeekStart: z.string().optional(),
+        technician: z.string().optional(),
+        status: z.enum(["active", "completed", "cancelled"]).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const tenantId = ctx.user.tenantId ?? 1;
+      const { id, visitWeekStart, ...rest } = input;
+      const updateData: Record<string, unknown> = {};
+      if (rest.schedule !== undefined) updateData.schedule = rest.schedule;
+      if (rest.technician !== undefined) updateData.technician = rest.technician;
+      if (rest.status !== undefined) updateData.status = rest.status;
+      if (visitWeekStart !== undefined) updateData.visitWeekStart = visitWeekStart ? toDate(visitWeekStart) : null;
+      await db
+        .update(cctvMaintenancePrograms)
+        .set(updateData)
+        .where(and(eq(cctvMaintenancePrograms.id, id), eq(cctvMaintenancePrograms.tenantId, tenantId)));
+      return { success: true };
+    }),
+
+  // ── UPDATE PROGRAM ITEM ────────────────────────────────────────────────────
+  updateItem: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        area: z.string().optional(),
+        requiresLift: z.boolean().optional(),
+        noTechnicians: z.number().int().optional(),
+        observations: z.string().optional(),
+        sortOrder: z.number().int().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const tenantId = ctx.user.tenantId ?? 1;
+      const { id, ...rest } = input;
+      const updateData: Record<string, unknown> = {};
+      if (rest.area !== undefined) updateData.area = rest.area;
+      if (rest.requiresLift !== undefined) updateData.requiresLift = rest.requiresLift;
+      if (rest.noTechnicians !== undefined) updateData.noTechnicians = rest.noTechnicians;
+      if (rest.observations !== undefined) updateData.observations = rest.observations;
+      if (rest.sortOrder !== undefined) updateData.sortOrder = rest.sortOrder;
+      await db
+        .update(cctvMaintenanceProgramItems)
+        .set(updateData)
+        .where(and(eq(cctvMaintenanceProgramItems.id, id), eq(cctvMaintenanceProgramItems.tenantId, tenantId)));
       return { success: true };
     }),
 

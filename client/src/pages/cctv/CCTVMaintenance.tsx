@@ -82,9 +82,296 @@ function CoverageBar({ used, total, isUnlimited }: { used: number; total: number
   );
 }
 
+// ─── Weekly Schedule View ────────────────────────────────────────────────────
+function WeeklyScheduleView({
+  programs, scheduleProgId, setScheduleProgId,
+  scheduleWeekStart, setScheduleWeekStart,
+  scheduleHorario, setScheduleHorario,
+  editingItemId, setEditingItemId,
+  editingField, setEditingField,
+  updateItem, updateSchedule,
+}: {
+  programs: any[];
+  scheduleProgId: number | null;
+  setScheduleProgId: (v: number | null) => void;
+  scheduleWeekStart: string;
+  setScheduleWeekStart: (v: string) => void;
+  scheduleHorario: string;
+  setScheduleHorario: (v: string) => void;
+  editingItemId: number | null;
+  setEditingItemId: (v: number | null) => void;
+  editingField: string | null;
+  setEditingField: (v: string | null) => void;
+  updateItem: any;
+  updateSchedule: any;
+}) {
+  const selectedProg = programs.find((p: any) => p.id === scheduleProgId) ?? programs[0] ?? null;
+  const items: any[] = selectedProg?.items ?? [];
+
+  // Build week days from weekStart
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(scheduleWeekStart + "T12:00:00");
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+  const DAY_NAMES = ["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "SABADO", "DOMINGO"];
+  const MONTH_NAMES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+  const formatShort = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(2)}`;
+  const monthLabel = selectedProg?.startDate
+    ? (() => { const d = new Date(selectedProg.startDate + "T12:00:00"); return `${MONTH_NAMES[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`; })()
+    : `${MONTH_NAMES[weekDays[0].getMonth()]}-${String(weekDays[0].getFullYear()).slice(2)}`;
+
+  const [localItems, setLocalItems] = useState<any[]>(items);
+  const [editValues, setEditValues] = useState<Record<string, string>>({});
+
+  // Sync when program changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  if (localItems.length !== items.length && items.length > 0) { setLocalItems(items); }
+
+  const startEdit = (itemId: number, field: string, currentVal: string) => {
+    setEditingItemId(itemId);
+    setEditingField(field);
+    setEditValues((v) => ({ ...v, [`${itemId}_${field}`]: currentVal ?? "" }));
+  };
+
+  const commitEdit = (itemId: number, field: string) => {
+    const val = editValues[`${itemId}_${field}`] ?? "";
+    const payload: any = { id: itemId };
+    if (field === "area") payload.area = val;
+    if (field === "observations") payload.observations = val;
+    if (field === "noTechnicians") payload.noTechnicians = parseInt(val) || 1;
+    if (field === "requiresLift") payload.requiresLift = val === "SI";
+    updateItem.mutate(payload);
+    setEditingItemId(null);
+    setEditingField(null);
+    // Optimistic update
+    setLocalItems((prev) => prev.map((it) => it.id === itemId ? { ...it, [field]: field === "noTechnicians" ? parseInt(val) || 1 : field === "requiresLift" ? val === "SI" : val } : it));
+  };
+
+  const prevWeek = () => {
+    const d = new Date(scheduleWeekStart + "T12:00:00");
+    d.setDate(d.getDate() - 7);
+    setScheduleWeekStart(d.toISOString().split("T")[0]);
+  };
+  const nextWeek = () => {
+    const d = new Date(scheduleWeekStart + "T12:00:00");
+    d.setDate(d.getDate() + 7);
+    setScheduleWeekStart(d.toISOString().split("T")[0]);
+  };
+
+  if (programs.length === 0) {
+    return (
+      <Card className="border-border/50">
+        <CardContent className="py-16 text-center">
+          <ListChecks className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
+          <p className="text-muted-foreground">No hay programas de mantenimiento para mostrar</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground font-medium">Programa</label>
+          <Select value={String(scheduleProgId ?? selectedProg?.id ?? "")} onValueChange={(v) => setScheduleProgId(Number(v))}>
+            <SelectTrigger className="w-64 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {programs.map((p: any) => (
+                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground font-medium">Semana</label>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" className="h-8 px-2" onClick={prevWeek}>‹</Button>
+            <Input type="date" value={scheduleWeekStart} onChange={(e) => setScheduleWeekStart(e.target.value)} className="h-8 text-sm w-36" />
+            <Button variant="outline" size="sm" className="h-8 px-2" onClick={nextWeek}>›</Button>
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground font-medium">Horario</label>
+          <Input value={scheduleHorario} onChange={(e) => setScheduleHorario(e.target.value)} className="h-8 text-sm w-44" placeholder="8:00AM - 5:00 PM" />
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-lg border border-border/50 bg-card">
+        <table className="w-full text-xs border-collapse" style={{ minWidth: 900 }}>
+          <thead>
+            {/* Row 1: Program header */}
+            <tr className="bg-muted/60 border-b border-border">
+              <td colSpan={3} className="px-3 py-2 font-bold text-sm text-foreground border-r border-border">
+                {selectedProg?.name ?? "—"}
+              </td>
+              <td colSpan={2} className="px-3 py-2 border-r border-border">
+                <span className="font-semibold">INICIO</span> <span className="ml-1">{selectedProg?.startDate ? formatShort(new Date(selectedProg.startDate + "T12:00:00")) : "—"}</span>
+                <span className="font-semibold ml-3">FIN</span> <span className="ml-1">{selectedProg?.endDate ? formatShort(new Date(selectedProg.endDate + "T12:00:00")) : "—"}</span>
+              </td>
+              <td colSpan={2} className="px-3 py-2 border-r border-border"></td>
+              {DAY_NAMES.map((d) => (
+                <td key={d} className="px-2 py-2 text-center font-semibold border-l border-border">{d}</td>
+              ))}
+            </tr>
+            {/* Row 2: Month + horario */}
+            <tr className="bg-muted/40 border-b border-border">
+              <td className="px-3 py-1.5 font-semibold border-r border-border">MES</td>
+              <td colSpan={2} className="px-3 py-1.5 border-r border-border">{monthLabel}</td>
+              <td colSpan={2} className="px-3 py-1.5 border-r border-border">
+                <span className="font-semibold">HORARIO:</span> <span className="ml-1">{scheduleHorario}</span>
+              </td>
+              <td colSpan={2} className="px-3 py-1.5 border-r border-border"></td>
+              {weekDays.map((d) => (
+                <td key={d.toISOString()} className="px-2 py-1.5 text-center border-l border-border text-muted-foreground">
+                  {formatShort(d)}
+                </td>
+              ))}
+            </tr>
+            {/* Row 3: Column headers */}
+            <tr className="bg-muted/30 border-b border-border">
+              <th className="px-3 py-2 text-left font-semibold border-r border-border">CANT.</th>
+              <th className="px-3 py-2 text-left font-semibold border-r border-border">NOMBRE</th>
+              <th className="px-3 py-2 text-left font-semibold border-r border-border">TIPO DE EQUIPO</th>
+              <th className="px-3 py-2 text-left font-semibold border-r border-border">AREA</th>
+              <th className="px-3 py-2 text-center font-semibold border-r border-border">CARRITO ELEVADOR</th>
+              <th className="px-3 py-2 text-center font-semibold border-r border-border">NO TÉCNICOS</th>
+              <th className="px-3 py-2 text-left font-semibold border-r border-border">OBSERVACIONES</th>
+              {weekDays.map((d) => (
+                <td key={d.toISOString()} className="px-2 py-2 text-center border-l border-border text-muted-foreground font-semibold">
+                  {String(d.getDate()).padStart(2, "0")}/{String(d.getMonth() + 1).padStart(2, "0")}/{String(d.getFullYear()).slice(2)}
+                </td>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {localItems.length === 0 ? (
+              <tr>
+                <td colSpan={14} className="px-4 py-10 text-center text-muted-foreground">
+                  <p>No hay equipos en este programa</p>
+                </td>
+              </tr>
+            ) : (
+              localItems.map((item: any, idx: number) => {
+                const isEditingArea = editingItemId === item.id && editingField === "area";
+                const isEditingObs = editingItemId === item.id && editingField === "observations";
+                const isEditingTech = editingItemId === item.id && editingField === "noTechnicians";
+                const isEditingLift = editingItemId === item.id && editingField === "requiresLift";
+                const rowBg = idx % 2 === 0 ? "bg-background" : "bg-muted/10";
+                return (
+                  <tr key={item.id} className={cn(rowBg, "border-b border-border/30 hover:bg-blue-50/30 transition-colors")}>
+                    <td className="px-3 py-2 text-center border-r border-border/30 font-medium">1</td>
+                    <td className="px-3 py-2 border-r border-border/30 font-medium">{item.itemName ?? `Equipo #${item.itemId}`}</td>
+                    <td className="px-3 py-2 border-r border-border/30 text-muted-foreground">{CATEGORY_LABEL[item.category] ?? item.category}</td>
+                    {/* Area - editable */}
+                    <td className="px-2 py-1 border-r border-border/30 min-w-[90px]">
+                      {isEditingArea ? (
+                        <input
+                          autoFocus
+                          className="w-full border border-blue-400 rounded px-1 py-0.5 text-xs bg-white"
+                          value={editValues[`${item.id}_area`] ?? ""}
+                          onChange={(e) => setEditValues((v) => ({ ...v, [`${item.id}_area`]: e.target.value }))}
+                          onBlur={() => commitEdit(item.id, "area")}
+                          onKeyDown={(e) => { if (e.key === "Enter") commitEdit(item.id, "area"); if (e.key === "Escape") { setEditingItemId(null); setEditingField(null); } }}
+                        />
+                      ) : (
+                        <span
+                          className="cursor-pointer hover:bg-blue-100 rounded px-1 py-0.5 block"
+                          onClick={() => startEdit(item.id, "area", item.area ?? "")}
+                        >{item.area || <span className="text-muted-foreground/50 italic">—</span>}</span>
+                      )}
+                    </td>
+                    {/* Carrito elevador - editable */}
+                    <td className="px-2 py-1 border-r border-border/30 text-center">
+                      {isEditingLift ? (
+                        <select
+                          autoFocus
+                          className="border border-blue-400 rounded px-1 py-0.5 text-xs bg-white"
+                          value={editValues[`${item.id}_requiresLift`] ?? (item.requiresLift ? "SI" : "NO")}
+                          onChange={(e) => setEditValues((v) => ({ ...v, [`${item.id}_requiresLift`]: e.target.value }))}
+                          onBlur={() => commitEdit(item.id, "requiresLift")}
+                        >
+                          <option value="NO">NO</option>
+                          <option value="SI">SI</option>
+                        </select>
+                      ) : (
+                        <span
+                          className="cursor-pointer hover:bg-blue-100 rounded px-1 py-0.5 block text-center"
+                          onClick={() => startEdit(item.id, "requiresLift", item.requiresLift ? "SI" : "NO")}
+                        >{item.requiresLift ? "SI" : "NO"}</span>
+                      )}
+                    </td>
+                    {/* No. Técnicos - editable */}
+                    <td className="px-2 py-1 border-r border-border/30 text-center">
+                      {isEditingTech ? (
+                        <input
+                          autoFocus
+                          type="number" min={1} max={20}
+                          className="w-12 border border-blue-400 rounded px-1 py-0.5 text-xs bg-white text-center"
+                          value={editValues[`${item.id}_noTechnicians`] ?? String(item.noTechnicians ?? 1)}
+                          onChange={(e) => setEditValues((v) => ({ ...v, [`${item.id}_noTechnicians`]: e.target.value }))}
+                          onBlur={() => commitEdit(item.id, "noTechnicians")}
+                          onKeyDown={(e) => { if (e.key === "Enter") commitEdit(item.id, "noTechnicians"); }}
+                        />
+                      ) : (
+                        <span
+                          className="cursor-pointer hover:bg-blue-100 rounded px-1 py-0.5 block text-center"
+                          onClick={() => startEdit(item.id, "noTechnicians", String(item.noTechnicians ?? 1))}
+                        >{item.noTechnicians ?? 1}</span>
+                      )}
+                    </td>
+                    {/* Observaciones - editable */}
+                    <td className="px-2 py-1 border-r border-border/30 min-w-[120px]">
+                      {isEditingObs ? (
+                        <input
+                          autoFocus
+                          className="w-full border border-blue-400 rounded px-1 py-0.5 text-xs bg-white"
+                          value={editValues[`${item.id}_observations`] ?? ""}
+                          onChange={(e) => setEditValues((v) => ({ ...v, [`${item.id}_observations`]: e.target.value }))}
+                          onBlur={() => commitEdit(item.id, "observations")}
+                          onKeyDown={(e) => { if (e.key === "Enter") commitEdit(item.id, "observations"); if (e.key === "Escape") { setEditingItemId(null); setEditingField(null); } }}
+                        />
+                      ) : (
+                        <span
+                          className="cursor-pointer hover:bg-blue-100 rounded px-1 py-0.5 block"
+                          onClick={() => startEdit(item.id, "observations", item.observations ?? "")}
+                        >{item.observations || <span className="text-muted-foreground/50 italic">—</span>}</span>
+                      )}
+                    </td>
+                    {/* Day columns - empty checkable cells */}
+                    {weekDays.map((d) => (
+                      <td key={d.toISOString()} className="px-2 py-2 text-center border-l border-border/20 w-16"></td>
+                    ))}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-muted-foreground">Haz clic en cualquier celda de Área, Carrito Elevador, No. Técnicos u Observaciones para editarla directamente.</p>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function CCTVMaintenance() {
-  const [tab, setTab] = useState<"programs" | "log">("programs");
+  const [tab, setTab] = useState<"programs" | "log" | "schedule">("programs");
+  const [scheduleProgId, setScheduleProgId] = useState<number | null>(null);
+  const [scheduleWeekStart, setScheduleWeekStart] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay() + 1);
+    return d.toISOString().split("T")[0];
+  });
+  const [scheduleHorario, setScheduleHorario] = useState("8:00AM - 5:00 PM");
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const updateItem = trpc.cctvPrograms.updateItem.useMutation({ onSuccess: () => refetchPrograms() });
+  const updateSchedule = trpc.cctvPrograms.updateSchedule.useMutation({ onSuccess: () => refetchPrograms() });
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [openNew, setOpenNew] = useState(false);
@@ -170,6 +457,9 @@ export default function CCTVMaintenance() {
             </TabsTrigger>
             <TabsTrigger value="log" className="gap-1.5">
               <Calendar className="w-4 h-4" /> Visitas Programadas
+            </TabsTrigger>
+            <TabsTrigger value="schedule" className="gap-1.5">
+              <ListChecks className="w-4 h-4" /> Programa Semanal
             </TabsTrigger>
           </TabsList>
           <div className="relative w-64">
@@ -375,6 +665,25 @@ export default function CCTVMaintenance() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── Schedule Tab ── */}
+        <TabsContent value="schedule" className="mt-4">
+          <WeeklyScheduleView
+            programs={programs}
+            scheduleProgId={scheduleProgId}
+            setScheduleProgId={setScheduleProgId}
+            scheduleWeekStart={scheduleWeekStart}
+            setScheduleWeekStart={setScheduleWeekStart}
+            scheduleHorario={scheduleHorario}
+            setScheduleHorario={setScheduleHorario}
+            editingItemId={editingItemId}
+            setEditingItemId={setEditingItemId}
+            editingField={editingField}
+            setEditingField={setEditingField}
+            updateItem={updateItem}
+            updateSchedule={updateSchedule}
+          />
         </TabsContent>
       </Tabs>
 
