@@ -39,13 +39,15 @@ export const maintenanceRouter = router({
   })).mutation(async ({ ctx, input }) => {
     if (!["admin", "supervisor"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
     const tenantId = ctx.user.tenantId ?? 1;
-    const { startDate, endDate, nextExecutionDate, ...rest } = input;
+    const { startDate, endDate, nextExecutionDate, estimatedDurationHours, estimatedCost, ...rest } = input;
     const result = await createMaintenancePlan({
       ...rest,
       tenantId,
-      ...(startDate ? { startDate: new Date(startDate) as any } : {}),
-      ...(endDate ? { endDate: new Date(endDate) as any } : {}),
-      ...(nextExecutionDate ? { nextExecutionDate: new Date(nextExecutionDate) as any } : {}),
+      ...(startDate ? { startDate: startDate as any } : {}),
+      ...(endDate ? { endDate: endDate as any } : {}),
+      ...(nextExecutionDate ? { nextExecutionDate: nextExecutionDate as any } : {}),
+      ...(estimatedDurationHours && estimatedDurationHours !== "" ? { estimatedDurationHours } : {}),
+      ...(estimatedCost && estimatedCost !== "" ? { estimatedCost } : {}),
     });
     await createAuditLog({ tenantId, userId: ctx.user.id, userName: ctx.user.name ?? undefined, action: "CREATE", module: "maintenance", entityType: "maintenance_plan", description: `Plan de mantenimiento creado: ${input.name}` });
     return result;
