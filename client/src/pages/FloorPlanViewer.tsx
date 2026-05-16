@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function parseData(data: string | null): { rotation?: number; scale?: number; fov?: number; x1?: number; y1?: number; x2?: number; y2?: number } {
+function parseData(data: string | null): { rotation?: number; scale?: number; fov?: number; range?: number; x1?: number; y1?: number; x2?: number; y2?: number } {
   if (!data) return {};
   try { return JSON.parse(data); } catch { return {}; }
 }
@@ -110,7 +110,7 @@ const BUILTIN_MARKERS = [
 ];
 
 // ─── SVG marker shapes ────────────────────────────────────────────────────────
-function MarkerShape({ type, color, size = 36, rotation = 0, fov = 60 }: { type: string; color: string; size?: number; rotation?: number; fov?: number }) {
+function MarkerShape({ type, color, size = 36, rotation = 0, fov = 60, range = 1 }: { type: string; color: string; size?: number; rotation?: number; fov?: number; range?: number }) {
   const s = size;
   const h = s * 1.5;
   const rotStyle: React.CSSProperties = rotation !== 0
@@ -121,7 +121,7 @@ function MarkerShape({ type, color, size = 36, rotation = 0, fov = 60 }: { type:
       // Build cone path using fov angle
       const cx = s / 2;
       const cy = s * 0.55;
-      const coneLen = s * 0.9; // length of cone from camera center
+      const coneLen = s * 0.9 * range; // length of cone from camera center (range multiplier)
       const halfAngle = (fov / 2) * (Math.PI / 180);
       const lx = cx + coneLen * Math.sin(-halfAngle);
       const ly = cy - coneLen * Math.cos(halfAngle);
@@ -246,7 +246,7 @@ function DraggableMarker({
   zoom: number;
 }) {
   const color = ann.color ?? "#6366f1";
-  const { rotation = 0, scale: markerScale = 1, fov = 60 } = parseData(ann.data);
+  const { rotation = 0, scale: markerScale = 1, fov = 60, range = 1 } = parseData(ann.data);
   const baseSize = Math.round(32 * markerScale);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -313,7 +313,7 @@ function DraggableMarker({
           filter: selected ? `drop-shadow(0 0 8px ${color})` : `drop-shadow(0 2px 4px rgba(0,0,0,0.5))`,
         }}
       >
-        <MarkerShape type={ann.type ?? "marker"} color={color} size={baseSize} rotation={rotation} fov={fov} />
+        <MarkerShape type={ann.type ?? "marker"} color={color} size={baseSize} rotation={rotation} fov={fov} range={range} />
       </div>
       {/* Label */}
       {ann.label && (
@@ -490,6 +490,7 @@ export default function FloorPlanViewer() {
   const [localRotation, setLocalRotation] = useState(0);
   const [localScale, setLocalScale] = useState(1);
   const [localFov, setLocalFov] = useState(60);
+  const [localRange, setLocalRange] = useState(1);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const contentRef = useRef<HTMLDivElement>(null);
@@ -603,10 +604,11 @@ export default function FloorPlanViewer() {
     if (selectedAnnotation === null) return;
     const ann = (annotations as Annotation[]).find((a) => a.id === selectedAnnotation);
     if (!ann) return;
-    const { rotation = 0, scale = 1, fov = 60 } = parseData(ann.data);
+    const { rotation = 0, scale = 1, fov = 60, range = 1 } = parseData(ann.data);
     setLocalRotation(rotation);
     setLocalScale(scale);
     setLocalFov(fov);
+    setLocalRange(range);
   }, [selectedAnnotation]);
 
   const handleRotationChange = useCallback((val: number) => {
@@ -648,6 +650,20 @@ export default function FloorPlanViewer() {
       try {
         await updateAnnotation.mutateAsync({ id: selectedAnnotation, data: JSON.stringify({ ...existing, fov: val }) });
       } catch { toast.error("Error al guardar ángulo"); }
+    }, 400);
+  }, [selectedAnnotation, annotations, updateAnnotation]);
+
+  const handleRangeChange = useCallback((val: number) => {
+    setLocalRange(val);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      if (selectedAnnotation === null) return;
+      const ann = (annotations as Annotation[]).find((a) => a.id === selectedAnnotation);
+      if (!ann) return;
+      const existing = parseData(ann.data);
+      try {
+        await updateAnnotation.mutateAsync({ id: selectedAnnotation, data: JSON.stringify({ ...existing, range: val }) });
+      } catch { toast.error("Error al guardar alcance"); }
     }, 400);
   }, [selectedAnnotation, annotations, updateAnnotation]);
 
