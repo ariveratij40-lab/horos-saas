@@ -51,9 +51,11 @@ function formatMeters(m: number): string {
 }
 
 // ─── UTP Cable SVG ──────────────────────────────────────────────────────────
-function UtpCableSvg({ x1, y1, x2, y2, color, selected, category, lengthLabel }: {
+const UTP_MAX_METERS = 90;
+
+function UtpCableSvg({ x1, y1, x2, y2, color, selected, category, lengthLabel, overLimit }: {
   x1: number; y1: number; x2: number; y2: number;
-  color: string; selected: boolean; category?: string; lengthLabel?: string;
+  color: string; selected: boolean; category?: string; lengthLabel?: string; overLimit?: boolean;
 }) {
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -68,26 +70,41 @@ function UtpCableSvg({ x1, y1, x2, y2, color, selected, category, lengthLabel }:
   const catLabel = category ?? "";
   // Combined label: "Cat6 · 12.50 m" or just "Cat6" or just "12.50 m"
   const topLabel = [catLabel, lengthLabel].filter(Boolean).join(" · ");
+  // Alert color overrides cable color when over limit
+  const alertColor = "#ef4444";
+  const lineColor = overLimit ? alertColor : color;
   return (
     <g>
+      {/* Over-limit pulsing glow */}
+      {overLimit && (
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={alertColor} strokeWidth={sw + 10} strokeOpacity={0.25} strokeLinecap="round"
+          style={{ animation: "utp-alert-pulse 1.2s ease-in-out infinite" }} />
+      )}
       {/* Outer glow when selected */}
-      {selected && <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={sw + 8} strokeOpacity={0.15} strokeLinecap="round" />}
+      {selected && <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={lineColor} strokeWidth={sw + 8} strokeOpacity={0.2} strokeLinecap="round" />}
       {/* Main cable line */}
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={sw} strokeLinecap="round" opacity={0.95} />
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={lineColor} strokeWidth={sw} strokeLinecap="round" opacity={0.95} />
       {/* Twisted pair stripes */}
       {Array.from({ length: Math.floor(len / 14) }, (_, i) => {
         const t = (i + 0.5) / Math.floor(len / 14);
         const cx = x1 + dx * t;
         const cy = y1 + dy * t;
-        return <circle key={i} cx={cx} cy={cy} r={1.5} fill="white" opacity={0.4} />;
+        return <circle key={i} cx={cx} cy={cy} r={1.5} fill={overLimit ? alertColor : "white"} opacity={overLimit ? 0.7 : 0.4} />;
       })}
       {/* Endpoint connectors */}
-      <rect x={x1 - 4} y={y1 - 4} width={8} height={8} rx={1.5} fill={color} stroke="white" strokeWidth={1} opacity={0.9} />
-      <rect x={x2 - 4} y={y2 - 4} width={8} height={8} rx={1.5} fill={color} stroke="white" strokeWidth={1} opacity={0.9} />
+      <rect x={x1 - 4} y={y1 - 4} width={8} height={8} rx={1.5} fill={lineColor} stroke={overLimit ? alertColor : "white"} strokeWidth={overLimit ? 1.5 : 1} opacity={0.9} />
+      <rect x={x2 - 4} y={y2 - 4} width={8} height={8} rx={1.5} fill={lineColor} stroke={overLimit ? alertColor : "white"} strokeWidth={overLimit ? 1.5 : 1} opacity={0.9} />
       {/* Combined label: category + length */}
       {topLabel && (
-        <text x={mx + nx} y={my + ny - 6} textAnchor="middle" fill={color} fontSize="10" fontWeight="700"
+        <text x={mx + nx} y={my + ny - 6} textAnchor="middle" fill={overLimit ? alertColor : color} fontSize="10" fontWeight="700"
           style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.9))", pointerEvents: "none" }}>{topLabel}</text>
+      )}
+      {/* Warning icon when over limit */}
+      {overLimit && (
+        <g transform={`translate(${mx + nx + (topLabel ? topLabel.length * 3.2 + 4 : 0)}, ${my + ny - 14})`} style={{ pointerEvents: "none" }}>
+          <circle cx={0} cy={0} r={7} fill={alertColor} opacity={0.9} />
+          <text x={0} y={4} textAnchor="middle" fill="white" fontSize="9" fontWeight="900">!</text>
+        </g>
       )}
     </g>
   );
@@ -563,16 +580,41 @@ function UtpCableDialog({ open, color, category, estimatedLength, onColorChange,
       <DialogContent className="max-w-sm">
         <DialogHeader><DialogTitle>Cable UTP</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
-          {estimatedLength && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "#1e293b", border: "1px solid #334155" }}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M2 8h12M2 8l3-3M2 8l3 3" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span className="text-xs text-gray-400">Longitud estimada:</span>
-              <span className="text-sm font-bold" style={{ color }}>{estimatedLength}</span>
-            </div>
-          )}
-          {!estimatedLength && (
+          {estimatedLength ? (() => {
+            const meters = parseFloat(estimatedLength);
+            const isOver = !isNaN(meters) && meters > UTP_MAX_METERS;
+            return (
+              <div>
+                <div
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                  style={{
+                    background: isOver ? "#450a0a" : "#1e293b",
+                    border: `1px solid ${isOver ? "#ef4444" : "#334155"}`,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M2 8h12M2 8l3-3M2 8l3 3" stroke={isOver ? "#ef4444" : color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="text-xs" style={{ color: isOver ? "#fca5a5" : "#9ca3af" }}>Longitud estimada:</span>
+                  <span className="text-sm font-bold" style={{ color: isOver ? "#ef4444" : color }}>{estimatedLength}</span>
+                  {isOver && (
+                    <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#ef4444", color: "white" }}>LÍMITE</span>
+                  )}
+                </div>
+                {isOver && (
+                  <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-lg" style={{ background: "#1c0a0a", border: "1px solid #7f1d1d" }}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="mt-0.5 flex-shrink-0">
+                      <path d="M7 1L13 12H1L7 1Z" fill="#ef4444" opacity="0.9"/>
+                      <text x="7" y="10" textAnchor="middle" fill="white" fontSize="7" fontWeight="900">!</text>
+                    </svg>
+                    <span className="text-[11px] leading-snug" style={{ color: "#fca5a5" }}>
+                      Supera el límite estándar de <strong>90 m</strong> (IEEE 802.3). El rendimiento de la red puede verse afectado.
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })() : (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "#1e293b", border: "1px solid #334155" }}>
               <span className="text-xs text-gray-500">Configura la escala del plano para ver la longitud estimada</span>
             </div>
@@ -1399,9 +1441,10 @@ export default function FloorPlanViewer() {
                           const containerPx = rect ? { w: rect.offsetWidth, h: rect.offsetHeight } : null;
                           const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
                           const lengthLabel = meters != null ? formatMeters(meters) : undefined;
+                          const overLimit = meters != null && meters > UTP_MAX_METERS;
                           return (
                             <g key={ann.id} style={{ pointerEvents: "all", cursor: "pointer" }} onClick={() => setSelectedAnnotation(selectedAnnotation === ann.id ? null : ann.id)}>
-                              <UtpCableSvg x1={d.x1!} y1={d.y1!} x2={d.x2!} y2={d.y2!} color={col} selected={selectedAnnotation === ann.id} category={d.utpCategory} lengthLabel={lengthLabel} />
+                              <UtpCableSvg x1={d.x1!} y1={d.y1!} x2={d.x2!} y2={d.y2!} color={col} selected={selectedAnnotation === ann.id} category={d.utpCategory} lengthLabel={lengthLabel} overLimit={overLimit} />
                               {selectedAnnotation === ann.id && (
                                 <g>
                                   <circle cx={(d.x1! + d.x2!) / 2} cy={(d.y1! + d.y2!) / 2} r={10} fill="#ef4444" style={{ cursor: "pointer", pointerEvents: "all" }}
@@ -1418,8 +1461,9 @@ export default function FloorPlanViewer() {
                           const containerPx = contentRef.current ? { w: contentRef.current.offsetWidth, h: contentRef.current.offsetHeight } : null;
                           const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
                           const lengthLabel = meters != null ? formatMeters(meters) : undefined;
+                          const overLimit = meters != null && meters > UTP_MAX_METERS;
                           return (
-                            <UtpCableSvg x1={utpStart.x} y1={utpStart.y} x2={utpPreview.x} y2={utpPreview.y} color={utpColor} selected={false} category={utpCategory} lengthLabel={lengthLabel} />
+                            <UtpCableSvg x1={utpStart.x} y1={utpStart.y} x2={utpPreview.x} y2={utpPreview.y} color={utpColor} selected={false} category={utpCategory} lengthLabel={lengthLabel} overLimit={overLimit} />
                           );
                         })()}
                         {utpStart && (
@@ -1490,10 +1534,28 @@ export default function FloorPlanViewer() {
                   (annotations as Annotation[]).map((ann) => {
                     const color = ann.color ?? "#6366f1";
                     const isSelected = selectedAnnotation === ann.id;
+                    // Check UTP over-limit
+                    let utpOverLimit = false;
+                    if (ann.type === "utp") {
+                      const d = parseData(ann.data);
+                      if (d.x1 !== undefined) {
+                        const pxLen = Math.sqrt((d.x2! - d.x1!) ** 2 + (d.y2! - d.y1!) ** 2);
+                        const containerEl = contentRef.current;
+                        const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
+                        const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+                        utpOverLimit = meters != null && meters > UTP_MAX_METERS;
+                      }
+                    }
                     return (
-                      <button key={ann.id} onClick={() => setSelectedAnnotation(isSelected ? null : ann.id)} className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-all group ${isSelected ? "bg-white/10" : "hover:bg-white/5"}`}>
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                        <span className="flex-1 text-left text-gray-300 truncate">{ann.label || ann.type || "Marcador"}</span>
+                      <button key={ann.id} onClick={() => setSelectedAnnotation(isSelected ? null : ann.id)}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-all group ${isSelected ? "bg-white/10" : "hover:bg-white/5"}`}
+                        style={utpOverLimit ? { borderLeft: "2px solid #ef4444" } : undefined}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: utpOverLimit ? "#ef4444" : color }} />
+                        <span className="flex-1 text-left truncate" style={{ color: utpOverLimit ? "#fca5a5" : "#d1d5db" }}>{ann.label || ann.type || "Marcador"}</span>
+                        {utpOverLimit && (
+                          <span className="text-[9px] font-bold px-1 py-0.5 rounded flex-shrink-0" style={{ background: "#ef444422", color: "#ef4444", border: "1px solid #ef444466" }}>+90m</span>
+                        )}
                         <button className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 text-red-400 hover:text-red-300 flex-shrink-0" onClick={(e) => { e.stopPropagation(); handleDeleteAnnotation(ann.id); }} title="Eliminar">
                           <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                         </button>

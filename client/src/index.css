@@ -223,6 +223,11 @@
   .animate-slide-in-right { animation: slide-in-right 0.3s cubic-bezier(0.23, 1, 0.32, 1) both; }
   .animate-pulse-ring { animation: pulse-ring 2s infinite; }
 
+  @keyframes utp-alert-pulse {
+    0%, 100% { stroke-opacity: 0.15; stroke-width: 13; }
+    50% { stroke-opacity: 0.40; stroke-width: 16; }
+  }
+
   /* Button active state */
   button:active { transform: scale(0.97); }
 }
