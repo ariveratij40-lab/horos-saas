@@ -1,9 +1,47 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function parseData(data: string | null): { rotation?: number; scale?: number; fov?: number; range?: number; coneColor?: string; x1?: number; y1?: number; x2?: number; y2?: number; connColor?: string } {
+function parseData(data: string | null): { rotation?: number; scale?: number; fov?: number; range?: number; coneColor?: string; x1?: number; y1?: number; x2?: number; y2?: number; connColor?: string; utpColor?: string; utpCategory?: string } {
   if (!data) return {};
   try { return JSON.parse(data); } catch { return {}; }
+}
+
+// ─── UTP Cable SVG ──────────────────────────────────────────────────────────
+function UtpCableSvg({ x1, y1, x2, y2, color, selected, category }: { x1: number; y1: number; x2: number; y2: number; color: string; selected: boolean; category?: string }) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 2) return null;
+  const sw = selected ? 4 : 3;
+  // Twisted pair effect: two parallel lines slightly offset
+  const nx = -dy / len * 2;
+  const ny = dx / len * 2;
+  const mx = (x1 + x2) / 2;
+  const my = (y1 + y2) / 2;
+  const catLabel = category ?? "";
+  return (
+    <g>
+      {/* Outer glow when selected */}
+      {selected && <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={sw + 8} strokeOpacity={0.15} strokeLinecap="round" />}
+      {/* Main cable line */}
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={sw} strokeLinecap="round" opacity={0.95} />
+      {/* Twisted pair stripes */}
+      {Array.from({ length: Math.floor(len / 14) }, (_, i) => {
+        const t = (i + 0.5) / Math.floor(len / 14);
+        const cx = x1 + dx * t;
+        const cy = y1 + dy * t;
+        return <circle key={i} cx={cx} cy={cy} r={1.5} fill="white" opacity={0.4} />;
+      })}
+      {/* Endpoint connectors */}
+      <rect x={x1 - 4} y={y1 - 4} width={8} height={8} rx={1.5} fill={color} stroke="white" strokeWidth={1} opacity={0.9} />
+      <rect x={x2 - 4} y={y2 - 4} width={8} height={8} rx={1.5} fill={color} stroke="white" strokeWidth={1} opacity={0.9} />
+      {/* Category label */}
+      {catLabel && (
+        <text x={mx + nx} y={my + ny - 6} textAnchor="middle" fill={color} fontSize="10" fontWeight="700"
+          style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.9))", pointerEvents: "none" }}>{catLabel}</text>
+      )}
+    </g>
+  );
 }
 
 // ─── Connection line SVG ────────────────────────────────────────────────────
@@ -106,6 +144,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Annotation = {
@@ -141,6 +180,7 @@ const BUILTIN_MARKERS = [
   { type: "ladder",     icon: "🪜", label: "Escalerilla",  color: "#22c55e" },
   { type: "idf",        icon: "🗄️", label: "IDF/MDF",      color: "#0ea5e9" },
   { type: "connection", icon: "🔗", label: "Conexión",     color: "#a78bfa" },
+  { type: "utp",        icon: "🟦", label: "Cable UTP",    color: "#3b82f6" },
   { type: "marker",     icon: "📍", label: "Marcador",     color: "#ef4444" },
 ];
 
@@ -443,6 +483,90 @@ function ToolButton({ active, onClick, icon, label }: {
 }
 
 // ─── Label Dialog ─────────────────────────────────────────────────────────────
+// ─── UTP Cable Dialog ────────────────────────────────────────────────────────
+const UTP_COLORS = [
+  { hex: "#3b82f6", label: "Azul" },
+  { hex: "#f97316", label: "Naranja" },
+  { hex: "#22c55e", label: "Verde" },
+  { hex: "#92400e", label: "Café" },
+  { hex: "#6b7280", label: "Gris" },
+  { hex: "#ef4444", label: "Rojo" },
+  { hex: "#eab308", label: "Amarillo" },
+  { hex: "#f8fafc", label: "Blanco" },
+  { hex: "#1e293b", label: "Negro" },
+  { hex: "#8b5cf6", label: "Violeta" },
+];
+const UTP_CATEGORIES = ["Cat5e", "Cat6", "Cat6A", "Cat7", "Cat8"];
+
+function UtpCableDialog({ open, color, category, onColorChange, onCategoryChange, onConfirm, onCancel }: {
+  open: boolean;
+  color: string;
+  category: string;
+  onColorChange: (c: string) => void;
+  onCategoryChange: (c: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const [customColor, setCustomColor] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Cable UTP</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <Label className="mb-2 block">Color del cable</Label>
+            <div className="flex flex-wrap gap-2">
+              {UTP_COLORS.map((c) => (
+                <button
+                  key={c.hex}
+                  title={c.label}
+                  onClick={() => { onColorChange(c.hex); setCustomColor(false); }}
+                  className="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110"
+                  style={{ background: c.hex, borderColor: color === c.hex ? "white" : "transparent" }}
+                />
+              ))}
+              <button
+                title="Color personalizado"
+                onClick={() => setCustomColor(true)}
+                className="w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-transform hover:scale-110"
+                style={{ background: "#374151", borderColor: customColor ? "white" : "transparent", color: "white" }}
+              >+</button>
+            </div>
+            {customColor && (
+              <div className="mt-2 flex items-center gap-2">
+                <Label>Color personalizado</Label>
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => onColorChange(e.target.value)}
+                  className="w-10 h-8 rounded cursor-pointer border-0"
+                />
+              </div>
+            )}
+          </div>
+          <div>
+            <Label className="mb-2 block">Categoría</Label>
+            <Select value={category} onValueChange={onCategoryChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Seleccionar categoría" />
+              </SelectTrigger>
+              <SelectContent>
+                {UTP_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button onClick={onConfirm} style={{ background: color, color: "white" }}>Crear Cable</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AnnotationLabelDialog({ open, onConfirm, onCancel, defaultLabel }: {
   open: boolean; onConfirm: (label: string) => void; onCancel: () => void; defaultLabel: string;
 }) {
@@ -562,6 +686,12 @@ export default function FloorPlanViewer() {
   const [ladderPreview, setLadderPreview] = useState<{ x: number; y: number } | null>(null);
   const [connectionStart, setConnectionStart] = useState<{ x: number; y: number } | null>(null);
   const [connectionPreview, setConnectionPreview] = useState<{ x: number; y: number } | null>(null);
+  const [utpStart, setUtpStart] = useState<{ x: number; y: number } | null>(null);
+  const [utpPreview, setUtpPreview] = useState<{ x: number; y: number } | null>(null);
+  const [utpDialogOpen, setUtpDialogOpen] = useState(false);
+  const [utpPending, setUtpPending] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const [utpColor, setUtpColor] = useState("#3b82f6");
+  const [utpCategory, setUtpCategory] = useState("Cat6");
   const [pendingAnnotation, setPendingAnnotation] = useState<{
     x: string; y: string; icon: string; color: string; type: string; layerId: number | null;
   } | null>(null);
@@ -613,7 +743,14 @@ export default function FloorPlanViewer() {
         setConnectionPreview({ x: e.clientX - rect.left, y: e.clientY - rect.top });
       }
     }
-  }, [isPanning, panStart, panOrigin, selectedTool, ladderStart, connectionStart]);
+    // Update UTP preview
+    if (selectedTool === "utp" && utpStart) {
+      const rect = contentRef.current?.getBoundingClientRect();
+      if (rect) {
+        setUtpPreview({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      }
+    }
+  }, [isPanning, panStart, panOrigin, selectedTool, ladderStart, connectionStart, utpStart]);
 
   const handleMouseUp = useCallback(() => setIsPanning(false), []);
 
@@ -628,6 +765,19 @@ export default function FloorPlanViewer() {
     const xPx = e.clientX - rect.left;
     const yPx = e.clientY - rect.top;
 
+    // UTP Cable: two-point drawing mode
+    if (selectedTool === "utp") {
+      if (!utpStart) {
+        setUtpStart({ x: xPx, y: yPx });
+        return;
+      }
+      // Second click: open dialog to pick color and category
+      setUtpPending({ x1: utpStart.x, y1: utpStart.y, x2: xPx, y2: yPx });
+      setUtpStart(null);
+      setUtpPreview(null);
+      setUtpDialogOpen(true);
+      return;
+    }
     // Connection: two-point drawing mode
     if (selectedTool === "connection") {
       if (!connectionStart) {
@@ -708,6 +858,36 @@ export default function FloorPlanViewer() {
   };
 
   const handleLabelCancel = () => { setLabelDialogOpen(false); setPendingAnnotation(null); };
+
+  const handleUtpConfirm = async () => {
+    if (!utpPending) return;
+    setUtpDialogOpen(false);
+    try {
+      const data = JSON.stringify({
+        x1: utpPending.x1, y1: utpPending.y1,
+        x2: utpPending.x2, y2: utpPending.y2,
+        utpColor, utpCategory,
+      });
+      const activeLayer = layers && layers.length > 0 ? layers[0].id : undefined;
+      await createAnnotation.mutateAsync({
+        planId,
+        layerId: activeLayer,
+        type: "utp",
+        x: "0",
+        y: "0",
+        label: `Cable ${utpCategory}`,
+        icon: "🟦",
+        color: utpColor,
+        data,
+      });
+      toast.success("Cable UTP colocado");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Error al colocar cable UTP");
+    }
+    setUtpPending(null);
+  };
+
+  const handleUtpCancel = () => { setUtpDialogOpen(false); setUtpPending(null); };
 
   // ── Move annotation (drag end) ────────────────────────────────────────────
   // Sync local rotation/scale when selection changes
@@ -845,6 +1025,10 @@ export default function FloorPlanViewer() {
       setConnectionStart(null);
       setConnectionPreview(null);
     }
+    if (selectedTool !== "utp") {
+      setUtpStart(null);
+      setUtpPreview(null);
+    }
   }, [selectedTool]);
 
   // ── Loading / not found ───────────────────────────────────────────────────
@@ -921,6 +1105,10 @@ export default function FloorPlanViewer() {
               <p className="text-purple-400">Clic en el elemento destino para conectar</p>
             ) : selectedTool === "connection" ? (
               <p className="text-purple-400">Clic en el elemento origen de la conexión</p>
+            ) : selectedTool === "utp" && utpStart ? (
+              <p className="text-blue-400">Clic para definir el punto final del cable UTP</p>
+            ) : selectedTool === "utp" ? (
+              <p className="text-blue-400">Clic para definir el punto inicial del cable UTP</p>
             ) : selectedTool ? (
               <p className="text-blue-400">Clic en el plano para colocar</p>
             ) : (
@@ -1023,7 +1211,7 @@ export default function FloorPlanViewer() {
 
                   {/* Annotation markers */}
                   {visibleAnnotations.map((ann) => (
-                    ann.type === "ladder" || ann.type === "connection" ? null : (
+                    ann.type === "ladder" || ann.type === "connection" || ann.type === "utp" ? null : (
                       <DraggableMarker
                         key={ann.id}
                         ann={ann}
@@ -1116,6 +1304,49 @@ export default function FloorPlanViewer() {
                         )}
                         {ladderStart && (
                           <circle cx={ladderStart.x} cy={ladderStart.y} r={6} fill="#22c55e" fillOpacity="0.8" />
+                        )}
+                      </svg>
+                    );
+                  })()}
+                  {/* UTP Cable annotations rendered as SVG overlay */}
+                  {(() => {
+                    const utpAnns = visibleAnnotations.filter((a) => a.type === "utp");
+                    if (utpAnns.length === 0 && !utpStart) return null;
+                    const rect = contentRef.current;
+                    const w = rect?.offsetWidth ?? 1000;
+                    const h = rect?.offsetHeight ?? 800;
+                    return (
+                      <svg
+                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 31 }}
+                        viewBox={`0 0 ${w} ${h}`}
+                        preserveAspectRatio="none"
+                      >
+                        {utpAnns.map((ann) => {
+                          const d = parseData(ann.data);
+                          if (d.x1 === undefined) return null;
+                          const col = d.utpColor ?? ann.color ?? "#3b82f6";
+                          return (
+                            <g key={ann.id} style={{ pointerEvents: "all", cursor: "pointer" }} onClick={() => setSelectedAnnotation(selectedAnnotation === ann.id ? null : ann.id)}>
+                              <UtpCableSvg x1={d.x1!} y1={d.y1!} x2={d.x2!} y2={d.y2!} color={col} selected={selectedAnnotation === ann.id} category={d.utpCategory} />
+                              {selectedAnnotation === ann.id && (
+                                <g>
+                                  <circle cx={(d.x1! + d.x2!) / 2} cy={(d.y1! + d.y2!) / 2} r={10} fill="#ef4444" style={{ cursor: "pointer", pointerEvents: "all" }}
+                                    onClick={(ev) => { ev.stopPropagation(); handleDeleteAnnotation(ann.id); }} />
+                                  <text x={(d.x1! + d.x2!) / 2} y={(d.y1! + d.y2!) / 2 + 4} textAnchor="middle" fill="white" fontSize="12" style={{ pointerEvents: "none" }}>×</text>
+                                </g>
+                              )}
+                              {ann.label && (
+                                <text x={(d.x1! + d.x2!) / 2} y={(d.y1! + d.y2!) / 2 - 12} textAnchor="middle" fill={col} fontSize="11" fontWeight="600" style={{ pointerEvents: "none", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.8))" }}>{ann.label}</text>
+                              )}
+                            </g>
+                          );
+                        })}
+                        {/* Preview while drawing */}
+                        {utpStart && utpPreview && (
+                          <UtpCableSvg x1={utpStart.x} y1={utpStart.y} x2={utpPreview.x} y2={utpPreview.y} color={utpColor} selected={false} category={utpCategory} />
+                        )}
+                        {utpStart && (
+                          <circle cx={utpStart.x} cy={utpStart.y} r={6} fill={utpColor} fillOpacity="0.8" />
                         )}
                       </svg>
                     );
@@ -1365,6 +1596,16 @@ export default function FloorPlanViewer() {
           BUILTIN_MARKERS.find((m) => m.type === pendingAnnotation?.type)?.label ??
           (layers as Layer[]).find((l) => `layer_${l.id}` === selectedTool)?.label ?? ""
         }
+      />
+
+      <UtpCableDialog
+        open={utpDialogOpen}
+        color={utpColor}
+        category={utpCategory}
+        onColorChange={setUtpColor}
+        onCategoryChange={setUtpCategory}
+        onConfirm={handleUtpConfirm}
+        onCancel={handleUtpCancel}
       />
     </>
   );
