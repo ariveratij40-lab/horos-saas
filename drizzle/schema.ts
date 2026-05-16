@@ -868,6 +868,7 @@ export const floorPlans = mysqlTable("floor_plans", {
   format: mysqlEnum("format", ["pdf", "dwg", "dxf", "png", "jpg"]).default("pdf"),
   dimensions: varchar("dimensions", { length: 100 }),
   scale: varchar("scale", { length: 50 }).default("1:100"),
+  calibration: varchar("calibration", { length: 200 }), // JSON: { metersPerPixel, refPxLen, refMeters, containerW, containerH }
   status: mysqlEnum("status", ["active", "inactive", "draft"]).default("active"),
   fileKey: varchar("fileKey", { length: 500 }),
   fileUrl: varchar("fileUrl", { length: 1000 }),

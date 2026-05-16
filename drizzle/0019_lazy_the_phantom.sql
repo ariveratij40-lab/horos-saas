@@ -1,0 +1,1 @@
+ALTER TABLE `floor_plans` ADD `calibration` varchar(200);

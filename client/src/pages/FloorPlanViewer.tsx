@@ -31,9 +31,26 @@ function calcUtpLengthMeters(
   pxLen: number,
   pdfDims: { w: number; h: number } | null,
   containerPx: { w: number; h: number } | null,
-  scaleStr: string | null | undefined
+  scaleStr: string | null | undefined,
+  calibrationStr?: string | null
 ): number | null {
-  if (!pdfDims || !containerPx || pxLen <= 0) return null;
+  if (pxLen <= 0) return null;
+  // Priority 1: use direct calibration (metersPerPixel from real reference)
+  if (calibrationStr) {
+    try {
+      const cal = JSON.parse(calibrationStr) as { metersPerPixel: number; containerW?: number; containerH?: number };
+      if (cal.metersPerPixel > 0) {
+        // If the calibration was done at a different container size, scale accordingly
+        if (cal.containerW && containerPx && Math.abs(cal.containerW - containerPx.w) > 2) {
+          const scaleFactor = containerPx.w / cal.containerW;
+          return pxLen * (cal.metersPerPixel / scaleFactor);
+        }
+        return pxLen * cal.metersPerPixel;
+      }
+    } catch { /* fall through */ }
+  }
+  // Priority 2: use scale ratio + PDF dimensions
+  if (!pdfDims || !containerPx) return null;
   const ratio = parseScaleRatio(scaleStr);
   if (!ratio) return null;
   // pixeles por punto PDF (el contenedor muestra el PDF a cierto zoom)
@@ -1131,6 +1148,132 @@ function UtpRouteDialog({
   );
 }
 
+// ─── Calibration Dialog ─────────────────────────────────────────────────────
+function CalibrationDialog({
+  open,
+  pxLen,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  pxLen: number;
+  onConfirm: (realMeters: number) => void;
+  onCancel: () => void;
+}) {
+  const [meters, setMeters] = useState("");
+  const [unit, setUnit] = useState<"m" | "cm" | "ft">("m");
+
+  const realMeters = (() => {
+    const v = parseFloat(meters);
+    if (isNaN(v) || v <= 0) return null;
+    if (unit === "cm") return v / 100;
+    if (unit === "ft") return v * 0.3048;
+    return v;
+  })();
+
+  const metersPerPx = realMeters != null && pxLen > 0 ? realMeters / pxLen : null;
+
+  const handleConfirm = () => {
+    if (realMeters == null) return;
+    onConfirm(realMeters);
+    setMeters("");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="max-w-sm" style={{ background: "#1a1d23", border: "1px solid #2e3340", color: "white" }}>
+        <DialogHeader>
+          <DialogTitle style={{ color: "#f1f5f9" }}>Calibrar escala del plano</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          {/* Visual explanation */}
+          <div className="rounded-lg p-3 text-xs" style={{ background: "#0f172a", border: "1px solid #1e3a5f" }}>
+            <p className="text-blue-300 font-semibold mb-1">¿Cómo funciona?</p>
+            <p className="text-gray-400">Dibujaste una línea de <span className="text-white font-mono">{Math.round(pxLen)} px</span> sobre el plano.</p>
+            <p className="text-gray-400 mt-1">Ingresa la distancia real que representa esa línea y el sistema calculará la escala exacta.</p>
+          </div>
+
+          {/* Distance input */}
+          <div>
+            <Label className="mb-1 block text-xs text-gray-400">Distancia real de la línea dibujada</Label>
+            <div className="flex gap-2">
+              <input
+                autoFocus
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={meters}
+                onChange={(e) => setMeters(e.target.value)}
+                placeholder="Ej: 5.00"
+                className="flex-1 px-3 py-2 rounded-lg text-sm text-white"
+                style={{ background: "#0f172a", border: "1px solid #3b82f6", outline: "none" }}
+                onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
+              />
+              <select
+                value={unit}
+                onChange={(e) => setUnit(e.target.value as "m" | "cm" | "ft")}
+                className="px-2 py-2 rounded-lg text-sm"
+                style={{ background: "#0f172a", border: "1px solid #2e3340", color: "#94a3b8" }}
+              >
+                <option value="m">m</option>
+                <option value="cm">cm</option>
+                <option value="ft">ft</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Live preview of calibration result */}
+          {metersPerPx != null && (
+            <div className="rounded-lg p-3 space-y-1" style={{ background: "#0c1a0c", border: "1px solid #166534" }}>
+              <p className="text-xs font-semibold text-green-400">Resultado de calibración</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <p className="text-gray-500">Escala calculada</p>
+                  <p className="text-white font-mono font-bold">
+                    1 : {Math.round(realMeters! / (pxLen * (0.0254 / 72)))}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Resolución</p>
+                  <p className="text-white font-mono font-bold">
+                    {realMeters! >= 1
+                      ? `${realMeters!.toFixed(2)} m / ${Math.round(pxLen)} px`
+                      : `${(realMeters! * 100).toFixed(1)} cm / ${Math.round(pxLen)} px`}
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-gray-500">Precisión por píxel</p>
+                  <p className="text-green-300 font-mono">
+                    1 px = {metersPerPx >= 0.01
+                      ? `${metersPerPx.toFixed(4)} m`
+                      : `${(metersPerPx * 100).toFixed(4)} cm`}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tips */}
+          <div className="text-[10px] text-gray-600 space-y-0.5">
+            <p>💡 Usa una distancia conocida larga (pared, pasillo) para mayor precisión.</p>
+            <p>💡 La calibración se guarda en el plano y aplica a todos los cables UTP.</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel} style={{ color: "#94a3b8" }}>Cancelar</Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={realMeters == null}
+            style={{ background: realMeters != null ? "#16a34a" : "#1e3a5f", color: "white" }}
+          >
+            Aplicar calibración
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── PDF Canvas Renderer ──────────────────────────────────────────────────────
 function PdfCanvas({ url, onReady }: { url: string; onReady: (w: number, h: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1477,6 +1620,11 @@ export default function FloorPlanViewer() {
   const [utpRouteDialogOpen, setUtpRouteDialogOpen] = useState(false);
   const [utpRouteColor, setUtpRouteColor] = useState("#3b82f6");
   const [utpRouteCategory, setUtpRouteCategory] = useState("Cat6");
+  // Calibration tool
+  const [calibStart, setCalibStart] = useState<{ x: number; y: number } | null>(null);
+  const [calibPreview, setCalibPreview] = useState<{ x: number; y: number } | null>(null);
+  const [calibDialogOpen, setCalibDialogOpen] = useState(false);
+  const [calibPxLen, setCalibPxLen] = useState(0);
   const [editingScale, setEditingScale] = useState(false);
   const [scaleInput, setScaleInput] = useState("");
   const [pendingAnnotation, setPendingAnnotation] = useState<{
@@ -1544,7 +1692,14 @@ export default function FloorPlanViewer() {
         setUtpRoutePreview({ x: e.clientX - rect.left, y: e.clientY - rect.top });
       }
     }
-  }, [isPanning, panStart, panOrigin, selectedTool, ladderStart, connectionStart, utpStart, utpRoutePoints]);
+    // Update Calibration preview
+    if (selectedTool === "calibrate" && calibStart) {
+      const rect = contentRef.current?.getBoundingClientRect();
+      if (rect) {
+        setCalibPreview({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      }
+    }
+  }, [isPanning, panStart, panOrigin, selectedTool, ladderStart, connectionStart, utpStart, utpRoutePoints, calibStart]);
 
   const handleMouseUp = useCallback(() => setIsPanning(false), []);
 
@@ -1599,6 +1754,26 @@ export default function FloorPlanViewer() {
         }
       }
       setUtpRoutePoints((prev) => [...prev, { x: xPx, y: yPx }]);
+      return;
+    }
+    // Calibration: two-point drawing mode
+    if (selectedTool === "calibrate") {
+      if (!calibStart) {
+        setCalibStart({ x: xPx, y: yPx });
+        return;
+      }
+      // Second click: calculate px length and open dialog
+      const dx = xPx - calibStart.x;
+      const dy = yPx - calibStart.y;
+      const pxLen = Math.sqrt(dx * dx + dy * dy);
+      if (pxLen < 5) {
+        // Too short, reset
+        setCalibStart({ x: xPx, y: yPx });
+        return;
+      }
+      setCalibPxLen(pxLen);
+      setCalibPreview(null);
+      setCalibDialogOpen(true);
       return;
     }
     // Connection: two-point drawing mode
@@ -1720,7 +1895,7 @@ export default function FloorPlanViewer() {
       const containerEl = contentRef.current;
       const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
       const pxLen = Math.sqrt((utpNodePending.x2 - utpNodePending.x1) ** 2 + (utpNodePending.y2 - utpNodePending.y1) ** 2);
-      const horizMeters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan?.scale) ?? 0;
+      const horizMeters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan?.scale, plan?.calibration) ?? 0;
       const totalMeters = horizMeters + 2 * ceilingHeight + rackMargin;
       const data = JSON.stringify({
         x1: utpNodePending.x1, y1: utpNodePending.y1,
@@ -1763,7 +1938,7 @@ export default function FloorPlanViewer() {
         const dy = utpRoutePoints[i].y - utpRoutePoints[i-1].y;
         totalPxLen += Math.sqrt(dx*dx + dy*dy);
       }
-      const horizMeters = calcUtpLengthMeters(totalPxLen, pdfDims, containerPx, plan?.scale) ?? 0;
+      const horizMeters = calcUtpLengthMeters(totalPxLen, pdfDims, containerPx, plan?.scale, plan?.calibration) ?? 0;
       const totalMeters = horizMeters + 2 * ceilingHeight + rackMargin;
       const data = JSON.stringify({
         points: utpRoutePoints,
@@ -1803,6 +1978,43 @@ export default function FloorPlanViewer() {
       setUtpRoutePreview(null);
       setUtpRouteDialogOpen(true);
     }
+  };
+
+  // ── Calibration handlers ───────────────────────────────────────────────────────────────
+  const handleCalibConfirm = (realMeters: number) => {
+    if (!calibStart || calibPxLen <= 0) return;
+    const containerEl = contentRef.current;
+    const containerW = containerEl?.offsetWidth ?? pdfDims?.w ?? 800;
+    const containerH = containerEl?.offsetHeight ?? pdfDims?.h ?? 600;
+    const metersPerPixel = realMeters / calibPxLen;
+    const calibData = JSON.stringify({
+      metersPerPixel,
+      refPxLen: calibPxLen,
+      refMeters: realMeters,
+      containerW,
+      containerH,
+    });
+    // Derive equivalent scale string for display
+    const nominalRatio = Math.round(metersPerPixel / (0.0254 / 72));
+    const scaleStr = `1:${nominalRatio}`;
+    updatePlan.mutate(
+      { id: planId, calibration: calibData, scale: scaleStr },
+      {
+        onSuccess: () => {
+          toast.success(`Calibración aplicada: ${scaleStr} (${metersPerPixel.toFixed(6)} m/px)`);
+          setCalibDialogOpen(false);
+          setCalibStart(null);
+          setCalibPreview(null);
+          setSelectedTool(null);
+        },
+      }
+    );
+  };
+
+  const handleCalibCancel = () => {
+    setCalibDialogOpen(false);
+    setCalibStart(null);
+    setCalibPreview(null);
   };
 
   // ── Export DXF ───────────────────────────────────────────────────────────
@@ -1966,6 +2178,10 @@ export default function FloorPlanViewer() {
       setUtpRoutePoints([]);
       setUtpRoutePreview(null);
     }
+    if (selectedTool !== "calibrate") {
+      setCalibStart(null);
+      setCalibPreview(null);
+    }
   }, [selectedTool]);
 
   // ── Loading / not found ───────────────────────────────────────────────────
@@ -2040,6 +2256,21 @@ export default function FloorPlanViewer() {
                 icon={<span>🟦</span>}
                 label="Trayecto UTP"
               />
+              {/* Separator */}
+              <div className="mx-2 my-1 border-t" style={{ borderColor: "#2e3340" }} />
+              <ToolButton
+                active={selectedTool === "calibrate"}
+                onClick={() => setSelectedTool("calibrate")}
+                icon={
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M2 12L12 2M2 2h3M2 2v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                    <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+                    <circle cx="2" cy="2" r="1.5" fill="currentColor"/>
+                    <path d="M5 9l2-2M7 7l2-2" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeOpacity="0.5"/>
+                  </svg>
+                }
+                label="Calibrar"
+              />
               {(layers as Layer[]).map((layer) => (
                 <ToolButton key={layer.id} active={selectedTool === `layer_${layer.id}`} onClick={() => setSelectedTool(`layer_${layer.id}`)} icon={<span>{layer.icon ?? "📍"}</span>} label={layer.label} />
               ))}
@@ -2090,6 +2321,18 @@ export default function FloorPlanViewer() {
               <p className="text-indigo-400">Clic para agregar puntos del trayecto</p>
             ) : selectedTool === "utp-route" ? (
               <p className="text-indigo-400">Clic para iniciar el trayecto multipunto</p>
+            ) : selectedTool === "calibrate" && calibStart ? (
+              <div>
+                <p className="text-yellow-400">Clic para definir el punto final de la referencia</p>
+                {calibPreview && (() => {
+                  const dx = calibPreview.x - calibStart.x;
+                  const dy = calibPreview.y - calibStart.y;
+                  const px = Math.sqrt(dx*dx + dy*dy);
+                  return <p className="text-yellow-300 text-[10px] font-mono">{Math.round(px)} px de línea</p>;
+                })()}
+              </div>
+            ) : selectedTool === "calibrate" ? (
+              <p className="text-yellow-400">Clic en el plano para iniciar la línea de referencia</p>
             ) : selectedTool ? (
               <p className="text-blue-400">Clic en el plano para colocar</p>
             ) : (
@@ -2344,7 +2587,7 @@ export default function FloorPlanViewer() {
                           const pxLen = Math.sqrt((d.x2! - d.x1!) ** 2 + (d.y2! - d.y1!) ** 2);
                           const containerPx = rect ? { w: rect.offsetWidth, h: rect.offsetHeight } : null;
                           // Para nodos UTP: usar la longitud total guardada (incluye altura de techo)
-                          const horizMeters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+                          const horizMeters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale, plan.calibration);
                           const meters = (d as any).isNode && (d as any).totalMeters != null
                             ? (d as any).totalMeters as number
                             : horizMeters;
@@ -2367,7 +2610,7 @@ export default function FloorPlanViewer() {
                         {utpStart && utpPreview && (() => {
                           const pxLen = Math.sqrt((utpPreview.x - utpStart.x) ** 2 + (utpPreview.y - utpStart.y) ** 2);
                           const containerPx = contentRef.current ? { w: contentRef.current.offsetWidth, h: contentRef.current.offsetHeight } : null;
-                          const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+                          const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale, plan.calibration);
                           const lengthLabel = meters != null ? formatMeters(meters) : undefined;
                           const overLimit = meters != null && meters > UTP_MAX_METERS;
                           return (
@@ -2470,7 +2713,7 @@ export default function FloorPlanViewer() {
                             const dy = allPts[i].y - allPts[i-1].y;
                             totalPx += Math.sqrt(dx*dx + dy*dy);
                           }
-                          const meters = calcUtpLengthMeters(totalPx, pdfDims, containerPx, plan.scale);
+                          const meters = calcUtpLengthMeters(totalPx, pdfDims, containerPx, plan.scale, plan.calibration);
                           const isOver = meters != null && meters > UTP_MAX_METERS;
                           const liveLabel = meters != null ? formatMeters(meters) : `${Math.round(totalPx)} px`;
                           const lastPt = allPts[allPts.length - 1];
@@ -2496,6 +2739,52 @@ export default function FloorPlanViewer() {
                             </g>
                           );
                         })()}
+
+                        {/* Calibration preview line */}
+                        {selectedTool === "calibrate" && calibStart && calibPreview && (() => {
+                          const dx = calibPreview.x - calibStart.x;
+                          const dy = calibPreview.y - calibStart.y;
+                          const pxLen = Math.sqrt(dx*dx + dy*dy);
+                          const midX = (calibStart.x + calibPreview.x) / 2;
+                          const midY = (calibStart.y + calibPreview.y) / 2;
+                          const label = `${Math.round(pxLen)} px`;
+                          return (
+                            <g>
+                              {/* Main line */}
+                              <line x1={calibStart.x} y1={calibStart.y} x2={calibPreview.x} y2={calibPreview.y}
+                                stroke="#eab308" strokeWidth={2} strokeDasharray="8 4"
+                              />
+                              {/* Endpoint markers */}
+                              <circle cx={calibStart.x} cy={calibStart.y} r={5} fill="#eab308" fillOpacity={0.9} />
+                              <circle cx={calibPreview.x} cy={calibPreview.y} r={5} fill="#eab308" fillOpacity={0.9} />
+                              {/* Tick marks at ends */}
+                              {(() => {
+                                const angle = Math.atan2(dy, dx);
+                                const perp = angle + Math.PI / 2;
+                                const tickLen = 8;
+                                const tx = Math.cos(perp) * tickLen;
+                                const ty = Math.sin(perp) * tickLen;
+                                return (
+                                  <>
+                                    <line x1={calibStart.x - tx} y1={calibStart.y - ty} x2={calibStart.x + tx} y2={calibStart.y + ty} stroke="#eab308" strokeWidth={2} />
+                                    <line x1={calibPreview.x - tx} y1={calibPreview.y - ty} x2={calibPreview.x + tx} y2={calibPreview.y + ty} stroke="#eab308" strokeWidth={2} />
+                                  </>
+                                );
+                              })()}
+                              {/* Length label */}
+                              <rect x={midX - label.length * 3.5} y={midY - 13} width={label.length * 7 + 4} height={15} rx={3}
+                                fill="#1a1d23" fillOpacity={0.9}
+                              />
+                              <text x={midX} y={midY - 3} textAnchor="middle" fontSize={10} fill="#eab308" fontFamily="monospace" fontWeight="bold">
+                                {label}
+                              </text>
+                            </g>
+                          );
+                        })()}
+                        {/* Calibration start point (before second click) */}
+                        {selectedTool === "calibrate" && calibStart && !calibPreview && (
+                          <circle cx={calibStart.x} cy={calibStart.y} r={5} fill="#eab308" fillOpacity={0.9} />
+                        )}
                       </svg>
                     );
                   })()}
@@ -2753,9 +3042,23 @@ export default function FloorPlanViewer() {
                 </button>
               )}
             </div>
-            {plan.scale && parseScaleRatio(plan.scale) && (
+            {plan.calibration ? (() => {
+              try {
+                const cal = JSON.parse(plan.calibration) as { metersPerPixel: number; refPxLen: number; refMeters: number };
+                return (
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                      <p className="text-green-600 text-[10px] font-semibold">Calibración real activa</p>
+                    </div>
+                    <p className="text-gray-600">1 px = {formatMeters(cal.metersPerPixel)}</p>
+                    <p className="text-gray-700 text-[9px]">Ref: {formatMeters(cal.refMeters)} / {Math.round(cal.refPxLen)} px</p>
+                  </div>
+                );
+              } catch { return null; }
+            })() : plan.scale && parseScaleRatio(plan.scale) ? (
               <p className="text-gray-600">1 px ≈ {formatMeters((0.0254 / 72) * (parseScaleRatio(plan.scale) ?? 1))} en plano</p>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -2778,7 +3081,7 @@ export default function FloorPlanViewer() {
           if (!utpPending) return undefined;
           const pxLen = Math.sqrt((utpPending.x2 - utpPending.x1) ** 2 + (utpPending.y2 - utpPending.y1) ** 2);
           const containerPx = contentRef.current ? { w: contentRef.current.offsetWidth, h: contentRef.current.offsetHeight } : null;
-          const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+          const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale, plan.calibration);
           return meters != null ? formatMeters(meters) : undefined;
         })()}
         onColorChange={setUtpColor}
@@ -2795,7 +3098,7 @@ export default function FloorPlanViewer() {
           if (!utpNodePending) return null;
           const pxLen = Math.sqrt((utpNodePending.x2 - utpNodePending.x1) ** 2 + (utpNodePending.y2 - utpNodePending.y1) ** 2);
           const containerPx = contentRef.current ? { w: contentRef.current.offsetWidth, h: contentRef.current.offsetHeight } : null;
-          return calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+          return calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale, plan.calibration);
         })()}
         onColorChange={setUtpColor}
         onCategoryChange={setUtpCategory}
@@ -2813,6 +3116,12 @@ export default function FloorPlanViewer() {
         onCategoryChange={setUtpRouteCategory}
         onConfirm={handleUtpRouteConfirm}
         onCancel={handleUtpRouteCancel}
+      />
+      <CalibrationDialog
+        open={calibDialogOpen}
+        pxLen={calibPxLen}
+        onConfirm={handleCalibConfirm}
+        onCancel={handleCalibCancel}
       />
     </>
   );

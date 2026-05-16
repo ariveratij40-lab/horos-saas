@@ -74,6 +74,7 @@ export const floorPlansRouter = router({
         format: z.enum(["pdf", "dwg", "dxf", "png", "jpg"]).optional(),
         dimensions: z.string().optional(),
         scale: z.string().optional(),
+        calibration: z.string().optional(), // JSON: { metersPerPixel, refPxLen, refMeters, containerW, containerH }
         status: z.enum(["active", "inactive", "draft"]).optional(),
         fileKey: z.string().optional(),
         fileUrl: z.string().optional(),
