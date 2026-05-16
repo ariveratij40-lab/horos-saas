@@ -50,6 +50,7 @@ const BUILTIN_MARKERS = [
   { type: "door",       icon: "🚪", label: "Puerta",       color: "#10b981" },
   { type: "sensor",     icon: "🔍", label: "Sensor",       color: "#06b6d4" },
   { type: "speaker",    icon: "🔊", label: "Bocina",       color: "#f97316" },
+  { type: "ladder",     icon: "🪜", label: "Escalerilla",  color: "#22c55e" },
   { type: "marker",     icon: "📍", label: "Marcador",     color: "#ef4444" },
 ];
 
@@ -120,6 +121,42 @@ function MarkerShape({ type, color, size = 36, rotation = 0 }: { type: string; c
           <circle cx={s/2} cy={s*1.05} r={s*0.1} fill={color} stroke="white" strokeWidth="1.2" />
         </svg>
       );
+    case "ladder": {
+      // Escalerilla: dos rieles verticales + peldaños horizontales
+      const railW = s * 0.12;
+      const leftX = s * 0.1;
+      const rightX = s * 0.78;
+      const topY = s * 0.04;
+      const botY = s * 1.35;
+      const rungs = 6;
+      const step = (botY - topY) / (rungs + 1);
+      return (
+        <svg width={s} height={s * 1.5} viewBox={`0 0 ${s} ${s * 1.5}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
+          {/* Left rail */}
+          <rect x={leftX} y={topY} width={railW} height={botY - topY} rx="2" fill={color} />
+          {/* Right rail */}
+          <rect x={rightX} y={topY} width={railW} height={botY - topY} rx="2" fill={color} />
+          {/* Rungs */}
+          {Array.from({ length: rungs }).map((_, i) => {
+            const y = topY + step * (i + 1);
+            return (
+              <rect
+                key={i}
+                x={leftX + railW}
+                y={y - s * 0.055}
+                width={rightX - leftX - railW}
+                height={s * 0.11}
+                rx="1"
+                fill={color}
+                fillOpacity="0.85"
+              />
+            );
+          })}
+          {/* Center dot anchor */}
+          <circle cx={s / 2} cy={s * 0.75} r={s * 0.07} fill="white" fillOpacity="0.5" />
+        </svg>
+      );
+    }
     default:
       return (
         <svg width={s} height={h} viewBox={`0 0 ${s} ${h}`} style={{ overflow: "visible", display: "block", ...rotStyle }}>
