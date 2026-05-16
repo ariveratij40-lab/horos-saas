@@ -1034,6 +1034,94 @@ function PdfCanvas({ url, onReady }: { url: string; onReady: (w: number, h: numb
   );
 }
 
+// ─── DXF Viewer Component ─────────────────────────────────────────────────────
+/**
+ * Renders a DXF file using WebGL via dxf-viewer library.
+ * Displays the drawing with pan/zoom and reports canvas dimensions via onReady.
+ */
+function DxfViewerComponent({ url, onReady }: { url: string; onReady: (w: number, h: number) => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const DEFAULT_W = 1200;
+  const DEFAULT_H = 900;
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    let cancelled = false;
+    const container = containerRef.current;
+
+    (async () => {
+      try {
+        const { DxfViewer } = await import("dxf-viewer");
+        if (cancelled) return;
+
+        const viewer = new DxfViewer(container, {
+          autoResize: false,
+          canvasWidth: DEFAULT_W,
+          canvasHeight: DEFAULT_H,
+          clearColor: new (await import("three")).Color(0x1a1d23),
+          clearAlpha: 1,
+          pointSize: 2,
+        });
+        viewerRef.current = viewer;
+
+        await viewer.Load({ url, fonts: null });
+        if (cancelled) { viewer.Destroy?.(); return; }
+
+        const canvas = viewer.GetCanvas();
+        if (canvas) {
+          canvas.style.borderRadius = "2px";
+          canvas.style.display = "block";
+          canvas.style.maxWidth = "100%";
+        }
+
+        setLoading(false);
+        onReady(DEFAULT_W, DEFAULT_H);
+      } catch (e: any) {
+        if (!cancelled) {
+          setError(e?.message ?? "Error al cargar DXF");
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      try { viewerRef.current?.Destroy?.(); } catch (_) {}
+      viewerRef.current = null;
+    };
+  }, [url]);
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 p-16 rounded-lg" style={{ background: "#22262e", border: "1px solid #2e3340", minWidth: 400, minHeight: 300 }}>
+        <span className="text-4xl">⚠️</span>
+        <p className="text-red-400 font-medium">Error al renderizar DXF</p>
+        <p className="text-gray-400 text-sm text-center">{error}</p>
+        <a href={url} target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-lg text-sm text-white border hover:bg-white/10 transition-colors" style={{ borderColor: "#3a3f4b" }}>
+          Descargar DXF
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ position: "relative", width: DEFAULT_W, height: DEFAULT_H, maxWidth: "100%", borderRadius: "2px", overflow: "hidden" }}>
+      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: "#1a1d23" }}>
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-gray-400">Cargando DXF…</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Annotations Accordion ─────────────────────────────────────────────────────
 /**
  * Panel compacto de anotaciones con acordeón por tipo.
@@ -1656,6 +1744,8 @@ export default function FloorPlanViewer() {
 
   const isPdf   = plan.format === "pdf";
   const isImage = ["png", "jpg", "jpeg"].includes(plan.format ?? "");
+  const isDxf   = plan.format === "dxf";
+  const isDwg   = plan.format === "dwg";
   const hasFile = !!plan.fileUrl;
 
   return (
@@ -1832,6 +1922,40 @@ export default function FloorPlanViewer() {
                       style={{ maxWidth: "1200px", maxHeight: "1600px", display: "block", borderRadius: "2px" }}
                       draggable={false}
                     />
+                  ) : isDxf ? (
+                    <DxfViewerComponent
+                      url={plan.fileUrl!}
+                      onReady={(w, h) => setPdfDims({ w, h })}
+                    />
+                  ) : isDwg ? (
+                    <div className="flex flex-col items-center justify-center gap-4 p-12 rounded-lg" style={{ background: "#22262e", border: "1px solid #2e3340", minWidth: "420px" }}>
+                      <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: "#0ea5e922", border: "1px solid #0ea5e944" }}>
+                        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                          <rect x="4" y="2" width="20" height="24" rx="3" stroke="#0ea5e9" strokeWidth="1.5"/>
+                          <path d="M9 9h10M9 13h10M9 17h6" stroke="#0ea5e9" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-semibold text-white text-sm mb-1">{plan.name}</p>
+                        <p className="text-xs text-gray-400 mb-3">Archivo DWG (formato binario AutoCAD)</p>
+                        <div className="rounded-lg p-3 text-left mb-3" style={{ background: "#1a1d23", border: "1px solid #2e3340" }}>
+                          <p className="text-[11px] font-semibold text-yellow-400 mb-1.5">⚠ Para visualizar en HOROS:</p>
+                          <p className="text-[11px] text-gray-400 leading-relaxed">El formato DWG es propietario de Autodesk y no puede renderizarse directamente en el navegador. Convierta el archivo a <strong className="text-white">DXF</strong> o <strong className="text-white">PDF</strong> para visualizarlo aquí.</p>
+                          <div className="mt-2 space-y-1">
+                            <p className="text-[10px] text-gray-500">Opciones de conversión gratuita:</p>
+                            <p className="text-[10px] text-blue-400">• AutoCAD: Guardar como → DXF</p>
+                            <p className="text-[10px] text-blue-400">• LibreCAD (gratis): Abrir DWG → Exportar DXF</p>
+                            <p className="text-[10px] text-blue-400">• Online: cloudconvert.com/dwg-to-dxf</p>
+                          </div>
+                        </div>
+                      </div>
+                      <a href={plan.fileUrl!} target="_blank" rel="noopener noreferrer"
+                        className="px-4 py-2 rounded-lg text-sm text-white border hover:bg-white/10 transition-colors"
+                        style={{ borderColor: "#3a3f4b" }}
+                      >
+                        Descargar DWG original
+                      </a>
+                    </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center gap-3 p-16 rounded-lg" style={{ background: "#22262e", border: "1px solid #2e3340" }}>
                       <span className="text-5xl">📐</span>
