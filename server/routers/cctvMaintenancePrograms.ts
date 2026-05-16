@@ -11,6 +11,7 @@ import {
   policyServices,
   cctvCameras,
   cctvIdfs,
+  cctvLicenses,
   cctvMonitors,
   cctvServers,
   cctvSwitches,
@@ -597,7 +598,7 @@ export const cctvMaintenanceProgramsRouter = router({
     if (!db) return [];
     const tenantId = ctx.user.tenantId ?? 1;
 
-    const [cameras, idfs, monitors, servers, switches, ups] = await Promise.all([
+    const [cameras, idfs, licenses, monitors, servers, switches, ups] = await Promise.all([
       db.select({ id: cctvCameras.id, marca: cctvCameras.marca, modelo: cctvCameras.modelo,
         area: cctvCameras.area, edificio: cctvCameras.edificio, ip: cctvCameras.ip,
         status: cctvCameras.status, tipo: cctvCameras.tipo, idCamera: cctvCameras.idCamera })
@@ -605,6 +606,10 @@ export const cctvMaintenanceProgramsRouter = router({
       db.select({ id: cctvIdfs.id, nombre: cctvIdfs.nombre, ubicacion: cctvIdfs.ubicacion,
         tipo: cctvIdfs.tipo, status: cctvIdfs.status })
         .from(cctvIdfs).where(eq(cctvIdfs.tenantId, tenantId)),
+      db.select({ id: cctvLicenses.id, idLicencia: cctvLicenses.idLicencia, marca: cctvLicenses.marca,
+        modelo: cctvLicenses.modelo, ubicacion: cctvLicenses.ubicacion, status: cctvLicenses.status,
+        tipo: cctvLicenses.tipo })
+        .from(cctvLicenses).where(eq(cctvLicenses.tenantId, tenantId)),
       db.select({ id: cctvMonitors.id, marca: cctvMonitors.marca, modelo: cctvMonitors.modelo,
         ubicacion: cctvMonitors.ubicacion, status: cctvMonitors.status })
         .from(cctvMonitors).where(eq(cctvMonitors.tenantId, tenantId)),
@@ -624,9 +629,11 @@ export const cctvMaintenanceProgramsRouter = router({
         id: r.id,
         category,
         categoryLabel: label,
-        name: r.nombre
-          ? r.nombre
-          : [r.marca, r.modelo].filter(Boolean).join(" ") || `${label} #${r.id}`,
+        name: r.idLicencia
+          ? `${r.idLicencia}${r.marca ? " — " + r.marca : ""}${r.modelo ? " " + r.modelo : ""}`
+          : r.nombre
+            ? r.nombre
+            : [r.marca, r.modelo].filter(Boolean).join(" ") || `${label} #${r.id}`,
         location: r.area ?? r.edificio ?? r.ubicacion ?? "",
         status: r.status ?? "active",
         extra: r.ip ?? r.idCamera ?? r.tipo ?? "",
@@ -635,6 +642,7 @@ export const cctvMaintenanceProgramsRouter = router({
     return [
       ...toItem("cameras", "Cámara", cameras),
       ...toItem("idfs", "IDF/MDF", idfs),
+      ...toItem("licenses", "Licencia", licenses),
       ...toItem("monitors", "Monitor", monitors),
       ...toItem("servers", "Servidor", servers),
       ...toItem("switches", "Switch", switches),
