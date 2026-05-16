@@ -222,6 +222,7 @@ export const cctvMaintenanceProgramsRouter = router({
         schedule: z.string().optional(),
         visitWeekStart: z.string().optional(),
         programMonth: z.string().optional(),
+        programYear: z.string().optional(),
         // Equipment items to include
         items: z.array(
           z.object({
@@ -261,6 +262,7 @@ export const cctvMaintenanceProgramsRouter = router({
         schedule: input.schedule ?? null,
         visitWeekStart: input.visitWeekStart ? toDate(input.visitWeekStart) as Date : null,
         programMonth: input.programMonth ?? null,
+        programYear: input.programYear ?? null,
         status: "active",
         createdByUserId: ctx.user.id,
         createdByUserName: ctx.user.name ?? ctx.user.email ?? null,

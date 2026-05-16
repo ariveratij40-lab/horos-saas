@@ -169,6 +169,13 @@
       "when": 1778955973539,
       "tag": "0023_lovely_kid_colt",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1778958717121,
+      "tag": "0024_good_puck",
+      "breakpoints": true
     }
   ]
 }

@@ -827,6 +827,7 @@ export const cctvMaintenancePrograms = mysqlTable("cctv_maintenance_programs", {
   schedule: varchar("schedule", { length: 100 }),    // Horario ej: "8:00AM - 5:00 PM"
   visitWeekStart: date("visitWeekStart"),             // Inicio de la semana de visita actual
   programMonth: varchar("programMonth", { length: 20 }), // Mes del programa ej: "may-26"
+  programYear: varchar("programYear", { length: 10 }),   // Año del programa ej: "2026"
   status: mysqlEnum("status", ["active", "completed", "cancelled"]).default("active").notNull(),
   createdByUserId: int("createdByUserId"),
   createdByUserName: varchar("createdByUserName", { length: 255 }),

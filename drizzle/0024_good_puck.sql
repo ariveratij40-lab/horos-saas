@@ -1,0 +1,1 @@
+ALTER TABLE `cctv_maintenance_programs` ADD `programYear` varchar(10);

@@ -16,7 +16,7 @@ import {
   Calendar, FileText, Shield, ChevronDown, ChevronUp,
   Camera, ImageIcon, Upload, X as XIcon, PenLine, Eye,
   ClipboardList, Link2, BarChart3, Filter, CheckSquare, Square,
-  ListChecks, Layers, ChevronRight, Info, Users,
+  ListChecks, Layers, ChevronRight, Info, Users, Trash2,
 } from "lucide-react";
 import MaintenanceReportDialog from "@/components/MaintenanceReportDialog";
 
@@ -420,6 +420,11 @@ export default function CCTVMaintenance() {
     onError: (e) => toast.error(e.message),
   });
 
+  const deleteProgram = trpc.cctvPrograms.delete.useMutation({
+    onSuccess: () => { toast.success("Programa eliminado"); refetchPrograms(); refetchEvents(); setExpandedId(null); },
+    onError: (e) => toast.error(e.message),
+  });
+
   // ── Stats ──
   const stats = {
     total: programs.length,
@@ -611,6 +616,31 @@ export default function CCTVMaintenance() {
                             <p className="font-medium">{prog.technician ?? "—"}</p>
                           </div>
                         </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 pt-2 border-t border-border/30">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                            onClick={(e) => { e.stopPropagation(); setScheduleProgId(prog.id); setTab("schedule"); }}
+                          >
+                            <Calendar className="w-3.5 h-3.5" /> Ver Programa Semanal
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 ml-auto"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`¿Eliminar el programa "${prog.name}"? Esta acción no se puede deshacer.`)) {
+                                deleteProgram.mutate({ id: prog.id });
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Eliminar Programa
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </Card>
@@ -778,6 +808,7 @@ function NewProgramDialog({
     endDate: "",
     technician: "",
     programMonth: "",
+    programYear: String(new Date().getFullYear()),
     schedule: "8:00AM - 5:00 PM",
     generateSchedule: true,
   });
@@ -820,7 +851,7 @@ function NewProgramDialog({
     setInventoryFilter("all");
     setPerDay(5);
     setShowSchedulePreview(false);
-    setForm({ name: "", description: "", policyId: "", totalVisits: 4, frequency: "quarterly", startDate: "", endDate: "", technician: "", programMonth: "", schedule: "8:00AM - 5:00 PM", generateSchedule: true });
+    setForm({ name: "", description: "", policyId: "", totalVisits: 4, frequency: "quarterly", startDate: "", endDate: "", technician: "", programMonth: "", programYear: String(new Date().getFullYear()), schedule: "8:00AM - 5:00 PM", generateSchedule: true });
     onClose();
   };
 
@@ -872,7 +903,7 @@ function NewProgramDialog({
       ...item,
       scheduledDays: itemScheduledDays[`${item.category}-${item.itemId}`] ?? "",
     }));
-    onSave({ ...form, policyId: form.policyId ? Number(form.policyId) : undefined, items: itemsWithDays });
+    onSave({ ...form, policyId: form.policyId ? Number(form.policyId) : undefined, items: itemsWithDays, programYear: form.programYear || undefined });
   };
 
   const STEPS = ["Información", "Inventario", "Programa de Obra", "Confirmar"];
@@ -994,11 +1025,14 @@ function NewProgramDialog({
                 <Label>Técnico Responsable</Label>
                 <Input placeholder="Nombre del técnico" value={form.technician} onChange={(e) => f("technician", e.target.value)} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <Label>Mes del Programa</Label>
-                  <Input placeholder="ej: may-26" value={form.programMonth} onChange={(e) => f("programMonth", e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Se muestra en el encabezado del Programa Semanal</p>
+                  <Input placeholder="ej: may" value={form.programMonth} onChange={(e) => f("programMonth", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Año</Label>
+                  <Input placeholder="ej: 2026" value={form.programYear} onChange={(e) => f("programYear", e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Horario de Trabajo</Label>
@@ -1159,137 +1193,139 @@ function NewProgramDialog({
             </div>
           )}
 
-          {/* STEP 2: Schedule */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-3">
-                <p className="font-semibold text-amber-800 flex items-center gap-2">
-                  <Info className="w-4 h-4" />
-                  Configurar Capacidad Diaria
-                </p>
-                <p className="text-sm text-amber-700">
-                  Tienes <strong>{selectedItems.length} equipos</strong> seleccionados. ¿Cuántos equipos puede atender el técnico por día?
-                </p>
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 space-y-1.5">
-                    <Label className="text-sm">Equipos por día</Label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setPerDay((v) => Math.max(1, v - 1))}
-                        className="w-8 h-8 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center font-bold text-lg transition-colors"
-                      >-</button>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={selectedItems.length || 1}
-                        value={perDay}
-                        onChange={(e) => setPerDay(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="w-20 text-center text-lg font-bold"
-                      />
-                      <button
-                        onClick={() => setPerDay((v) => Math.min(selectedItems.length || 1, v + 1))}
-                        className="w-8 h-8 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center font-bold text-lg transition-colors"
-                      >+</button>
-                    </div>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <p className="text-xs text-muted-foreground">Días de trabajo estimados</p>
-                    <p className="text-3xl font-bold text-blue-600">{totalDays}</p>
-                    <p className="text-xs text-muted-foreground">día{totalDays !== 1 ? "s" : ""} hábil{totalDays !== 1 ? "es" : ""}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Work schedule preview */}
-              {workSchedule.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+          {/* STEP 2: Programa de Obra — tabla de fechas reales con checkboxes por equipo */}
+          {step === 2 && (() => {
+            // Generate all calendar dates in the range [startDate, endDate]
+            const allDates: Date[] = [];
+            if (form.startDate && form.endDate) {
+              let cur = new Date(form.startDate + "T12:00:00");
+              const end = new Date(form.endDate + "T12:00:00");
+              while (cur <= end) {
+                allDates.push(new Date(cur));
+                cur = new Date(cur.getTime() + 86400000);
+              }
+            }
+            const DAY_SHORT = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+            // itemDateKey: `{category}-{itemId}|{dateStr}` -> boolean
+            return (
+              <div className="space-y-3">
+                {/* Header info */}
+                <div className="flex items-start justify-between gap-4">
+                  <div>
                     <p className="text-sm font-semibold flex items-center gap-1.5">
                       <Calendar className="w-4 h-4 text-blue-500" />
-                      Programa de Obra Generado
+                      Programa de Obra
                     </p>
-                    <button
-                      onClick={() => setShowSchedulePreview((v) => !v)}
-                      className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                    >
-                      {showSchedulePreview ? "Ocultar detalle" : "Ver detalle"}
-                      {showSchedulePreview ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    </button>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Selecciona con exactitud los días en que se atenderá cada equipo.
+                      {allDates.length > 0 && <span className="ml-1 text-blue-600 font-medium">{allDates.length} días en el período</span>}
+                    </p>
                   </div>
-
-                  <div className="rounded-xl border border-border overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-muted/50 border-b border-border">
-                          <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Día</th>
-                          <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Fecha</th>
-                          <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Equipos</th>
-                          <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground">#</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {workSchedule.map((day) => (
-                          <tr key={day.dayNumber} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
-                            <td className="px-3 py-2">
-                              <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">
-                                {day.dayNumber}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-sm font-medium">
-                              {form.startDate
-                                ? new Date(day.date + "T12:00:00").toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" })
-                                : `Día ${day.dayNumber}`}
-                            </td>
-                            <td className="px-3 py-2 text-xs text-muted-foreground">
-                              {showSchedulePreview ? (
-                                <div className="space-y-0.5">
-                                  {day.items.map((item: any, idx: number) => (
-                                    <div key={idx} className="flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-                                      <span className="truncate max-w-[180px]">{item.itemName}</span>
-                                      {item.itemLocation && <span className="text-muted-foreground/60">({item.itemLocation})</span>}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="truncate">
-                                  {day.items.slice(0, 2).map((i: any) => i.itemName).join(", ")}
-                                  {day.items.length > 2 && <span className="text-blue-500"> +{day.items.length - 2} más</span>}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              <Badge variant="outline" className="text-xs">{day.items.length}</Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
                   {!form.startDate && (
-                    <p className="text-xs text-amber-600 flex items-center gap-1">
-                      <Info className="w-3.5 h-3.5" /> Define la fecha de inicio en el paso anterior para ver las fechas reales
+                    <p className="text-xs text-amber-600 flex items-center gap-1 shrink-0">
+                      <Info className="w-3.5 h-3.5" /> Define fechas en el paso 1
                     </p>
                   )}
                 </div>
-              )}
 
-              <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20">
-                <input
-                  type="checkbox"
-                  id="genSchedule"
-                  checked={form.generateSchedule}
-                  onChange={(e) => f("generateSchedule", e.target.checked)}
-                  className="w-4 h-4 accent-blue-600"
-                />
-                <label htmlFor="genSchedule" className="text-sm cursor-pointer">
-                  <span className="font-medium">Generar visitas automáticamente en el calendario</span>
-                  <span className="text-muted-foreground ml-1">— Crea {form.totalVisits} entradas programadas</span>
-                </label>
+                {selectedItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                    <Layers className="w-8 h-8 mb-2 opacity-40" />
+                    <p className="text-sm">No hay equipos seleccionados</p>
+                    <p className="text-xs mt-1">Regresa al paso anterior para seleccionar equipos</p>
+                  </div>
+                ) : allDates.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                    <Calendar className="w-8 h-8 mb-2 opacity-40" />
+                    <p className="text-sm">Define las fechas de inicio y fin en el paso 1</p>
+                  </div>
+                ) : (
+                  <div className="overflow-auto rounded-lg border border-border/50" style={{ maxHeight: "420px" }}>
+                    <table className="text-xs border-collapse" style={{ minWidth: `${180 + allDates.length * 52}px` }}>
+                      <thead className="sticky top-0 z-20">
+                        {/* Month/week grouping row */}
+                        <tr className="bg-muted/90 backdrop-blur-sm border-b border-border">
+                          <th className="sticky left-0 z-30 bg-muted/90 px-3 py-2 text-left font-semibold border-r border-border min-w-[180px]">Equipo</th>
+                          {allDates.map((d) => {
+                            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                            return (
+                              <th key={d.toISOString()} className={cn(
+                                "px-1 py-2 text-center font-medium w-12 border-l border-border/30",
+                                isWeekend ? "bg-amber-50/80 text-amber-700" : "text-muted-foreground",
+                              )}>
+                                <div className="font-semibold">{String(d.getDate()).padStart(2,"0")}</div>
+                                <div className="text-[9px] opacity-70">{DAY_SHORT[d.getDay()]}</div>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedItems.map((item: any, rowIdx: number) => {
+                          const itemKey = `${item.category}-${item.itemId}`;
+                          const scheduledDays = (itemScheduledDays[itemKey] ?? "").split(",").filter(Boolean).map(Number);
+                          // Also support per-date selection stored as "date:YYYY-MM-DD" entries
+                          const scheduledDates = (itemScheduledDays[`${itemKey}_dates`] ?? "").split(",").filter(Boolean);
+                          return (
+                            <tr key={itemKey} className={cn(
+                              "border-b border-border/30 hover:bg-blue-50/20 transition-colors",
+                              rowIdx % 2 === 0 ? "bg-background" : "bg-muted/10",
+                            )}>
+                              <td className="sticky left-0 z-10 bg-inherit px-3 py-2 border-r border-border/30 min-w-[180px]">
+                                <p className="font-medium truncate max-w-[170px]">{item.itemName}</p>
+                                <p className="text-muted-foreground truncate max-w-[170px] text-[10px]">{item.area || item.itemLocation || ""}</p>
+                              </td>
+                              {allDates.map((d) => {
+                                const dateStr = d.toISOString().split("T")[0];
+                                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                                const isChecked = scheduledDates.includes(dateStr);
+                                return (
+                                  <td key={dateStr} className={cn(
+                                    "px-1 py-2 text-center border-l border-border/20 cursor-pointer transition-colors w-12",
+                                    isWeekend ? "bg-amber-50/30" : "",
+                                    isChecked ? "bg-blue-100" : "hover:bg-blue-50/50",
+                                  )}
+                                    onClick={() => {
+                                      const datesKey = `${itemKey}_dates`;
+                                      setItemScheduledDays((prev) => {
+                                        const current = (prev[datesKey] ?? "").split(",").filter(Boolean);
+                                        const updated = current.includes(dateStr)
+                                          ? current.filter((x) => x !== dateStr)
+                                          : [...current, dateStr].sort();
+                                        return { ...prev, [datesKey]: updated.join(",") };
+                                      });
+                                    }}
+                                  >
+                                    {isChecked && (
+                                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px]">✓</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20">
+                  <input
+                    type="checkbox"
+                    id="genSchedule"
+                    checked={form.generateSchedule}
+                    onChange={(e) => f("generateSchedule", e.target.checked)}
+                    className="w-4 h-4 accent-blue-600"
+                  />
+                  <label htmlFor="genSchedule" className="text-sm cursor-pointer">
+                    <span className="font-medium">Generar visitas automáticamente en el calendario</span>
+                    <span className="text-muted-foreground ml-1">— Crea {form.totalVisits} entradas programadas</span>
+                  </label>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* STEP 3: Confirm */}
           {step === 3 && (
