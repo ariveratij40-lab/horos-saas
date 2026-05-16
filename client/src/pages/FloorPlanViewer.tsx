@@ -6,19 +6,68 @@ function parseData(data: string | null): { rotation?: number; scale?: number; fo
   try { return JSON.parse(data); } catch { return {}; }
 }
 
+
+// ─── Scale helpers ────────────────────────────────────────────────────────────
+/** Parsea "1:100" -> 100, "1:50" -> 50, "100" -> 100 */
+function parseScaleRatio(s: string | null | undefined): number | null {
+  if (!s) return null;
+  const clean = s.trim();
+  const match = clean.match(/^1\s*:\s*(\d+(?:\.\d+)?)$/);
+  if (match) return parseFloat(match[1]);
+  const match2 = clean.match(/^(\d+(?:\.\d+)?)\s*:\s*1$/);
+  if (match2) return 1 / parseFloat(match2[1]);
+  const n = parseFloat(clean);
+  return isNaN(n) ? null : n;
+}
+
+/**
+ * Calcula la longitud real del cable en metros.
+ * pxLen: longitud en pixeles del contenedor visible (sin zoom)
+ * pdfDims: dimensiones del PDF en puntos a 72 DPI (devueltas por pdfjs)
+ * containerPx: dimensiones del contenedor visible en pixeles
+ * scaleStr: campo scale del plano, ej: "1:100"
+ */
+function calcUtpLengthMeters(
+  pxLen: number,
+  pdfDims: { w: number; h: number } | null,
+  containerPx: { w: number; h: number } | null,
+  scaleStr: string | null | undefined
+): number | null {
+  if (!pdfDims || !containerPx || pxLen <= 0) return null;
+  const ratio = parseScaleRatio(scaleStr);
+  if (!ratio) return null;
+  // pixeles por punto PDF (el contenedor muestra el PDF a cierto zoom)
+  const pxPerPdfPt = containerPx.w / pdfDims.w;
+  // 1 punto PDF = 1/72 pulgada = 0.0254/72 metros
+  const metersPerPdfPt = 0.0254 / 72;
+  return (pxLen / pxPerPdfPt) * metersPerPdfPt * ratio;
+}
+
+/** Formatea metros a texto legible */
+function formatMeters(m: number): string {
+  if (m >= 100) return `${Math.round(m)} m`;
+  if (m >= 10) return `${m.toFixed(1)} m`;
+  return `${m.toFixed(2)} m`;
+}
+
 // ─── UTP Cable SVG ──────────────────────────────────────────────────────────
-function UtpCableSvg({ x1, y1, x2, y2, color, selected, category }: { x1: number; y1: number; x2: number; y2: number; color: string; selected: boolean; category?: string }) {
+function UtpCableSvg({ x1, y1, x2, y2, color, selected, category, lengthLabel }: {
+  x1: number; y1: number; x2: number; y2: number;
+  color: string; selected: boolean; category?: string; lengthLabel?: string;
+}) {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const len = Math.sqrt(dx * dx + dy * dy);
   if (len < 2) return null;
   const sw = selected ? 4 : 3;
-  // Twisted pair effect: two parallel lines slightly offset
+  // Normal perpendicular offset for labels
   const nx = -dy / len * 2;
   const ny = dx / len * 2;
   const mx = (x1 + x2) / 2;
   const my = (y1 + y2) / 2;
   const catLabel = category ?? "";
+  // Combined label: "Cat6 · 12.50 m" or just "Cat6" or just "12.50 m"
+  const topLabel = [catLabel, lengthLabel].filter(Boolean).join(" · ");
   return (
     <g>
       {/* Outer glow when selected */}
@@ -35,10 +84,10 @@ function UtpCableSvg({ x1, y1, x2, y2, color, selected, category }: { x1: number
       {/* Endpoint connectors */}
       <rect x={x1 - 4} y={y1 - 4} width={8} height={8} rx={1.5} fill={color} stroke="white" strokeWidth={1} opacity={0.9} />
       <rect x={x2 - 4} y={y2 - 4} width={8} height={8} rx={1.5} fill={color} stroke="white" strokeWidth={1} opacity={0.9} />
-      {/* Category label */}
-      {catLabel && (
+      {/* Combined label: category + length */}
+      {topLabel && (
         <text x={mx + nx} y={my + ny - 6} textAnchor="middle" fill={color} fontSize="10" fontWeight="700"
-          style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.9))", pointerEvents: "none" }}>{catLabel}</text>
+          style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.9))", pointerEvents: "none" }}>{topLabel}</text>
       )}
     </g>
   );
@@ -498,10 +547,11 @@ const UTP_COLORS = [
 ];
 const UTP_CATEGORIES = ["Cat5e", "Cat6", "Cat6A", "Cat7", "Cat8"];
 
-function UtpCableDialog({ open, color, category, onColorChange, onCategoryChange, onConfirm, onCancel }: {
+function UtpCableDialog({ open, color, category, estimatedLength, onColorChange, onCategoryChange, onConfirm, onCancel }: {
   open: boolean;
   color: string;
   category: string;
+  estimatedLength?: string;
   onColorChange: (c: string) => void;
   onCategoryChange: (c: string) => void;
   onConfirm: () => void;
@@ -513,6 +563,20 @@ function UtpCableDialog({ open, color, category, onColorChange, onCategoryChange
       <DialogContent className="max-w-sm">
         <DialogHeader><DialogTitle>Cable UTP</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
+          {estimatedLength && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "#1e293b", border: "1px solid #334155" }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 8h12M2 8l3-3M2 8l3 3" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span className="text-xs text-gray-400">Longitud estimada:</span>
+              <span className="text-sm font-bold" style={{ color }}>{estimatedLength}</span>
+            </div>
+          )}
+          {!estimatedLength && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "#1e293b", border: "1px solid #334155" }}>
+              <span className="text-xs text-gray-500">Configura la escala del plano para ver la longitud estimada</span>
+            </div>
+          )}
           <div>
             <Label className="mb-2 block">Color del cable</Label>
             <div className="flex flex-wrap gap-2">
@@ -673,6 +737,9 @@ export default function FloorPlanViewer() {
   const deleteAnnotation = trpc.floorPlanAnnotations.delete.useMutation({
     onSuccess: () => utils.floorPlanAnnotations.listByPlan.invalidate({ planId }),
   });
+  const updatePlan = trpc.floorPlans.update.useMutation({
+    onSuccess: () => utils.floorPlans.getById.invalidate({ id: planId }),
+  });
 
   // ── State ─────────────────────────────────────────────────────────────────
   const [zoom, setZoom] = useState(1);
@@ -692,6 +759,8 @@ export default function FloorPlanViewer() {
   const [utpPending, setUtpPending] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [utpColor, setUtpColor] = useState("#3b82f6");
   const [utpCategory, setUtpCategory] = useState("Cat6");
+  const [editingScale, setEditingScale] = useState(false);
+  const [scaleInput, setScaleInput] = useState("");
   const [pendingAnnotation, setPendingAnnotation] = useState<{
     x: string; y: string; icon: string; color: string; type: string; layerId: number | null;
   } | null>(null);
@@ -1325,9 +1394,14 @@ export default function FloorPlanViewer() {
                           const d = parseData(ann.data);
                           if (d.x1 === undefined) return null;
                           const col = d.utpColor ?? ann.color ?? "#3b82f6";
+                          // Calcular longitud real
+                          const pxLen = Math.sqrt((d.x2! - d.x1!) ** 2 + (d.y2! - d.y1!) ** 2);
+                          const containerPx = rect ? { w: rect.offsetWidth, h: rect.offsetHeight } : null;
+                          const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+                          const lengthLabel = meters != null ? formatMeters(meters) : undefined;
                           return (
                             <g key={ann.id} style={{ pointerEvents: "all", cursor: "pointer" }} onClick={() => setSelectedAnnotation(selectedAnnotation === ann.id ? null : ann.id)}>
-                              <UtpCableSvg x1={d.x1!} y1={d.y1!} x2={d.x2!} y2={d.y2!} color={col} selected={selectedAnnotation === ann.id} category={d.utpCategory} />
+                              <UtpCableSvg x1={d.x1!} y1={d.y1!} x2={d.x2!} y2={d.y2!} color={col} selected={selectedAnnotation === ann.id} category={d.utpCategory} lengthLabel={lengthLabel} />
                               {selectedAnnotation === ann.id && (
                                 <g>
                                   <circle cx={(d.x1! + d.x2!) / 2} cy={(d.y1! + d.y2!) / 2} r={10} fill="#ef4444" style={{ cursor: "pointer", pointerEvents: "all" }}
@@ -1335,16 +1409,19 @@ export default function FloorPlanViewer() {
                                   <text x={(d.x1! + d.x2!) / 2} y={(d.y1! + d.y2!) / 2 + 4} textAnchor="middle" fill="white" fontSize="12" style={{ pointerEvents: "none" }}>×</text>
                                 </g>
                               )}
-                              {ann.label && (
-                                <text x={(d.x1! + d.x2!) / 2} y={(d.y1! + d.y2!) / 2 - 12} textAnchor="middle" fill={col} fontSize="11" fontWeight="600" style={{ pointerEvents: "none", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.8))" }}>{ann.label}</text>
-                              )}
                             </g>
                           );
                         })}
                         {/* Preview while drawing */}
-                        {utpStart && utpPreview && (
-                          <UtpCableSvg x1={utpStart.x} y1={utpStart.y} x2={utpPreview.x} y2={utpPreview.y} color={utpColor} selected={false} category={utpCategory} />
-                        )}
+                        {utpStart && utpPreview && (() => {
+                          const pxLen = Math.sqrt((utpPreview.x - utpStart.x) ** 2 + (utpPreview.y - utpStart.y) ** 2);
+                          const containerPx = contentRef.current ? { w: contentRef.current.offsetWidth, h: contentRef.current.offsetHeight } : null;
+                          const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+                          const lengthLabel = meters != null ? formatMeters(meters) : undefined;
+                          return (
+                            <UtpCableSvg x1={utpStart.x} y1={utpStart.y} x2={utpPreview.x} y2={utpPreview.y} color={utpColor} selected={false} category={utpCategory} lengthLabel={lengthLabel} />
+                          );
+                        })()}
                         {utpStart && (
                           <circle cx={utpStart.x} cy={utpStart.y} r={6} fill={utpColor} fillOpacity="0.8" />
                         )}
@@ -1580,10 +1657,51 @@ export default function FloorPlanViewer() {
             );
           })()}
 
-          {/* Bottom info */}
-          <div className="px-3 py-2 border-t text-xs" style={{ borderColor: "#2e3340" }}>
+          {/* Bottom info + scale editor */}
+          <div className="px-3 py-2 border-t text-xs space-y-1.5" style={{ borderColor: "#2e3340" }}>
             {plan.format && <p className="text-gray-500">Formato: <span className="text-gray-300">{plan.format.toUpperCase()}</span></p>}
-            {plan.scale && <p className="text-gray-500">Escala: <span className="text-gray-300">{plan.scale}</span></p>}
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-500">Escala:</span>
+              {editingScale ? (
+                <form
+                  className="flex items-center gap-1 flex-1"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const val = scaleInput.trim();
+                    if (val) {
+                      updatePlan.mutate({ id: planId, scale: val });
+                    }
+                    setEditingScale(false);
+                  }}
+                >
+                  <input
+                    autoFocus
+                    value={scaleInput}
+                    onChange={(e) => setScaleInput(e.target.value)}
+                    placeholder="ej: 1:100"
+                    className="flex-1 min-w-0 px-1.5 py-0.5 rounded text-xs text-white"
+                    style={{ background: "#1a1d23", border: "1px solid #3b82f6", outline: "none" }}
+                    onKeyDown={(e) => e.key === "Escape" && setEditingScale(false)}
+                  />
+                  <button type="submit" className="text-[10px] px-1.5 py-0.5 rounded text-white" style={{ background: "#3b82f6" }}>OK</button>
+                  <button type="button" onClick={() => setEditingScale(false)} className="text-[10px] px-1.5 py-0.5 rounded text-gray-400" style={{ background: "#2e3340" }}>✕</button>
+                </form>
+              ) : (
+                <button
+                  onClick={() => { setScaleInput(plan.scale ?? "1:100"); setEditingScale(true); }}
+                  className="text-gray-300 hover:text-blue-400 transition-colors flex items-center gap-1 group"
+                  title="Editar escala del plano"
+                >
+                  <span>{plan.scale ?? <span className="text-gray-600 italic">sin escala</span>}</span>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <path d="M1 9L7 3M7 3H4M7 3V6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              )}
+            </div>
+            {plan.scale && parseScaleRatio(plan.scale) && (
+              <p className="text-gray-600">1 px ≈ {formatMeters((0.0254 / 72) * (parseScaleRatio(plan.scale) ?? 1))} en plano</p>
+            )}
           </div>
         </div>
       </div>
@@ -1602,6 +1720,13 @@ export default function FloorPlanViewer() {
         open={utpDialogOpen}
         color={utpColor}
         category={utpCategory}
+        estimatedLength={(() => {
+          if (!utpPending) return undefined;
+          const pxLen = Math.sqrt((utpPending.x2 - utpPending.x1) ** 2 + (utpPending.y2 - utpPending.y1) ** 2);
+          const containerPx = contentRef.current ? { w: contentRef.current.offsetWidth, h: contentRef.current.offsetHeight } : null;
+          const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+          return meters != null ? formatMeters(meters) : undefined;
+        })()}
         onColorChange={setUtpColor}
         onCategoryChange={setUtpCategory}
         onConfirm={handleUtpConfirm}
