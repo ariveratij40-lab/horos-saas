@@ -1,13 +1,13 @@
 /**
  * RfidManagement — Gestión centralizada de etiquetas RFID del inventario CCTV.
- * Permite ver todos los tags asignados, imprimir etiquetas y reasignar/eliminar tags.
+ * Permite ver todos los tags asignados, seleccionar múltiples, imprimir por lotes y eliminar.
  */
 import React, { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -20,7 +20,7 @@ import {
   Tag, Printer, Search, ArrowLeft, RefreshCw, Trash2,
   Camera, Server, Wifi, Monitor, Shield, Zap, Package,
   CheckCircle2, XCircle, AlertTriangle, Loader2, Smartphone,
-  Download,
+  Download, CheckSquare, Square, X as XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,9 +42,10 @@ const STATUS_COLOR: Record<string, string> = {
   retired:     "bg-red-500/15 text-red-400",
 };
 
-// ─── Label print component ────────────────────────────────────────────────────
+// ─── Logo URL ─────────────────────────────────────────────────────────────────
 const LOGO_URL = "/manus-storage/Logo_Horos_v12_Transparente_08ee2bf3.webp";
 
+// ─── Single label preview ─────────────────────────────────────────────────────
 function RfidLabel({ tag }: { tag: any }) {
   const labelRef = useRef<HTMLDivElement>(null);
   const appUrl = window.location.origin;
@@ -66,62 +67,22 @@ function RfidLabel({ tag }: { tag: any }) {
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: Arial, sans-serif; background: white; color: black; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
           .sticker {
-            width: 85mm;
-            height: 28mm;
-            background: #f5f5f5;
-            border: 1px solid #d0d0d0;
-            border-radius: 4mm;
-            display: flex;
-            align-items: stretch;
-            overflow: hidden;
+            width: 85mm; height: 28mm; background: #f5f5f5;
+            border: 1px solid #d0d0d0; border-radius: 4mm;
+            display: flex; align-items: stretch; overflow: hidden;
             box-shadow: 0 1px 4px rgba(0,0,0,0.12);
           }
           .qr-col {
-            width: 28mm;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2mm;
-            background: white;
-            border-right: 1px solid #e0e0e0;
-            flex-shrink: 0;
+            width: 28mm; display: flex; align-items: center; justify-content: center;
+            padding: 2mm; background: white; border-right: 1px solid #e0e0e0; flex-shrink: 0;
           }
           .qr-col svg { display: block; }
-          .info-col {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 2.5mm 3mm;
-          }
-          .info-top {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 2mm;
-          }
-          .tag-code {
-            font-size: 10pt;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            color: #111;
-            line-height: 1.1;
-          }
-          .logo-box img {
-            height: 10mm;
-            width: auto;
-            object-fit: contain;
-          }
-          .model-text {
-            font-size: 9pt;
-            font-weight: 700;
-            color: #222;
-            margin-top: auto;
-          }
-          @media print {
-            body { min-height: unset; }
-            @page { margin: 0; size: 85mm 28mm; }
-          }
+          .info-col { flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding: 2.5mm 3mm; }
+          .info-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 2mm; }
+          .tag-code { font-size: 10pt; font-weight: 700; letter-spacing: 0.5px; color: #111; line-height: 1.1; }
+          .logo-box img { height: 10mm; width: auto; object-fit: contain; }
+          .model-text { font-size: 9pt; font-weight: 700; color: #222; margin-top: auto; }
+          @media print { body { min-height: unset; } @page { margin: 0; size: 85mm 28mm; } }
         </style>
       </head>
       <body>
@@ -152,19 +113,14 @@ function RfidLabel({ tag }: { tag: any }) {
         className="flex items-stretch bg-[#f5f5f5] border border-[#d0d0d0] rounded-[8px] overflow-hidden shadow-md mx-auto"
         style={{ width: 340, height: 112 }}
       >
-        {/* QR column */}
         <div className="flex items-center justify-center bg-white border-r border-[#e0e0e0] shrink-0" style={{ width: 112 }}>
           <QRCodeSVG value={scanUrl} size={88} level="M" />
         </div>
-
-        {/* Info column */}
         <div className="flex flex-col justify-between flex-1 px-4 py-3">
-          {/* Top row: tag code + logo */}
           <div className="flex items-start justify-between gap-2">
             <span className="font-bold text-[15px] tracking-wide text-black leading-tight">{tag.rfidTag}</span>
             <img src={LOGO_URL} alt="HOROS" className="h-9 w-auto object-contain shrink-0" />
           </div>
-          {/* Bottom: model */}
           {modelDisplay && (
             <p className="font-bold text-[13px] text-black mt-auto">Modelo: {modelDisplay}</p>
           )}
@@ -181,6 +137,101 @@ function RfidLabel({ tag }: { tag: any }) {
   );
 }
 
+// ─── Batch print function ─────────────────────────────────────────────────────
+function printBatch(tags: any[], appUrl: string) {
+  if (tags.length === 0) return;
+
+  // We need to render QR codes for each tag. We'll use a hidden container approach
+  // by building SVG data URLs inline using qrcode library approach.
+  // Instead, we open a window and render all stickers with inline QR via an SVG embed trick.
+  // We'll use a data-uri approach: generate QR as canvas then convert to data URL.
+
+  const printWindow = window.open("", "_blank", "width=900,height=700");
+  if (!printWindow) return;
+
+  const logoAbsUrl = `${appUrl}${LOGO_URL}`;
+
+  // Build sticker HTML for each tag (QR will be rendered via qrcode.js loaded in print window)
+  const stickersHtml = tags.map(tag => {
+    const scanUrl = `${appUrl}/rfid/scan?tag=${encodeURIComponent(tag.rfidTag)}&tid=${tag.tenantId}`;
+    const modelText = [tag.itemBrand, tag.itemModel].filter(Boolean).join("-");
+    return `
+      <div class="sticker" data-qr="${scanUrl}">
+        <div class="qr-col">
+          <canvas class="qr-canvas" data-url="${scanUrl}" width="88" height="88"></canvas>
+        </div>
+        <div class="info-col">
+          <div class="info-top">
+            <div class="tag-code">${tag.rfidTag}</div>
+            <div class="logo-box"><img src="${logoAbsUrl}" alt="HOROS" /></div>
+          </div>
+          ${modelText ? `<div class="model-text">Modelo: ${modelText}</div>` : ""}
+        </div>
+      </div>
+    `;
+  }).join("\n");
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Etiquetas RFID — Lote de ${tags.length}</title>
+      <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"><\/script>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: white; color: black; padding: 8mm; }
+        h2 { font-size: 11pt; margin-bottom: 6mm; color: #333; }
+        .grid { display: flex; flex-wrap: wrap; gap: 4mm; }
+        .sticker {
+          width: 85mm; height: 28mm; background: #f5f5f5;
+          border: 1px solid #d0d0d0; border-radius: 4mm;
+          display: flex; align-items: stretch; overflow: hidden;
+          page-break-inside: avoid;
+        }
+        .qr-col {
+          width: 28mm; display: flex; align-items: center; justify-content: center;
+          padding: 2mm; background: white; border-right: 1px solid #e0e0e0; flex-shrink: 0;
+        }
+        .qr-canvas { display: block; }
+        .info-col { flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding: 2.5mm 3mm; }
+        .info-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 2mm; }
+        .tag-code { font-size: 9pt; font-weight: 700; letter-spacing: 0.5px; color: #111; line-height: 1.2; word-break: break-all; max-width: 30mm; }
+        .logo-box img { height: 9mm; width: auto; object-fit: contain; }
+        .model-text { font-size: 8.5pt; font-weight: 700; color: #222; }
+        @media print {
+          body { padding: 4mm; }
+          h2 { display: none; }
+          @page { margin: 4mm; size: A4; }
+        }
+      </style>
+    </head>
+    <body>
+      <h2>Lote de etiquetas RFID — ${tags.length} etiqueta${tags.length !== 1 ? "s" : ""}</h2>
+      <div class="grid">
+        ${stickersHtml}
+      </div>
+      <script>
+        window.onload = function() {
+          var canvases = document.querySelectorAll('.qr-canvas');
+          var pending = canvases.length;
+          if (pending === 0) { setTimeout(function(){ window.print(); }, 300); return; }
+          canvases.forEach(function(canvas) {
+            var url = canvas.getAttribute('data-url');
+            QRCode.toCanvas(canvas, url, { width: 88, margin: 1, color: { dark: '#000000', light: '#ffffff' } }, function(err) {
+              pending--;
+              if (pending === 0) {
+                setTimeout(function(){ window.print(); }, 400);
+              }
+            });
+          });
+        };
+      <\/script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function RfidManagement() {
   const [, navigate] = useLocation();
@@ -188,6 +239,9 @@ export default function RfidManagement() {
   const [filterCat, setFilterCat] = useState("all");
   const [printTag, setPrintTag] = useState<any | null>(null);
   const [deleteTag, setDeleteTag] = useState<any | null>(null);
+
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const { data: tags = [], isLoading, refetch } = trpc.rfid.listByTenant.useQuery({ category: "all" });
 
@@ -220,6 +274,47 @@ export default function RfidManagement() {
     cat,
     count: tags.filter(t => t.category === cat).length,
   }));
+
+  // Selection helpers
+  const allFilteredSelected = filtered.length > 0 && filtered.every(t => selectedIds.has(t.id));
+  const someSelected = selectedIds.size > 0;
+
+  function toggleAll() {
+    if (allFilteredSelected) {
+      // Deselect all filtered
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filtered.forEach(t => next.delete(t.id));
+        return next;
+      });
+    } else {
+      // Select all filtered
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filtered.forEach(t => next.add(t.id));
+        return next;
+      });
+    }
+  }
+
+  function toggleOne(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  function handleBatchPrint() {
+    const selectedTags = tags.filter(t => selectedIds.has(t.id));
+    if (selectedTags.length === 0) return;
+    printBatch(selectedTags, window.location.origin);
+  }
 
   return (
     <div className="space-y-6">
@@ -293,6 +388,32 @@ export default function RfidManagement() {
         <Button variant="ghost" size="sm" onClick={() => refetch()} className="gap-1">
           <RefreshCw className="w-3.5 h-3.5" /> Actualizar
         </Button>
+
+        {/* Batch action bar — visible when items are selected */}
+        {someSelected && (
+          <div className="flex items-center gap-2 ml-auto bg-violet-500/10 border border-violet-500/30 rounded-lg px-3 py-1.5">
+            <span className="text-sm font-medium text-violet-300">
+              {selectedIds.size} seleccionada{selectedIds.size !== 1 ? "s" : ""}
+            </span>
+            <Button
+              size="sm"
+              className="gap-1.5 h-7 bg-violet-600 hover:bg-violet-500 text-white"
+              onClick={handleBatchPrint}
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Imprimir lote
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={clearSelection}
+              title="Limpiar selección"
+            >
+              <XIcon className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -311,6 +432,15 @@ export default function RfidManagement() {
           <table className="w-full text-sm">
             <thead className="bg-muted/30">
               <tr>
+                {/* Select-all checkbox */}
+                <th className="px-3 py-2.5 w-10">
+                  <Checkbox
+                    checked={allFilteredSelected}
+                    onCheckedChange={toggleAll}
+                    aria-label="Seleccionar todos"
+                    className="border-muted-foreground/40"
+                  />
+                </th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Tag RFID</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Categoría</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Equipo</th>
@@ -324,8 +454,22 @@ export default function RfidManagement() {
             <tbody className="divide-y divide-border/30">
               {filtered.map(tag => {
                 const cat = CAT_CONFIG[tag.category];
+                const isSelected = selectedIds.has(tag.id);
                 return (
-                  <tr key={tag.id} className="hover:bg-muted/20 transition-colors">
+                  <tr
+                    key={tag.id}
+                    className={`transition-colors cursor-pointer ${isSelected ? "bg-violet-500/8 hover:bg-violet-500/12" : "hover:bg-muted/20"}`}
+                    onClick={() => toggleOne(tag.id)}
+                  >
+                    {/* Row checkbox */}
+                    <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleOne(tag.id)}
+                        aria-label={`Seleccionar ${tag.rfidTag}`}
+                        className="border-muted-foreground/40"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs bg-violet-500/10 text-violet-300 border border-violet-500/20 px-2 py-0.5 rounded">
                         {tag.rfidTag}
@@ -351,11 +495,11 @@ export default function RfidManagement() {
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {new Date(tag.generatedAt).toLocaleDateString("es-MX")}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1 justify-end">
                         <Button
                           variant="ghost" size="icon" className="h-7 w-7"
-                          title="Imprimir etiqueta"
+                          title="Imprimir etiqueta individual"
                           onClick={() => setPrintTag(tag)}
                         >
                           <Printer className="w-3.5 h-3.5" />
@@ -385,7 +529,7 @@ export default function RfidManagement() {
         </div>
       )}
 
-      {/* Print dialog */}
+      {/* Print dialog (single) */}
       <Dialog open={!!printTag} onOpenChange={() => setPrintTag(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
