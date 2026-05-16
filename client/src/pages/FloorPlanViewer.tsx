@@ -611,18 +611,29 @@ export default function FloorPlanViewer() {
               >
                 <div ref={contentRef} className="relative shadow-2xl">
                   {isPdf ? (
-                    <iframe
-                      src={plan.fileUrl! + "#toolbar=1&navpanes=1&scrollbar=1&view=FitH"}
-                      style={{
-                        width: "min(1400px, 90vw)",
-                        height: "min(1000px, 80vh)",
-                        border: "none",
-                        display: "block",
-                        background: "white",
-                        borderRadius: "2px",
-                      }}
-                      title={plan.name}
-                    />
+                    <div className="relative" style={{ width: "min(1400px, 90vw)", height: "min(1000px, 80vh)" }}>
+                      <iframe
+                        src={plan.fileUrl! + "#toolbar=1&navpanes=1&scrollbar=1&view=FitH"}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          border: "none",
+                          display: "block",
+                          background: "white",
+                          borderRadius: "2px",
+                          pointerEvents: selectedTool ? "none" : "auto",
+                        }}
+                        title={plan.name}
+                      />
+                      {/* Transparent overlay to capture clicks when a tool is active */}
+                      {selectedTool && (
+                        <div
+                          className="absolute inset-0"
+                          style={{ cursor: "crosshair", zIndex: 20 }}
+                          onClick={handleViewerClick}
+                        />
+                      )}
+                    </div>
                   ) : isImage ? (
                     <img
                       src={plan.fileUrl!}
