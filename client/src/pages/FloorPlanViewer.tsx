@@ -703,8 +703,9 @@ function AnnotationLabelDialog({ open, onConfirm, onCancel, defaultLabel }: {
 
 // ─── DXF Export ─────────────────────────────────────────────────────────────
 /**
- * Genera un archivo DXF básico (AutoCAD R12/LT) con capas por tipo de anotación.
- * Coordenadas en metros reales basadas en la escala del plano.
+ * Genera un archivo DXF R2000 (AC1015) válido para AutoCAD/LibreCAD/DraftSight.
+ * Formato: código de grupo (3 chars, right-padded) + CRLF + valor + CRLF
+ * Unidades: metros (INSUNITS=6)
  */
 function generateDXF(
   annotations: { id: number; type: string | null; label: string | null; color: string | null; data: string | null; x: string; y: string }[],
@@ -712,87 +713,153 @@ function generateDXF(
   containerPx: { w: number; h: number } | null,
   scaleStr: string | null | undefined
 ): string {
-  const toM = (px: number) => {
+  // Helper: group code + CRLF + value + CRLF (DXF spec requires CRLF)
+  const g = (code: number | string, value: string | number): string =>
+    `${String(code).padStart(3)}\r\n${value}\r\n`;
+
+  // Convert pixel distance to meters using scale
+  const toM = (px: number): number => {
     const m = calcUtpLengthMeters(px, pdfDims, containerPx, scaleStr);
-    return m != null ? m : px * 0.001; // fallback: 1px = 1mm
-  };
-  const hexToACI = (hex: string): number => {
-    // Approximate AutoCAD Color Index from hex
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    if (r > 200 && g < 80 && b < 80) return 1;   // red
-    if (r > 200 && g > 200 && b < 80) return 2;   // yellow
-    if (r < 80 && g > 200 && b < 80) return 3;    // green
-    if (r < 80 && g > 200 && b > 200) return 4;   // cyan
-    if (r < 80 && g < 80 && b > 200) return 5;    // blue
-    if (r > 200 && g < 80 && b > 200) return 6;   // magenta
-    if (r > 200 && g > 200 && b > 200) return 7;  // white
-    return 7;
+    return m != null ? parseFloat(m.toFixed(4)) : parseFloat((px * 0.001).toFixed(4));
   };
 
-  const layers = new Set<string>();
-  const entities: string[] = [];
+  // Convert hex color to AutoCAD Color Index (ACI)
+  const hexToACI = (hex: string): number => {
+    if (!hex || hex.length < 7) return 7;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g2 = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    if (r > 200 && g2 < 80 && b < 80) return 1;   // red
+    if (r > 200 && g2 > 200 && b < 80) return 2;   // yellow
+    if (r < 80 && g2 > 200 && b < 80) return 3;    // green
+    if (r < 80 && g2 > 200 && b > 200) return 4;   // cyan
+    if (r < 80 && g2 < 80 && b > 200) return 5;    // blue
+    if (r > 200 && g2 < 80 && b > 200) return 6;   // magenta
+    return 7;  // white/default
+  };
+
+  // Collect unique layers
+  const layerSet = new Map<string, number>(); // name -> ACI color
+  const addLayer = (name: string, aci: number) => {
+    if (!layerSet.has(name)) layerSet.set(name, aci);
+  };
+
+  // Build entity strings
+  const entityParts: string[] = [];
 
   for (const ann of annotations) {
-    const layerName = (ann.type ?? "MARKER").toUpperCase();
-    layers.add(layerName);
-    const d = parseData(ann.data);
+    const layerName = (ann.type ?? "MARKER").toUpperCase().replace(/[^A-Z0-9_-]/g, "_");
     const aci = hexToACI(ann.color ?? "#ffffff");
+    addLayer(layerName, aci);
+    const d = parseData(ann.data);
+    const labelText = (ann.label ?? "").replace(/[^\x20-\x7E]/g, ""); // ASCII only for DXF R2000
 
     if ((ann.type === "utp" || ann.type === "ladder" || ann.type === "connection") && d.x1 !== undefined) {
-      // Convert pixel coords to meters
       const x1m = toM(d.x1!);
-      const y1m = -toM(d.y1!); // DXF Y is inverted
+      const y1m = -toM(d.y1!); // DXF Y-axis is inverted vs screen
       const x2m = toM(d.x2!);
       const y2m = -toM(d.y2!);
-      entities.push(
-        `  0\nLINE\n  8\n${layerName}\n 62\n${aci}\n 10\n${x1m.toFixed(4)}\n 20\n${y1m.toFixed(4)}\n 30\n0.0000\n 11\n${x2m.toFixed(4)}\n 21\n${y2m.toFixed(4)}\n 31\n0.0000`
+      // LINE entity
+      entityParts.push(
+        g(0, "LINE") +
+        g(8, layerName) +
+        g(62, aci) +
+        g(10, x1m.toFixed(4)) +
+        g(20, y1m.toFixed(4)) +
+        g(30, "0.0000") +
+        g(11, x2m.toFixed(4)) +
+        g(21, y2m.toFixed(4)) +
+        g(31, "0.0000")
       );
-      // Add TEXT label at midpoint
-      const mxm = (x1m + x2m) / 2;
-      const mym = (y1m + y2m) / 2;
-      const labelText = ann.label ?? ann.type ?? "";
+      // TEXT label at midpoint
       if (labelText) {
-        entities.push(
-          `  0\nTEXT\n  8\n${layerName}_LABELS\n 62\n${aci}\n 10\n${mxm.toFixed(4)}\n 20\n${mym.toFixed(4)}\n 30\n0.0000\n 40\n0.1500\n  1\n${labelText}`
+        const labLayer = layerName + "_LBL";
+        addLayer(labLayer, aci);
+        const mx = ((x1m + x2m) / 2).toFixed(4);
+        const my = ((y1m + y2m) / 2).toFixed(4);
+        entityParts.push(
+          g(0, "TEXT") +
+          g(8, labLayer) +
+          g(62, aci) +
+          g(10, mx) +
+          g(20, my) +
+          g(30, "0.0000") +
+          g(40, "0.15") +
+          g(1, labelText)
         );
-        layers.add(`${layerName}_LABELS`);
       }
     } else {
-      // Point marker
+      // Point marker — use CIRCLE for visibility
       const xPct = parseFloat(ann.x) / 100;
       const yPct = parseFloat(ann.y) / 100;
-      const xm = pdfDims ? toM(xPct * (containerPx?.w ?? pdfDims.w)) : xPct;
-      const ym = pdfDims ? -toM(yPct * (containerPx?.h ?? pdfDims.h)) : -yPct;
-      entities.push(
-        `  0\nPOINT\n  8\n${layerName}\n 62\n${aci}\n 10\n${xm.toFixed(4)}\n 20\n${ym.toFixed(4)}\n 30\n0.0000`
+      const cw = containerPx?.w ?? (pdfDims?.w ?? 800);
+      const ch = containerPx?.h ?? (pdfDims?.h ?? 600);
+      const xm = toM(xPct * cw);
+      const ym = -toM(yPct * ch);
+      entityParts.push(
+        g(0, "CIRCLE") +
+        g(8, layerName) +
+        g(62, aci) +
+        g(10, xm.toFixed(4)) +
+        g(20, ym.toFixed(4)) +
+        g(30, "0.0000") +
+        g(40, "0.10")
       );
-      const labelText = ann.label ?? "";
       if (labelText) {
-        entities.push(
-          `  0\nTEXT\n  8\n${layerName}_LABELS\n 62\n${aci}\n 10\n${xm.toFixed(4)}\n 20\n${(ym + 0.2).toFixed(4)}\n 30\n0.0000\n 40\n0.1500\n  1\n${labelText}`
+        const labLayer = layerName + "_LBL";
+        addLayer(labLayer, aci);
+        entityParts.push(
+          g(0, "TEXT") +
+          g(8, labLayer) +
+          g(62, aci) +
+          g(10, xm.toFixed(4)) +
+          g(20, (ym + 0.15).toFixed(4)) +
+          g(30, "0.0000") +
+          g(40, "0.12") +
+          g(1, labelText)
         );
-        layers.add(`${layerName}_LABELS`);
       }
     }
   }
 
-  // Build DXF header + tables + entities
-  const layerDefs = Array.from(layers).map((ln) =>
-    `  0\nLAYER\n  2\n${ln}\n 70\n0\n 62\n7\n  6\nCONTINUOUS`
-  ).join("\n");
+  // ── Build complete DXF ──────────────────────────────────────────────────────
+  let dxf = "";
 
-  return [
-    "  0\nSECTION\n  2\nHEADER\n  9\n$ACADVER\n  1\nAC1009\n  0\nENDSEC",
-    "  0\nSECTION\n  2\nTABLES",
-    "  0\nTABLE\n  2\nLAYER\n 70\n" + layers.size,
-    layerDefs,
-    "  0\nENDTAB\n  0\nENDSEC",
-    "  0\nSECTION\n  2\nENTITIES",
-    entities.join("\n"),
-    "  0\nENDSEC\n  0\nEOF",
-  ].join("\n");
+  // HEADER section
+  dxf += g(0, "SECTION") + g(2, "HEADER");
+  dxf += g(9, "$ACADVER") + g(1, "AC1015"); // R2000
+  dxf += g(9, "$INSUNITS") + g(70, "6");    // 6 = meters
+  dxf += g(9, "$MEASUREMENT") + g(70, "1"); // 1 = metric
+  dxf += g(9, "$EXTMIN") + g(10, "0.0") + g(20, "-1000.0") + g(30, "0.0");
+  dxf += g(9, "$EXTMAX") + g(10, "1000.0") + g(20, "0.0") + g(30, "0.0");
+  dxf += g(0, "ENDSEC");
+
+  // TABLES section
+  dxf += g(0, "SECTION") + g(2, "TABLES");
+  // LTYPE table (required by R2000)
+  dxf += g(0, "TABLE") + g(2, "LTYPE") + g(5, "5") + g(100, "AcDbSymbolTable") + g(70, "1");
+  dxf += g(0, "LTYPE") + g(5, "14") + g(100, "AcDbSymbolTableRecord") + g(100, "AcDbLinetypeTableRecord");
+  dxf += g(2, "CONTINUOUS") + g(70, "0") + g(3, "Solid line") + g(72, "65") + g(73, "0") + g(40, "0.0");
+  dxf += g(0, "ENDTAB");
+  // LAYER table
+  dxf += g(0, "TABLE") + g(2, "LAYER") + g(5, "2") + g(100, "AcDbSymbolTable") + g(70, String(layerSet.size));
+  let handleCounter = 100;
+  for (const [lname, laci] of Array.from(layerSet.entries())) {
+    dxf += g(0, "LAYER") + g(5, String(handleCounter++)) + g(100, "AcDbSymbolTableRecord") + g(100, "AcDbLayerTableRecord");
+    dxf += g(2, lname) + g(70, "0") + g(62, laci) + g(6, "CONTINUOUS");
+  }
+  dxf += g(0, "ENDTAB");
+  dxf += g(0, "ENDSEC");
+
+  // ENTITIES section
+  dxf += g(0, "SECTION") + g(2, "ENTITIES");
+  dxf += entityParts.join("");
+  dxf += g(0, "ENDSEC");
+
+  // EOF
+  dxf += g(0, "EOF");
+
+  return dxf;
 }
 
 // ─── UTP Node Dialog ──────────────────────────────────────────────────────────
@@ -964,6 +1031,156 @@ function PdfCanvas({ url, onReady }: { url: string; onReady: (w: number, h: numb
       ref={canvasRef}
       style={{ display: "block", borderRadius: "2px", maxWidth: "100%" }}
     />
+  );
+}
+
+// ─── Annotations Accordion ─────────────────────────────────────────────────────
+/**
+ * Panel compacto de anotaciones con acordeón por tipo.
+ * Cada grupo (Cámara, UTP, etc.) es una fila colapsable con contador.
+ * Sin scroll externo — cada grupo expandido tiene su propio scroll de 3 ítems máx.
+ */
+function AnnotationsAccordion({
+  annotations, pdfDims, contentRef, planScale,
+  selectedAnnotation, onSelect, onDelete,
+}: {
+  annotations: Annotation[];
+  pdfDims: { w: number; h: number } | null;
+  contentRef: React.RefObject<HTMLDivElement | null>;
+  planScale: string | null | undefined;
+  selectedAnnotation: number | null;
+  onSelect: (id: number | null) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  if (annotations.length === 0) return null;
+
+  // Group by type
+  const groups: Record<string, Annotation[]> = {};
+  for (const ann of annotations) {
+    const key = ann.type ?? "marker";
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(ann);
+  }
+
+  const toggleGroup = (type: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type); else next.add(type);
+      return next;
+    });
+  };
+
+  const totalCount = annotations.length;
+
+  // Count UTP over-limit cables
+  const utpOverCount = (groups["utp"] ?? []).filter((ann) => {
+    const d = parseData(ann.data);
+    if (d.x1 === undefined) return false;
+    const pxLen = Math.sqrt((d.x2! - d.x1!) ** 2 + (d.y2! - d.y1!) ** 2);
+    const containerEl = contentRef.current;
+    const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
+    const meters = calcUtpLengthMeters(pxLen, null, containerPx, planScale);
+    return meters != null && meters > UTP_MAX_METERS;
+  }).length;
+
+  return (
+    <div className="px-2 pt-2 pb-1 border-t" style={{ borderColor: "#2e3340" }}>
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-1.5 px-1">
+        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">Anotaciones</p>
+        <div className="flex items-center gap-1">
+          {utpOverCount > 0 && (
+            <span className="text-[9px] font-bold px-1 py-0.5 rounded" style={{ background: "#ef444422", color: "#ef4444" }}>⚠{utpOverCount}</span>
+          )}
+          <span className="text-[10px] font-mono" style={{ color: "#6b7280" }}>{totalCount}</span>
+        </div>
+      </div>
+      {/* Accordion rows — one per type */}
+      <div className="rounded-lg overflow-hidden" style={{ background: "#1a1d23", border: "1px solid #2e3340" }}>
+        {Object.entries(groups).map(([type, items], gi) => {
+          const marker = BUILTIN_MARKERS.find((m) => m.type === type);
+          const chipColor = marker?.color ?? "#6b7280";
+          const isExpanded = expandedGroups.has(type);
+          const hasAlert = type === "utp" && utpOverCount > 0;
+          const hasSelected = items.some((a) => a.id === selectedAnnotation);
+          return (
+            <div key={type} style={{ borderTop: gi > 0 ? "1px solid #2e3340" : undefined }}>
+              {/* Group header — click to expand/collapse */}
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 transition-colors hover:bg-white/5 text-left"
+                style={{ background: hasSelected ? chipColor + "18" : undefined }}
+                onClick={() => toggleGroup(type)}
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: chipColor }} />
+                <span className="flex-1 text-[11px] font-medium truncate" style={{ color: hasAlert ? "#fca5a5" : "#cbd5e1" }}>
+                  {marker?.label ?? type}
+                </span>
+                <span className="text-[10px] font-mono px-1 rounded" style={{ background: chipColor + "22", color: chipColor }}>
+                  {items.length}
+                </span>
+                {hasAlert && <span className="text-[10px]" style={{ color: "#ef4444" }}>⚠</span>}
+                <svg
+                  width="10" height="10" viewBox="0 0 10 10" fill="none"
+                  style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 150ms", flexShrink: 0 }}
+                >
+                  <path d="M2 3.5L5 6.5L8 3.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              {/* Expanded item list — max 3 rows visible, then scroll */}
+              {isExpanded && (
+                <div style={{ maxHeight: `${Math.min(items.length, 4) * 26}px`, overflowY: items.length > 4 ? "auto" : "hidden" }}>
+                  {items.map((ann, idx) => {
+                    const color = ann.color ?? "#6366f1";
+                    const isSelected = selectedAnnotation === ann.id;
+                    let overLimit = false;
+                    if (ann.type === "utp") {
+                      const d = parseData(ann.data);
+                      if (d.x1 !== undefined) {
+                        const pxLen = Math.sqrt((d.x2! - d.x1!) ** 2 + (d.y2! - d.y1!) ** 2);
+                        const containerEl = contentRef.current;
+                        const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
+                        const meters = calcUtpLengthMeters(pxLen, null, containerPx, planScale);
+                        overLimit = meters != null && meters > UTP_MAX_METERS;
+                      }
+                    }
+                    return (
+                      <div
+                        key={ann.id}
+                        className="flex items-center gap-1.5 px-3 py-1 cursor-pointer group transition-colors hover:bg-white/5"
+                        style={{
+                          background: isSelected ? (overLimit ? "#450a0a" : "#1e3a5f") : undefined,
+                          borderTop: idx > 0 ? "1px solid #2e3340" : "1px solid #2e3340",
+                          borderLeft: overLimit ? "2px solid #ef4444" : "2px solid transparent",
+                        }}
+                        onClick={() => onSelect(isSelected ? null : ann.id)}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: overLimit ? "#ef4444" : color }} />
+                        <span className="flex-1 text-[10px] truncate" style={{ color: overLimit ? "#fca5a5" : "#94a3b8" }}>
+                          {ann.label || ann.type || "Marcador"}
+                        </span>
+                        {overLimit && <span className="text-[9px] flex-shrink-0" style={{ color: "#ef4444" }}>!</span>}
+                        <button
+                          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-0.5 rounded"
+                          style={{ color: "#ef4444" }}
+                          onClick={(e) => { e.stopPropagation(); onDelete(ann.id); }}
+                          title="Eliminar"
+                        >
+                          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                            <path d="M1 1L7 7M7 1L1 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -1827,111 +2044,16 @@ export default function FloorPlanViewer() {
             </div>
 
             {/* Annotations list - compact silver panel */}
-            {(() => {
-              const allAnns = annotations as Annotation[];
-              if (allAnns.length === 0) return null;
-              // Group by type
-              const groups: Record<string, Annotation[]> = {};
-              for (const ann of allAnns) {
-                const key = ann.type ?? "marker";
-                if (!groups[key]) groups[key] = [];
-                groups[key].push(ann);
-              }
-              const utpAnns = groups["utp"] ?? [];
-              const utpOverCount = utpAnns.filter((ann) => {
-                const d = parseData(ann.data);
-                if (d.x1 === undefined) return false;
-                const pxLen = Math.sqrt((d.x2! - d.x1!) ** 2 + (d.y2! - d.y1!) ** 2);
-                const containerEl = contentRef.current;
-                const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
-                const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
-                return meters != null && meters > UTP_MAX_METERS;
-              }).length;
-              return (
-                <div className="px-2 pt-2 pb-2 border-t mt-1" style={{ borderColor: "#2e3340" }}>
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-1.5 px-1">
-                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">Anotaciones</p>
-                    <div className="flex items-center gap-1">
-                      {utpOverCount > 0 && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "#ef444422", color: "#ef4444", border: "1px solid #ef444466" }}>⚠ {utpOverCount}</span>
-                      )}
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "#3b82f622", color: "#3b82f6" }}>{allAnns.length}</span>
-                    </div>
-                  </div>
-                  {/* Summary chips by type */}
-                  <div className="flex flex-wrap gap-1 mb-2 px-1">
-                    {Object.entries(groups).map(([type, items]) => {
-                      const marker = BUILTIN_MARKERS.find((m) => m.type === type);
-                      const chipColor = marker?.color ?? "#6b7280";
-                      const hasAlert = type === "utp" && utpOverCount > 0;
-                      return (
-                        <button key={type}
-                          onClick={() => setSelectedAnnotation(items[0]?.id ?? null)}
-                          className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium transition-all hover:opacity-80"
-                          style={{ background: chipColor + "22", color: chipColor, border: `1px solid ${chipColor}44` }}
-                        >
-                          <span>{marker?.icon ?? "📍"}</span>
-                          <span>{items.length}</span>
-                          {hasAlert && <span style={{ color: "#ef4444" }}>⚠</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {/* Compact list */}
-                  <div className="rounded-lg overflow-hidden" style={{ background: "#1a1d23", border: "1px solid #2e3340" }}>
-                    <div className="max-h-48 overflow-y-auto">
-                      {allAnns.map((ann, idx) => {
-                        const color = ann.color ?? "#6366f1";
-                        const isSelected = selectedAnnotation === ann.id;
-                        let utpOverLimit = false;
-                        if (ann.type === "utp") {
-                          const d = parseData(ann.data);
-                          if (d.x1 !== undefined) {
-                            const pxLen = Math.sqrt((d.x2! - d.x1!) ** 2 + (d.y2! - d.y1!) ** 2);
-                            const containerEl = contentRef.current;
-                            const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
-                            const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
-                            utpOverLimit = meters != null && meters > UTP_MAX_METERS;
-                          }
-                        }
-                        return (
-                          <div key={ann.id}
-                            className={`flex items-center gap-1.5 px-2 py-1 cursor-pointer transition-all group ${
-                              isSelected ? "" : "hover:bg-white/5"
-                            } ${idx > 0 ? "border-t" : ""}`}
-                            style={{
-                              background: isSelected ? (utpOverLimit ? "#450a0a" : "#1e3a5f") : undefined,
-                              borderColor: "#2e3340",
-                              borderLeft: utpOverLimit ? "2px solid #ef4444" : undefined,
-                            }}
-                            onClick={() => setSelectedAnnotation(isSelected ? null : ann.id)}
-                          >
-                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: utpOverLimit ? "#ef4444" : color }} />
-                            <span className="flex-1 text-[11px] truncate" style={{ color: utpOverLimit ? "#fca5a5" : "#cbd5e1" }}>
-                              {ann.label || ann.type || "Marcador"}
-                            </span>
-                            {utpOverLimit && (
-                              <span className="text-[9px] font-bold flex-shrink-0" style={{ color: "#ef4444" }}>!</span>
-                            )}
-                            <button
-                              className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                              style={{ color: "#ef4444" }}
-                              onClick={(e) => { e.stopPropagation(); handleDeleteAnnotation(ann.id); }}
-                              title="Eliminar"
-                            >
-                              <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-                                <path d="M1 1L8 8M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                              </svg>
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
+            {/* ── Annotations accordion ─────────────────────────────────────── */}
+            <AnnotationsAccordion
+              annotations={annotations as Annotation[]}
+              pdfDims={pdfDims}
+              contentRef={contentRef}
+              planScale={plan?.scale}
+              selectedAnnotation={selectedAnnotation}
+              onSelect={setSelectedAnnotation}
+              onDelete={handleDeleteAnnotation}
+            />
           </div>
 
           {/* Selected annotation controls */}
