@@ -1,9 +1,64 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function parseData(data: string | null): { rotation?: number; scale?: number } {
+function parseData(data: string | null): { rotation?: number; scale?: number; x1?: number; y1?: number; x2?: number; y2?: number } {
   if (!data) return {};
   try { return JSON.parse(data); } catch { return {}; }
+}
+
+// Draw a ladder SVG between two absolute pixel points
+function LadderSvg({ x1, y1, x2, y2, color, selected }: { x1: number; y1: number; x2: number; y2: number; color: string; selected: boolean }) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 2) return null;
+  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  const railGap = 12; // px between rails
+  const rungCount = Math.max(2, Math.floor(len / 18));
+  const rungSpacing = len / (rungCount + 1);
+  const rungs: { x: number; y: number }[] = [];
+  for (let i = 1; i <= rungCount; i++) {
+    const t = (rungSpacing * i) / len;
+    rungs.push({ x: x1 + dx * t, y: y1 + dy * t });
+  }
+  // Perpendicular unit vector
+  const px = -dy / len;
+  const py = dx / len;
+  const r1x = x1 + px * railGap / 2;
+  const r1y = y1 + py * railGap / 2;
+  const r2x = x1 - px * railGap / 2;
+  const r2y = y1 - py * railGap / 2;
+  const e1x = x2 + px * railGap / 2;
+  const e1y = y2 + py * railGap / 2;
+  const e2x = x2 - px * railGap / 2;
+  const e2y = y2 - py * railGap / 2;
+  return (
+    <g>
+      {/* Rail 1 */}
+      <line x1={r1x} y1={r1y} x2={e1x} y2={e1y} stroke={color} strokeWidth={selected ? 3 : 2.5} strokeLinecap="round" />
+      {/* Rail 2 */}
+      <line x1={r2x} y1={r2y} x2={e2x} y2={e2y} stroke={color} strokeWidth={selected ? 3 : 2.5} strokeLinecap="round" />
+      {/* Rungs */}
+      {rungs.map((rung, i) => (
+        <line
+          key={i}
+          x1={rung.x + px * railGap / 2}
+          y1={rung.y + py * railGap / 2}
+          x2={rung.x - px * railGap / 2}
+          y2={rung.y - py * railGap / 2}
+          stroke={color}
+          strokeWidth={selected ? 2.5 : 2}
+          strokeLinecap="round"
+          strokeOpacity="0.9"
+        />
+      ))}
+      {/* Start/end dots */}
+      <circle cx={x1} cy={y1} r={4} fill={color} fillOpacity="0.6" />
+      <circle cx={x2} cy={y2} r={4} fill={color} fillOpacity="0.6" />
+      {selected && <circle cx={x1} cy={y1} r={6} fill="none" stroke={color} strokeWidth="1.5" strokeOpacity="0.5" />}
+      {selected && <circle cx={x2} cy={y2} r={6} fill="none" stroke={color} strokeWidth="1.5" strokeOpacity="0.5" />}
+    </g>
+  );
 }
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -412,6 +467,8 @@ export default function FloorPlanViewer() {
   const [panOrigin, setPanOrigin] = useState({ x: 0, y: 0 });
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
+  const [ladderStart, setLadderStart] = useState<{ x: number; y: number } | null>(null);
+  const [ladderPreview, setLadderPreview] = useState<{ x: number; y: number } | null>(null);
   const [pendingAnnotation, setPendingAnnotation] = useState<{
     x: string; y: string; icon: string; color: string; type: string; layerId: number | null;
   } | null>(null);
@@ -443,9 +500,17 @@ export default function FloorPlanViewer() {
   }, [selectedTool, pan]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isPanning) return;
-    setPan({ x: panOrigin.x + (e.clientX - panStart.x), y: panOrigin.y + (e.clientY - panStart.y) });
-  }, [isPanning, panStart, panOrigin]);
+    if (isPanning) {
+      setPan({ x: panOrigin.x + (e.clientX - panStart.x), y: panOrigin.y + (e.clientY - panStart.y) });
+    }
+    // Update ladder preview
+    if (selectedTool === "ladder" && ladderStart) {
+      const rect = contentRef.current?.getBoundingClientRect();
+      if (rect) {
+        setLadderPreview({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      }
+    }
+  }, [isPanning, panStart, panOrigin, selectedTool, ladderStart]);
 
   const handleMouseUp = useCallback(() => setIsPanning(false), []);
 
@@ -455,20 +520,46 @@ export default function FloorPlanViewer() {
     e.stopPropagation();
     const rect = contentRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+    const xPx = e.clientX - rect.left;
+    const yPx = e.clientY - rect.top;
+
+    // Ladder: two-point drawing mode
+    if (selectedTool === "ladder") {
+      if (!ladderStart) {
+        setLadderStart({ x: xPx, y: yPx });
+        return;
+      }
+      // Second click: create the ladder annotation
+      const color = "#22c55e";
+      const data = JSON.stringify({ x1: ladderStart.x, y1: ladderStart.y, x2: xPx, y2: yPx });
+      setLadderStart(null);
+      setLadderPreview(null);
+      createAnnotation.mutate({
+        planId,
+        type: "ladder",
+        x: xPct.toFixed(2),
+        y: yPct.toFixed(2),
+        color,
+        icon: "🪜",
+        data,
+      });
+      return;
+    }
+
     const builtin = BUILTIN_MARKERS.find((m) => m.type === selectedTool);
     const customLayer = (layers as Layer[]).find((l) => `layer_${l.id}` === selectedTool);
     setPendingAnnotation({
-      x: x.toFixed(2),
-      y: y.toFixed(2),
+      x: xPct.toFixed(2),
+      y: yPct.toFixed(2),
       icon: builtin?.icon ?? customLayer?.icon ?? "📍",
       color: builtin?.color ?? customLayer?.color ?? "#6366f1",
       type: builtin?.type ?? "marker",
       layerId: customLayer?.id ?? null,
     });
     setLabelDialogOpen(true);
-  }, [selectedTool, layers]);
+  }, [selectedTool, layers, ladderStart, planId, createAnnotation]);
 
   const handleLabelConfirm = async (label: string) => {
     if (!pendingAnnotation) return;
@@ -576,6 +667,14 @@ export default function FloorPlanViewer() {
     }
   }, [selectedTool]);
 
+  // Cancel ladder drawing on tool change
+  useEffect(() => {
+    if (selectedTool !== "ladder") {
+      setLadderStart(null);
+      setLadderPreview(null);
+    }
+  }, [selectedTool]);
+
   // ── Loading / not found ───────────────────────────────────────────────────
   if (planLoading) {
     return (
@@ -642,7 +741,11 @@ export default function FloorPlanViewer() {
 
           {/* Status */}
           <div className="px-3 py-2 border-t text-xs" style={{ borderColor: "#2e3340" }}>
-            {selectedTool ? (
+            {selectedTool === "ladder" && ladderStart ? (
+              <p className="text-green-400">Clic para definir el punto final de la escalerilla</p>
+            ) : selectedTool === "ladder" ? (
+              <p className="text-green-400">Clic para definir el punto inicial de la escalerilla</p>
+            ) : selectedTool ? (
               <p className="text-blue-400">Clic en el plano para colocar</p>
             ) : (
               <p className="text-gray-500">{(annotations as Annotation[]).length} marcadores</p>
@@ -744,16 +847,60 @@ export default function FloorPlanViewer() {
 
                   {/* Annotation markers */}
                   {visibleAnnotations.map((ann) => (
-                    <DraggableMarker
-                      key={ann.id}
-                      ann={ann}
-                      selected={selectedAnnotation === ann.id}
-                      onSelect={() => setSelectedAnnotation(ann.id)}
-                      onMove={(x, y) => handleAnnotationMove(ann.id, x, y)}
-                      onDelete={() => handleDeleteAnnotation(ann.id)}
-                      zoom={zoom}
-                    />
+                    ann.type === "ladder" ? null : (
+                      <DraggableMarker
+                        key={ann.id}
+                        ann={ann}
+                        selected={selectedAnnotation === ann.id}
+                        onSelect={() => setSelectedAnnotation(ann.id)}
+                        onMove={(x, y) => handleAnnotationMove(ann.id, x, y)}
+                        onDelete={() => handleDeleteAnnotation(ann.id)}
+                        zoom={zoom}
+                      />
+                    )
                   ))}
+                  {/* Ladder annotations rendered as SVG overlay */}
+                  {(() => {
+                    const ladderAnns = visibleAnnotations.filter((a) => a.type === "ladder");
+                    if (ladderAnns.length === 0 && !ladderStart) return null;
+                    const rect = contentRef.current;
+                    const w = rect?.offsetWidth ?? 1000;
+                    const h = rect?.offsetHeight ?? 800;
+                    return (
+                      <svg
+                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 30 }}
+                        viewBox={`0 0 ${w} ${h}`}
+                        preserveAspectRatio="none"
+                      >
+                        {ladderAnns.map((ann) => {
+                          const d = parseData(ann.data);
+                          if (d.x1 === undefined) return null;
+                          return (
+                            <g key={ann.id} style={{ pointerEvents: "all", cursor: "pointer" }} onClick={() => setSelectedAnnotation(selectedAnnotation === ann.id ? null : ann.id)}>
+                              <LadderSvg x1={d.x1!} y1={d.y1!} x2={d.x2!} y2={d.y2!} color={ann.color ?? "#22c55e"} selected={selectedAnnotation === ann.id} />
+                              {selectedAnnotation === ann.id && (
+                                <g>
+                                  <circle cx={(d.x1! + d.x2!) / 2} cy={(d.y1! + d.y2!) / 2} r={10} fill="#ef4444" style={{ cursor: "pointer", pointerEvents: "all" }}
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteAnnotation(ann.id); }} />
+                                  <text x={(d.x1! + d.x2!) / 2} y={(d.y1! + d.y2!) / 2 + 4} textAnchor="middle" fill="white" fontSize="12" style={{ pointerEvents: "none" }}>×</text>
+                                </g>
+                              )}
+                              {ann.label && (
+                                <text x={(d.x1! + d.x2!) / 2} y={(d.y1! + d.y2!) / 2 - 12} textAnchor="middle" fill={ann.color ?? "#22c55e"} fontSize="11" fontWeight="600" style={{ pointerEvents: "none", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.8))" }}>{ann.label}</text>
+                              )}
+                            </g>
+                          );
+                        })}
+                        {/* Preview line while drawing */}
+                        {ladderStart && ladderPreview && (
+                          <LadderSvg x1={ladderStart.x} y1={ladderStart.y} x2={ladderPreview.x} y2={ladderPreview.y} color="#22c55e" selected={false} />
+                        )}
+                        {ladderStart && (
+                          <circle cx={ladderStart.x} cy={ladderStart.y} r={6} fill="#22c55e" fillOpacity="0.8" />
+                        )}
+                      </svg>
+                    );
+                  })()}
                 </div>
               </div>
             )}
