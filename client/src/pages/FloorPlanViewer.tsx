@@ -1092,6 +1092,55 @@ export default function FloorPlanViewer() {
                     ))}
                   </div>
                 </div>
+                {/* FOV and Range — camera only */}
+                {ann.type === "camera" && (
+                  <>
+                    <div className="mt-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-gray-400">Ángulo de visión</label>
+                        <span className="text-[10px] font-mono text-blue-300">{localFov}°</span>
+                      </div>
+                      <input
+                        type="range" min={15} max={180} step={5}
+                        value={localFov}
+                        onChange={(e) => handleFovChange(parseInt(e.target.value))}
+                        className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                        style={{ accentColor: color }}
+                      />
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {[30, 60, 90, 120, 150, 180].map((f) => (
+                          <button key={f} onClick={() => handleFovChange(f)}
+                            className="text-[9px] px-1.5 py-0.5 rounded transition-colors"
+                            style={{ background: localFov === f ? color+"44" : "#2e3340", color: localFov === f ? color : "#9ca3af", border: `1px solid ${localFov===f?color+"66":"transparent"}` }}>
+                            {f}°
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-gray-400">Alcance del cono</label>
+                        <span className="text-[10px] font-mono text-blue-300">{localRange.toFixed(1)}×</span>
+                      </div>
+                      <input
+                        type="range" min={0.3} max={5} step={0.1}
+                        value={localRange}
+                        onChange={(e) => handleRangeChange(parseFloat(e.target.value))}
+                        className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                        style={{ accentColor: color }}
+                      />
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {[0.5, 1, 1.5, 2, 3, 5].map((r) => (
+                          <button key={r} onClick={() => handleRangeChange(r)}
+                            className="text-[9px] px-1.5 py-0.5 rounded transition-colors"
+                            style={{ background: Math.abs(localRange-r)<0.05 ? color+"44" : "#2e3340", color: Math.abs(localRange-r)<0.05 ? color : "#9ca3af", border: `1px solid ${Math.abs(localRange-r)<0.05?color+"66":"transparent"}` }}>
+                            {r}×
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             );
           })()}
