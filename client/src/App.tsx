@@ -29,7 +29,22 @@ import CCTVIncidents from "./pages/cctv/CCTVIncidents";
 import CCTVCapex from "./pages/cctv/CCTVCapex";
 import CCTVPolicy from "./pages/cctv/CCTVPolicy";
 import CCTVBackup from "./pages/cctv/CCTVBackup";
-import { AccessControlPage, StructuredCablingPage, PagingSystemPage } from "./pages/ComingSoon";
+import AccessControl from "./pages/AccessControl";
+import ACMaintenance from "./pages/access-control/ACMaintenance";
+import ACCalendar from "./pages/access-control/ACCalendar";
+import ACIncidents from "./pages/access-control/ACIncidents";
+import ACCapex from "./pages/access-control/ACCapex";
+import ACPolicy from "./pages/access-control/ACPolicy";
+import StructuredCabling from "./pages/StructuredCabling";
+import CablingMaintenance from "./pages/cabling/CablingMaintenance";
+import CablingCalendar from "./pages/cabling/CablingCalendar";
+import CablingIncidents from "./pages/cabling/CablingIncidents";
+import CablingCapex from "./pages/cabling/CablingCapex";
+import PagingSystem from "./pages/PagingSystem";
+import PagingMaintenance from "./pages/paging/PagingMaintenance";
+import PagingCalendar from "./pages/paging/PagingCalendar";
+import PagingIncidents from "./pages/paging/PagingIncidents";
+import PagingCapex from "./pages/paging/PagingCapex";
 import ImportInventory from "./pages/ImportInventory";
 import RfidManagement from "./pages/RfidManagement";
 import RfidScanner from "./pages/RfidScanner";
@@ -97,9 +112,25 @@ function Router() {
         return <FloorPlanViewer />;
       }} />
       <Route path="/floor-plans" component={() => <ProtectedRoute component={FloorPlans} />} />
-      <Route path="/access-control" component={AccessControlPage} />
-      <Route path="/structured-cabling" component={StructuredCablingPage} />
-      <Route path="/paging" component={PagingSystemPage} />
+      {/* Control de Acceso */}
+      <Route path="/access-control" component={() => <ProtectedRoute component={AccessControl} />} />
+      <Route path="/access-control/maintenance" component={() => <ProtectedRoute component={ACMaintenance} />} />
+      <Route path="/access-control/calendar" component={() => <ProtectedRoute component={ACCalendar} />} />
+      <Route path="/access-control/incidents" component={() => <ProtectedRoute component={ACIncidents} />} />
+      <Route path="/access-control/capex" component={() => <ProtectedRoute component={ACCapex} />} />
+      <Route path="/access-control/policy" component={() => <ProtectedRoute component={ACPolicy} />} />
+      {/* Cableado Estructurado */}
+      <Route path="/cabling" component={() => <ProtectedRoute component={StructuredCabling} />} />
+      <Route path="/cabling/maintenance" component={() => <ProtectedRoute component={CablingMaintenance} />} />
+      <Route path="/cabling/calendar" component={() => <ProtectedRoute component={CablingCalendar} />} />
+      <Route path="/cabling/incidents" component={() => <ProtectedRoute component={CablingIncidents} />} />
+      <Route path="/cabling/capex" component={() => <ProtectedRoute component={CablingCapex} />} />
+      {/* Voceo */}
+      <Route path="/paging" component={() => <ProtectedRoute component={PagingSystem} />} />
+      <Route path="/paging/maintenance" component={() => <ProtectedRoute component={PagingMaintenance} />} />
+      <Route path="/paging/calendar" component={() => <ProtectedRoute component={PagingCalendar} />} />
+      <Route path="/paging/incidents" component={() => <ProtectedRoute component={PagingIncidents} />} />
+      <Route path="/paging/capex" component={() => <ProtectedRoute component={PagingCapex} />} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

@@ -102,7 +102,12 @@ const menuGroups: NavGroup[] = [
         label: "Control de Acceso",
         color: "text-emerald-500",
         items: [
-          { icon: Lock, label: "Inventario Acceso", path: "/access-control" },
+          { icon: Lock, label: "Inventario", path: "/access-control" },
+          { icon: Wrench, label: "Mantenimiento", path: "/access-control/maintenance" },
+          { icon: CalendarDays, label: "Calendario", path: "/access-control/calendar" },
+          { icon: AlertTriangle, label: "Incidentes y SLA", path: "/access-control/incidents" },
+          { icon: TrendingUp, label: "Capex", path: "/access-control/capex" },
+          { icon: ScrollText, label: "Póliza", path: "/access-control/policy" },
         ],
       },
       {
@@ -110,7 +115,11 @@ const menuGroups: NavGroup[] = [
         label: "Cableado Estructurado",
         color: "text-orange-500",
         items: [
-          { icon: Cable, label: "Inventario Cableado", path: "/structured-cabling" },
+          { icon: Cable, label: "Inventario", path: "/cabling" },
+          { icon: Wrench, label: "Mantenimiento", path: "/cabling/maintenance" },
+          { icon: CalendarDays, label: "Calendario", path: "/cabling/calendar" },
+          { icon: AlertTriangle, label: "Incidentes y SLA", path: "/cabling/incidents" },
+          { icon: TrendingUp, label: "Capex", path: "/cabling/capex" },
         ],
       },
       {
@@ -118,7 +127,11 @@ const menuGroups: NavGroup[] = [
         label: "Voceo",
         color: "text-purple-500",
         items: [
-          { icon: Volume2, label: "Inventario Voceo", path: "/paging" },
+          { icon: Volume2, label: "Inventario", path: "/paging" },
+          { icon: Wrench, label: "Mantenimiento", path: "/paging/maintenance" },
+          { icon: CalendarDays, label: "Calendario", path: "/paging/calendar" },
+          { icon: AlertTriangle, label: "Incidentes y SLA", path: "/paging/incidents" },
+          { icon: TrendingUp, label: "Capex", path: "/paging/capex" },
         ],
       },
     ],

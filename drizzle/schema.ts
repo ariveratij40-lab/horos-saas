@@ -953,3 +953,619 @@ export const floorPlanShares = mysqlTable("floor_plan_shares", {
 });
 export type FloorPlanShare = typeof floorPlanShares.$inferSelect;
 export type InsertFloorPlanShare = typeof floorPlanShares.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONTROL DE ACCESO
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Lectores de acceso ───────────────────────────────────────────────────────
+export const acReaders = mysqlTable("ac_readers", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idReader: varchar("idReader", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["hid", "biometrico", "tarjeta", "pin", "facial", "rfid", "otro"]).default("tarjeta"),
+  tecnologia: varchar("tecnologia", { length: 100 }), // Wiegand, OSDP, RS485
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  puerta: varchar("puerta", { length: 255 }),          // Puerta asociada
+  ip: varchar("ip", { length: 45 }),
+  mac: varchar("mac", { length: 30 }),
+  controladoraId: int("controladoraId"),               // FK a ac_controllers
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  po: varchar("po", { length: 100 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  slaTier: varchar("slaTier", { length: 10 }),
+  rfidTag: varchar("rfidTag", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired", "damaged", "warranty"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AcReader = typeof acReaders.$inferSelect;
+export type InsertAcReader = typeof acReaders.$inferInsert;
+
+// ─── Controladoras de acceso ──────────────────────────────────────────────────
+export const acControllers = mysqlTable("ac_controllers", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idController: varchar("idController", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["standalone", "networked", "cloud", "otro"]).default("networked"),
+  puertas: int("puertas").default(1),                  // Número de puertas que controla
+  ip: varchar("ip", { length: 45 }),
+  mac: varchar("mac", { length: 30 }),
+  firmware: varchar("firmware", { length: 100 }),
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  po: varchar("po", { length: 100 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  slaTier: varchar("slaTier", { length: 10 }),
+  rfidTag: varchar("rfidTag", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired", "damaged", "warranty"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AcController = typeof acControllers.$inferSelect;
+export type InsertAcController = typeof acControllers.$inferInsert;
+
+// ─── Puertas controladas ──────────────────────────────────────────────────────
+export const acDoors = mysqlTable("ac_doors", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idDoor: varchar("idDoor", { length: 100 }),
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  tipo: mysqlEnum("tipo", ["entrada", "salida", "bidireccional", "emergencia", "otro"]).default("bidireccional"),
+  material: varchar("material", { length: 100 }),      // Madera, Metal, Vidrio
+  cerradura: varchar("cerradura", { length: 100 }),    // Electromagnética, Electromecánica
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  controladoraId: int("controladoraId"),
+  lectoresIds: text("lectoresIds"),                    // JSON array de IDs de lectores
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired", "damaged"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  slaTier: varchar("slaTier", { length: 10 }),
+  rfidTag: varchar("rfidTag", { length: 50 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  po: varchar("po", { length: 100 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AcDoor = typeof acDoors.$inferSelect;
+export type InsertAcDoor = typeof acDoors.$inferInsert;
+
+// ─── Registro de mantenimiento — Control de Acceso ───────────────────────────
+export const acMaintenanceLog = mysqlTable("ac_maintenance_log", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  category: mysqlEnum("category", ["readers", "controllers", "doors"]).notNull(),
+  itemId: int("itemId").notNull(),
+  itemName: varchar("itemName", { length: 255 }),
+  type: mysqlEnum("type", ["preventive", "corrective", "predictive", "inspection", "replacement", "upgrade", "other"]).default("preventive").notNull(),
+  status: mysqlEnum("status", ["scheduled", "in_progress", "completed", "cancelled"]).default("completed").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  findings: text("findings"),
+  actions: text("actions"),
+  technician: varchar("technician", { length: 255 }),
+  scheduledDate: date("scheduledDate"),
+  executedDate: date("executedDate"),
+  durationHours: decimal("durationHours", { precision: 5, scale: 2 }),
+  cost: decimal("cost", { precision: 12, scale: 2 }),
+  nextMaintenanceDate: date("nextMaintenanceDate"),
+  beforePhotoUrl: text("beforePhotoUrl"),
+  beforePhotoKey: varchar("beforePhotoKey", { length: 500 }),
+  afterPhotoUrl: text("afterPhotoUrl"),
+  afterPhotoKey: varchar("afterPhotoKey", { length: 500 }),
+  clientSignatureUrl: text("clientSignatureUrl"),
+  clientSignatureKey: varchar("clientSignatureKey", { length: 500 }),
+  clientName: varchar("clientName", { length: 255 }),
+  reportGenerated: boolean("reportGenerated").default(false),
+  policyId: int("policyId"),
+  programId: int("programId"),
+  createdByUserId: int("createdByUserId"),
+  createdByUserName: varchar("createdByUserName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AcMaintenanceLog = typeof acMaintenanceLog.$inferSelect;
+export type InsertAcMaintenanceLog = typeof acMaintenanceLog.$inferInsert;
+
+// ─── Programas de mantenimiento — Control de Acceso ──────────────────────────
+export const acMaintenancePrograms = mysqlTable("ac_maintenance_programs", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  policyId: int("policyId"),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  totalVisits: int("totalVisits").notNull(),
+  completedVisits: int("completedVisits").default(0).notNull(),
+  frequency: mysqlEnum("frequency", ["monthly", "bimonthly", "quarterly", "biannual", "annual", "custom"]).default("quarterly").notNull(),
+  startDate: date("startDate").notNull(),
+  endDate: date("endDate").notNull(),
+  technician: varchar("technician", { length: 255 }),
+  schedule: varchar("schedule", { length: 100 }),
+  visitWeekStart: date("visitWeekStart"),
+  programMonth: varchar("programMonth", { length: 20 }),
+  programYear: varchar("programYear", { length: 10 }),
+  status: mysqlEnum("status", ["active", "completed", "cancelled"]).default("active").notNull(),
+  createdByUserId: int("createdByUserId"),
+  createdByUserName: varchar("createdByUserName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AcMaintenanceProgram = typeof acMaintenancePrograms.$inferSelect;
+export type InsertAcMaintenanceProgram = typeof acMaintenancePrograms.$inferInsert;
+
+export const acMaintenanceProgramItems = mysqlTable("ac_maintenance_program_items", {
+  id: int("id").autoincrement().primaryKey(),
+  programId: int("programId").notNull(),
+  tenantId: int("tenantId").notNull(),
+  category: mysqlEnum("category", ["readers", "controllers", "doors"]).notNull(),
+  itemId: int("itemId").notNull(),
+  itemName: varchar("itemName", { length: 255 }),
+  itemLocation: varchar("itemLocation", { length: 255 }),
+  area: varchar("area", { length: 255 }),
+  requiresLift: boolean("requiresLift").default(false),
+  noTechnicians: int("noTechnicians").default(1),
+  observations: text("observations"),
+  sortOrder: int("sortOrder").default(0),
+  scheduledDays: varchar("scheduledDays", { length: 50 }),
+  scheduledDates: text("scheduledDates"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AcMaintenanceProgramItem = typeof acMaintenanceProgramItems.$inferSelect;
+export type InsertAcMaintenanceProgramItem = typeof acMaintenanceProgramItems.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CABLEADO ESTRUCTURADO
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Switches / Routers ───────────────────────────────────────────────────────
+export const cabledSwitches = mysqlTable("cabled_switches", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idSwitch: varchar("idSwitch", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["switch_l2", "switch_l3", "router", "core", "distribucion", "acceso", "otro"]).default("switch_l2"),
+  puertos: int("puertos").default(24),
+  puertosPoE: int("puertosPoE").default(0),
+  velocidad: varchar("velocidad", { length: 50 }),     // 1Gbps, 10Gbps
+  administrable: boolean("administrable").default(true),
+  ip: varchar("ip", { length: 45 }),
+  mac: varchar("mac", { length: 30 }),
+  vlan: varchar("vlan", { length: 255 }),
+  firmware: varchar("firmware", { length: 100 }),
+  rack: varchar("rack", { length: 100 }),
+  unidadRack: varchar("unidadRack", { length: 20 }),   // U1, U2...
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  po: varchar("po", { length: 100 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  slaTier: varchar("slaTier", { length: 10 }),
+  rfidTag: varchar("rfidTag", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired", "damaged", "warranty"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CabledSwitch = typeof cabledSwitches.$inferSelect;
+export type InsertCabledSwitch = typeof cabledSwitches.$inferInsert;
+
+// ─── Patch Panels ─────────────────────────────────────────────────────────────
+export const cabledPatchPanels = mysqlTable("cabled_patch_panels", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idPanel: varchar("idPanel", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  puertos: int("puertos").default(24),
+  categoria: mysqlEnum("categoria", ["cat5e", "cat6", "cat6a", "cat7", "fibra", "otro"]).default("cat6"),
+  rack: varchar("rack", { length: 100 }),
+  unidadRack: varchar("unidadRack", { length: 20 }),
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  po: varchar("po", { length: 100 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  slaTier: varchar("slaTier", { length: 10 }),
+  rfidTag: varchar("rfidTag", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired", "damaged"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CabledPatchPanel = typeof cabledPatchPanels.$inferSelect;
+export type InsertCabledPatchPanel = typeof cabledPatchPanels.$inferInsert;
+
+// ─── Rosetas / Tomas de red ───────────────────────────────────────────────────
+export const cabledOutlets = mysqlTable("cabled_outlets", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idOutlet: varchar("idOutlet", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  puertos: int("puertos").default(2),
+  categoria: mysqlEnum("categoria", ["cat5e", "cat6", "cat6a", "cat7", "fibra", "otro"]).default("cat6"),
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  patchPanelId: int("patchPanelId"),
+  puertoPanel: varchar("puertoPanel", { length: 20 }),
+  switchId: int("switchId"),
+  puertoSwitch: varchar("puertoSwitch", { length: 20 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  po: varchar("po", { length: 100 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  slaTier: varchar("slaTier", { length: 10 }),
+  rfidTag: varchar("rfidTag", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired", "damaged"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CabledOutlet = typeof cabledOutlets.$inferSelect;
+export type InsertCabledOutlet = typeof cabledOutlets.$inferInsert;
+
+// ─── Canaletas / Ductos ───────────────────────────────────────────────────────
+export const cabledDucts = mysqlTable("cabled_ducts", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idDuct: varchar("idDuct", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["canaleta", "bandeja", "tuberia", "charola", "otro"]).default("canaleta"),
+  material: varchar("material", { length: 100 }),      // PVC, Metálica, Aluminio
+  dimensiones: varchar("dimensiones", { length: 100 }), // 40x25mm
+  longitud: decimal("longitud", { precision: 8, scale: 2 }), // metros
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  po: varchar("po", { length: 100 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  slaTier: varchar("slaTier", { length: 10 }),
+  rfidTag: varchar("rfidTag", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired", "damaged"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CabledDuct = typeof cabledDucts.$inferSelect;
+export type InsertCabledDuct = typeof cabledDucts.$inferInsert;
+
+// ─── Registro de mantenimiento — Cableado Estructurado ───────────────────────
+export const cabledMaintenanceLog = mysqlTable("cabled_maintenance_log", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  category: mysqlEnum("category", ["switches", "patch_panels", "outlets", "ducts"]).notNull(),
+  itemId: int("itemId").notNull(),
+  itemName: varchar("itemName", { length: 255 }),
+  type: mysqlEnum("type", ["preventive", "corrective", "predictive", "inspection", "replacement", "upgrade", "other"]).default("preventive").notNull(),
+  status: mysqlEnum("status", ["scheduled", "in_progress", "completed", "cancelled"]).default("completed").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  findings: text("findings"),
+  actions: text("actions"),
+  technician: varchar("technician", { length: 255 }),
+  scheduledDate: date("scheduledDate"),
+  executedDate: date("executedDate"),
+  durationHours: decimal("durationHours", { precision: 5, scale: 2 }),
+  cost: decimal("cost", { precision: 12, scale: 2 }),
+  nextMaintenanceDate: date("nextMaintenanceDate"),
+  beforePhotoUrl: text("beforePhotoUrl"),
+  beforePhotoKey: varchar("beforePhotoKey", { length: 500 }),
+  afterPhotoUrl: text("afterPhotoUrl"),
+  afterPhotoKey: varchar("afterPhotoKey", { length: 500 }),
+  clientSignatureUrl: text("clientSignatureUrl"),
+  clientSignatureKey: varchar("clientSignatureKey", { length: 500 }),
+  clientName: varchar("clientName", { length: 255 }),
+  reportGenerated: boolean("reportGenerated").default(false),
+  policyId: int("policyId"),
+  programId: int("programId"),
+  createdByUserId: int("createdByUserId"),
+  createdByUserName: varchar("createdByUserName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CabledMaintenanceLog = typeof cabledMaintenanceLog.$inferSelect;
+export type InsertCabledMaintenanceLog = typeof cabledMaintenanceLog.$inferInsert;
+
+export const cabledMaintenancePrograms = mysqlTable("cabled_maintenance_programs", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  policyId: int("policyId"),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  totalVisits: int("totalVisits").notNull(),
+  completedVisits: int("completedVisits").default(0).notNull(),
+  frequency: mysqlEnum("frequency", ["monthly", "bimonthly", "quarterly", "biannual", "annual", "custom"]).default("quarterly").notNull(),
+  startDate: date("startDate").notNull(),
+  endDate: date("endDate").notNull(),
+  technician: varchar("technician", { length: 255 }),
+  schedule: varchar("schedule", { length: 100 }),
+  visitWeekStart: date("visitWeekStart"),
+  programMonth: varchar("programMonth", { length: 20 }),
+  programYear: varchar("programYear", { length: 10 }),
+  status: mysqlEnum("status", ["active", "completed", "cancelled"]).default("active").notNull(),
+  createdByUserId: int("createdByUserId"),
+  createdByUserName: varchar("createdByUserName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CabledMaintenanceProgram = typeof cabledMaintenancePrograms.$inferSelect;
+export type InsertCabledMaintenanceProgram = typeof cabledMaintenancePrograms.$inferInsert;
+
+export const cabledMaintenanceProgramItems = mysqlTable("cabled_maintenance_program_items", {
+  id: int("id").autoincrement().primaryKey(),
+  programId: int("programId").notNull(),
+  tenantId: int("tenantId").notNull(),
+  category: mysqlEnum("category", ["switches", "patch_panels", "outlets", "ducts"]).notNull(),
+  itemId: int("itemId").notNull(),
+  itemName: varchar("itemName", { length: 255 }),
+  itemLocation: varchar("itemLocation", { length: 255 }),
+  area: varchar("area", { length: 255 }),
+  requiresLift: boolean("requiresLift").default(false),
+  noTechnicians: int("noTechnicians").default(1),
+  observations: text("observations"),
+  sortOrder: int("sortOrder").default(0),
+  scheduledDays: varchar("scheduledDays", { length: 50 }),
+  scheduledDates: text("scheduledDates"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type CabledMaintenanceProgramItem = typeof cabledMaintenanceProgramItems.$inferSelect;
+export type InsertCabledMaintenanceProgramItem = typeof cabledMaintenanceProgramItems.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOCEO (Sistema de Voceo / Paging)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Amplificadores ───────────────────────────────────────────────────────────
+export const pagingAmplifiers = mysqlTable("paging_amplifiers", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idAmplifier: varchar("idAmplifier", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["monocanal", "multicanal", "matricial", "ip", "otro"]).default("monocanal"),
+  potencia: varchar("potencia", { length: 50 }),       // 100W, 500W
+  canales: int("canales").default(1),
+  zonas: int("zonas").default(1),
+  ip: varchar("ip", { length: 45 }),
+  rack: varchar("rack", { length: 100 }),
+  unidadRack: varchar("unidadRack", { length: 20 }),
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  po: varchar("po", { length: 100 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  slaTier: varchar("slaTier", { length: 10 }),
+  rfidTag: varchar("rfidTag", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired", "damaged", "warranty"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PagingAmplifier = typeof pagingAmplifiers.$inferSelect;
+export type InsertPagingAmplifier = typeof pagingAmplifiers.$inferInsert;
+
+// ─── Bocinas / Altavoces ──────────────────────────────────────────────────────
+export const pagingSpeakers = mysqlTable("paging_speakers", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idSpeaker: varchar("idSpeaker", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["techo", "pared", "columna", "cuerno", "subwoofer", "otro"]).default("techo"),
+  potencia: varchar("potencia", { length: 50 }),       // 6W, 10W
+  impedancia: varchar("impedancia", { length: 50 }),   // 8 Ohm, 100V
+  zona: varchar("zona", { length: 100 }),
+  amplificadorId: int("amplificadorId"),
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  po: varchar("po", { length: 100 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  slaTier: varchar("slaTier", { length: 10 }),
+  rfidTag: varchar("rfidTag", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired", "damaged", "warranty"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PagingSpeaker = typeof pagingSpeakers.$inferSelect;
+export type InsertPagingSpeaker = typeof pagingSpeakers.$inferInsert;
+
+// ─── Consolas / Micrófonos de voceo ──────────────────────────────────────────
+export const pagingConsoles = mysqlTable("paging_consoles", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idConsole: varchar("idConsole", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["microfono_paging", "consola_ip", "telefono_paging", "panel_control", "otro"]).default("microfono_paging"),
+  zonas: int("zonas").default(1),
+  ip: varchar("ip", { length: 45 }),
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  amplificadorId: int("amplificadorId"),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  po: varchar("po", { length: 100 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  slaTier: varchar("slaTier", { length: 10 }),
+  rfidTag: varchar("rfidTag", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired", "damaged", "warranty"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PagingConsole = typeof pagingConsoles.$inferSelect;
+export type InsertPagingConsole = typeof pagingConsoles.$inferInsert;
+
+// ─── Fuentes de poder / UPS Voceo ─────────────────────────────────────────────
+export const pagingPowerSupplies = mysqlTable("paging_power_supplies", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  branchId: int("branchId"),
+  idPower: varchar("idPower", { length: 100 }),
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  serie: varchar("serie", { length: 100 }),
+  tipo: mysqlEnum("tipo", ["ups", "fuente_regulada", "bateria_respaldo", "otro"]).default("ups"),
+  capacidad: varchar("capacidad", { length: 50 }),     // 1000VA, 500W
+  area: varchar("area", { length: 255 }),
+  edificio: varchar("edificio", { length: 255 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  fechaCompra: date("fechaCompra"),
+  garantiaExpiracion: date("garantiaExpiracion"),
+  po: varchar("po", { length: 100 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  slaTier: varchar("slaTier", { length: 10 }),
+  rfidTag: varchar("rfidTag", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive", "maintenance", "retired", "damaged", "warranty"]).default("active").notNull(),
+  observaciones: text("observaciones"),
+  fotoUrl: text("fotoUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PagingPowerSupply = typeof pagingPowerSupplies.$inferSelect;
+export type InsertPagingPowerSupply = typeof pagingPowerSupplies.$inferInsert;
+
+// ─── Registro de mantenimiento — Voceo ───────────────────────────────────────
+export const pagingMaintenanceLog = mysqlTable("paging_maintenance_log", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  category: mysqlEnum("category", ["amplifiers", "speakers", "consoles", "power_supplies"]).notNull(),
+  itemId: int("itemId").notNull(),
+  itemName: varchar("itemName", { length: 255 }),
+  type: mysqlEnum("type", ["preventive", "corrective", "predictive", "inspection", "replacement", "upgrade", "other"]).default("preventive").notNull(),
+  status: mysqlEnum("status", ["scheduled", "in_progress", "completed", "cancelled"]).default("completed").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  findings: text("findings"),
+  actions: text("actions"),
+  technician: varchar("technician", { length: 255 }),
+  scheduledDate: date("scheduledDate"),
+  executedDate: date("executedDate"),
+  durationHours: decimal("durationHours", { precision: 5, scale: 2 }),
+  cost: decimal("cost", { precision: 12, scale: 2 }),
+  nextMaintenanceDate: date("nextMaintenanceDate"),
+  beforePhotoUrl: text("beforePhotoUrl"),
+  beforePhotoKey: varchar("beforePhotoKey", { length: 500 }),
+  afterPhotoUrl: text("afterPhotoUrl"),
+  afterPhotoKey: varchar("afterPhotoKey", { length: 500 }),
+  clientSignatureUrl: text("clientSignatureUrl"),
+  clientSignatureKey: varchar("clientSignatureKey", { length: 500 }),
+  clientName: varchar("clientName", { length: 255 }),
+  reportGenerated: boolean("reportGenerated").default(false),
+  policyId: int("policyId"),
+  programId: int("programId"),
+  createdByUserId: int("createdByUserId"),
+  createdByUserName: varchar("createdByUserName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PagingMaintenanceLog = typeof pagingMaintenanceLog.$inferSelect;
+export type InsertPagingMaintenanceLog = typeof pagingMaintenanceLog.$inferInsert;
+
+export const pagingMaintenancePrograms = mysqlTable("paging_maintenance_programs", {
+  id: int("id").autoincrement().primaryKey(),
+  tenantId: int("tenantId").notNull(),
+  policyId: int("policyId"),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  totalVisits: int("totalVisits").notNull(),
+  completedVisits: int("completedVisits").default(0).notNull(),
+  frequency: mysqlEnum("frequency", ["monthly", "bimonthly", "quarterly", "biannual", "annual", "custom"]).default("quarterly").notNull(),
+  startDate: date("startDate").notNull(),
+  endDate: date("endDate").notNull(),
+  technician: varchar("technician", { length: 255 }),
+  schedule: varchar("schedule", { length: 100 }),
+  visitWeekStart: date("visitWeekStart"),
+  programMonth: varchar("programMonth", { length: 20 }),
+  programYear: varchar("programYear", { length: 10 }),
+  status: mysqlEnum("status", ["active", "completed", "cancelled"]).default("active").notNull(),
+  createdByUserId: int("createdByUserId"),
+  createdByUserName: varchar("createdByUserName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PagingMaintenanceProgram = typeof pagingMaintenancePrograms.$inferSelect;
+export type InsertPagingMaintenanceProgram = typeof pagingMaintenancePrograms.$inferInsert;
+
+export const pagingMaintenanceProgramItems = mysqlTable("paging_maintenance_program_items", {
+  id: int("id").autoincrement().primaryKey(),
+  programId: int("programId").notNull(),
+  tenantId: int("tenantId").notNull(),
+  category: mysqlEnum("category", ["amplifiers", "speakers", "consoles", "power_supplies"]).notNull(),
+  itemId: int("itemId").notNull(),
+  itemName: varchar("itemName", { length: 255 }),
+  itemLocation: varchar("itemLocation", { length: 255 }),
+  area: varchar("area", { length: 255 }),
+  requiresLift: boolean("requiresLift").default(false),
+  noTechnicians: int("noTechnicians").default(1),
+  observations: text("observations"),
+  sortOrder: int("sortOrder").default(0),
+  scheduledDays: varchar("scheduledDays", { length: 50 }),
+  scheduledDates: text("scheduledDates"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PagingMaintenanceProgramItem = typeof pagingMaintenanceProgramItems.$inferSelect;
+export type InsertPagingMaintenanceProgramItem = typeof pagingMaintenanceProgramItems.$inferInsert;

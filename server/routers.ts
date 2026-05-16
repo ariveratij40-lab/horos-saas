@@ -14,6 +14,9 @@ import { rfidRouter } from "./routers/rfid";
 import { cctvMaintenanceRouter } from "./routers/cctvMaintenance";
 import { cctvMaintenanceProgramsRouter } from "./routers/cctvMaintenancePrograms";
 import { floorPlansRouter, floorPlanLayersRouter, floorPlanAnnotationsRouter, floorPlanVersionsRouter, floorPlanSharesRouter } from "./routers/floorPlans";
+import { acReadersRouter, acControllersRouter, acDoorsRouter, acMaintenanceRouter, acProgramsRouter, acStatsRouter } from "./routers/accessControl";
+import { cabledSwitchesRouter, cabledPatchPanelsRouter, cabledOutletsRouter, cabledDuctsRouter, cabledMaintenanceRouter, cabledProgramsRouter, cabledStatsRouter } from "./routers/structuredCabling";
+import { pagingAmplifiersRouter, pagingSpeakersRouter, pagingConsolesRouter, pagingPowerRouter, pagingMaintenanceRouter, pagingProgramsRouter, pagingStatsRouter } from "./routers/pagingSystem";
 import { getAllUsers } from "./db";
 import { protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
@@ -250,6 +253,32 @@ export const appRouter = router({
   floorPlanShares: floorPlanSharesRouter,
   audit: auditRouter,
   ai: aiAssistantRouter,
+
+  // ─── Control de Acceso ───────────────────────────────────────────────────────
+  acReaders: acReadersRouter,
+  acControllers: acControllersRouter,
+  acDoors: acDoorsRouter,
+  acMaintenance: acMaintenanceRouter,
+  acPrograms: acProgramsRouter,
+  acStats: acStatsRouter,
+
+  // ─── Cableado Estructurado ───────────────────────────────────────────────────
+  cabledSwitches: cabledSwitchesRouter,
+  cabledPatchPanels: cabledPatchPanelsRouter,
+  cabledOutlets: cabledOutletsRouter,
+  cabledDucts: cabledDuctsRouter,
+  cabledMaintenance: cabledMaintenanceRouter,
+  cabledPrograms: cabledProgramsRouter,
+  cabledStats: cabledStatsRouter,
+
+  // ─── Voceo ───────────────────────────────────────────────────────────────────
+  pagingAmplifiers: pagingAmplifiersRouter,
+  pagingSpeakers: pagingSpeakersRouter,
+  pagingConsoles: pagingConsolesRouter,
+  pagingPower: pagingPowerRouter,
+  pagingMaintenance: pagingMaintenanceRouter,
+  pagingPrograms: pagingProgramsRouter,
+  pagingStats: pagingStatsRouter,
 
   users: router({
     list: protectedProcedure.query(async ({ ctx }) => {
