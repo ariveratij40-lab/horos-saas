@@ -131,7 +131,8 @@ export const floorPlansRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const tenantId = ctx.user.tenantId ?? 1;
       const buffer = Buffer.from(input.fileBase64, "base64");
-      const key = `floor-plans/${tenantId}/${input.planId}/${Date.now()}-${input.fileName}`;
+      const safeFileName = input.fileName.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "");
+      const key = `floor-plans/${tenantId}/${input.planId}/${Date.now()}-${safeFileName}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       // Update plan with file info
       await db
@@ -156,7 +157,8 @@ export const floorPlansRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const tenantId = ctx.user.tenantId ?? 1;
-      const key = `floor-plans/${tenantId}/${input.planId}/${Date.now()}-${input.fileName}`;
+      const safeFileName = input.fileName.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "");
+      const key = `floor-plans/${tenantId}/${input.planId}/${Date.now()}-${safeFileName}`;
 
       // Use Manus built-in storage API to get a presigned upload URL
       const apiUrl = ENV.builtInForgeApiUrl;
