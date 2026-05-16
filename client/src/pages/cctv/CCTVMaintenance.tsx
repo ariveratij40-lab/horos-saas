@@ -15,7 +15,8 @@ import {
   Wrench, Plus, Search, CheckCircle2, Clock, AlertTriangle,
   Calendar, FileText, Shield, ChevronDown, ChevronUp,
   Camera, ImageIcon, Upload, X as XIcon, PenLine, Eye,
-  ClipboardList, Link2, BarChart3,
+  ClipboardList, Link2, BarChart3, Filter, CheckSquare, Square,
+  ListChecks, Layers, ChevronRight, Info, Users,
 } from "lucide-react";
 import MaintenanceReportDialog from "@/components/MaintenanceReportDialog";
 
@@ -397,7 +398,29 @@ export default function CCTVMaintenance() {
   );
 }
 
-// ─── New Program Dialog ───────────────────────────────────────────────────────
+
+// ─── Work Schedule Generator ──────────────────────────────────────────────────
+interface WorkDay { dayNumber: number; date: string; items: any[]; }
+
+function buildWorkSchedule(items: any[], perDay: number, startDate: string): WorkDay[] {
+  if (!items.length || !startDate || perDay < 1) return [];
+  const days: WorkDay[] = [];
+  let dayIdx = 0;
+  let current = new Date(startDate + "T00:00:00");
+  for (let i = 0; i < items.length; i += perDay) {
+    const chunk = items.slice(i, i + perDay);
+    // Skip weekends
+    while (current.getDay() === 0 || current.getDay() === 6) {
+      current = new Date(current.getTime() + 86400000);
+    }
+    days.push({ dayNumber: dayIdx + 1, date: current.toISOString().split("T")[0], items: chunk });
+    dayIdx++;
+    current = new Date(current.getTime() + 86400000);
+  }
+  return days;
+}
+
+// ─── New Program Dialog (4-step wizard) ──────────────────────────────────────
 function NewProgramDialog({
   open, onClose, policies, onSave, isSaving,
 }: {
@@ -407,6 +430,7 @@ function NewProgramDialog({
   onSave: (data: any) => void;
   isSaving: boolean;
 }) {
+  const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -420,15 +444,18 @@ function NewProgramDialog({
   });
   const f = (k: string, v: any) => setForm((p) => ({ ...p, [k]: v }));
 
-  // Equipment selection
-  const [selectedItems, setSelectedItems] = useState<any[]>([]);
-  const [equipSearch, setEquipSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-
-  const { data: lookupResult } = trpc.cctv.lookupEquipo.useQuery(
-    { query: debouncedSearch },
-    { enabled: debouncedSearch.length >= 2 },
+  // Full inventory from backend
+  const { data: fullInventory = [], isLoading: loadingInventory } = trpc.cctvPrograms.getFullInventory.useQuery(
+    undefined,
+    { enabled: open },
   );
+  const [selectedItems, setSelectedItems] = useState<any[]>([]);
+  const [inventorySearch, setInventorySearch] = useState("");
+  const [inventoryFilter, setInventoryFilter] = useState("all");
+
+  // Capacity per day
+  const [perDay, setPerDay] = useState(5);
+  const [showSchedulePreview, setShowSchedulePreview] = useState(false);
 
   // Coverage info from selected policy
   const { data: coverage } = trpc.cctvPrograms.getPolicyCoverage.useQuery(
@@ -436,223 +463,499 @@ function NewProgramDialog({
     { enabled: !!form.policyId && Number(form.policyId) > 0 },
   );
 
-  const addEquip = (eq: any) => {
-    if (selectedItems.find((i) => i.itemId === eq.id && i.category === eq.category)) return;
-    setSelectedItems((p) => [
-      ...p,
-      { category: eq.category, itemId: eq.id, itemName: `${eq.marca ?? ""} ${eq.modelo ?? ""}`.trim(), itemLocation: eq.ubicacion ?? "" },
-    ]);
-    setEquipSearch("");
-    setDebouncedSearch("");
+  const handleClose = () => {
+    setStep(0);
+    setSelectedItems([]);
+    setInventorySearch("");
+    setInventoryFilter("all");
+    setPerDay(5);
+    setShowSchedulePreview(false);
+    setForm({ name: "", description: "", policyId: "", totalVisits: 4, frequency: "quarterly", startDate: "", endDate: "", technician: "", generateSchedule: true });
+    onClose();
   };
-  const removeEquip = (idx: number) => setSelectedItems((p) => p.filter((_, i) => i !== idx));
+
+  const toggleItem = (item: any) => {
+    const exists = selectedItems.find((i) => i.itemId === item.id && i.category === item.category);
+    if (exists) {
+      setSelectedItems((p) => p.filter((i) => !(i.itemId === item.id && i.category === item.category)));
+    } else {
+      setSelectedItems((p) => [...p, { category: item.category, itemId: item.id, itemName: item.name, itemLocation: item.location }]);
+    }
+  };
+
+  const filteredInventory = (fullInventory as any[]).filter((item) => {
+    const matchesSearch = !inventorySearch ||
+      item.name.toLowerCase().includes(inventorySearch.toLowerCase()) ||
+      item.location.toLowerCase().includes(inventorySearch.toLowerCase()) ||
+      (item.extra ?? "").toLowerCase().includes(inventorySearch.toLowerCase());
+    const matchesFilter = inventoryFilter === "all" || item.category === inventoryFilter;
+    return matchesSearch && matchesFilter;
+  });
+
+  const allFilteredSelected = filteredInventory.length > 0 &&
+    filteredInventory.every((item) => selectedItems.find((i) => i.itemId === item.id && i.category === item.category));
+
+  const selectAllFiltered = () => {
+    if (allFilteredSelected) {
+      setSelectedItems((p) => p.filter((i) => !filteredInventory.find((f: any) => f.id === i.itemId && f.category === i.category)));
+    } else {
+      const toAdd = filteredInventory
+        .filter((item) => !selectedItems.find((i) => i.itemId === item.id && i.category === item.category))
+        .map((item) => ({ category: item.category, itemId: item.id, itemName: item.name, itemLocation: item.location }));
+      setSelectedItems((p) => [...p, ...toAdd]);
+    }
+  };
+
+  const categoryCounts = (fullInventory as any[]).reduce((acc: Record<string, number>, item: any) => {
+    acc[item.category] = (acc[item.category] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const workSchedule = buildWorkSchedule(selectedItems, perDay, form.startDate);
+  const totalDays = workSchedule.length;
 
   const handleSave = () => {
     if (!form.name.trim()) { toast.error("El nombre es obligatorio"); return; }
     if (!form.startDate || !form.endDate) { toast.error("Las fechas son obligatorias"); return; }
-    if (selectedItems.length === 0) { toast.error("Agrega al menos un equipo"); return; }
-    onSave({
-      ...form,
-      policyId: form.policyId ? Number(form.policyId) : undefined,
-      items: selectedItems,
-    });
+    if (selectedItems.length === 0) { toast.error("Selecciona al menos un equipo"); return; }
+    onSave({ ...form, policyId: form.policyId ? Number(form.policyId) : undefined, items: selectedItems });
   };
 
-  // Auto-fill totalVisits from policy coverage
-  const handlePolicyChange = (val: string) => {
-    f("policyId", val);
-  };
+  const STEPS = ["Información", "Inventario", "Programa de Obra", "Confirmar"];
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ClipboardList className="w-5 h-5 text-blue-500" />
-            Nuevo Programa de Mantenimiento
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-5 py-2">
-          {/* Policy link */}
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5">
-              <Shield className="w-4 h-4 text-muted-foreground" />
-              Póliza Vinculada <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
-            </Label>
-            <Select value={String(form.policyId)} onValueChange={handlePolicyChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar póliza..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">Sin póliza</SelectItem>
-                {policies.map((p: any) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name} — {p.policyNumber}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Coverage summary */}
-            {coverage && (
-              <div className="p-3 rounded-lg border border-blue-200 bg-blue-50/50 text-sm space-y-2">
-                <p className="font-semibold text-blue-700 flex items-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5" /> Cobertura de la Póliza
-                </p>
-                <CoverageBar
-                  used={coverage.usedMaintenances}
-                  total={coverage.totalCovered}
-                  isUnlimited={coverage.isUnlimited}
-                />
-                {coverage.remainingMaintenances != null && coverage.remainingMaintenances > 0 && (
-                  <p className="text-xs text-blue-600">
-                    Sugerencia: programa {coverage.remainingMaintenances} visita(s) restante(s)
-                  </p>
-                )}
-                {coverage.services.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {coverage.services.map((s: any) => (
-                      <span key={s.id} className="text-xs bg-white border border-blue-200 text-blue-700 px-2 py-0.5 rounded-full">
-                        {s.serviceName}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[92vh] flex flex-col overflow-hidden p-0">
+        {/* Header */}
+        <div className="px-6 pt-5 pb-3 border-b border-border shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-blue-500" />
+              Nuevo Programa de Mantenimiento
+            </h2>
+            <button onClick={handleClose} className="text-muted-foreground hover:text-foreground transition-colors">
+              <XIcon className="w-5 h-5" />
+            </button>
           </div>
-
-          {/* Name */}
-          <div className="space-y-1.5">
-            <Label>Nombre del Programa *</Label>
-            <Input placeholder="Ej: Mantenimiento Preventivo Q1 2026" value={form.name} onChange={(e) => f("name", e.target.value)} />
-          </div>
-
-          {/* Description */}
-          <div className="space-y-1.5">
-            <Label>Descripción</Label>
-            <Textarea placeholder="Actividades incluidas, alcance..." value={form.description} onChange={(e) => f("description", e.target.value)} rows={2} />
-          </div>
-
-          {/* Frequency & Visits */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Frecuencia</Label>
-              <Select value={form.frequency} onValueChange={(v) => f("frequency", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="monthly">Mensual</SelectItem>
-                  <SelectItem value="bimonthly">Bimestral</SelectItem>
-                  <SelectItem value="quarterly">Trimestral</SelectItem>
-                  <SelectItem value="biannual">Semestral</SelectItem>
-                  <SelectItem value="annual">Anual</SelectItem>
-                  <SelectItem value="custom">Personalizado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Total de Visitas Cubiertas *</Label>
-              <Input
-                type="number"
-                min={1}
-                max={365}
-                value={form.totalVisits}
-                onChange={(e) => f("totalVisits", parseInt(e.target.value) || 1)}
-              />
-            </div>
-          </div>
-
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Fecha de Inicio *</Label>
-              <Input type="date" value={form.startDate} onChange={(e) => f("startDate", e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Fecha de Fin *</Label>
-              <Input type="date" value={form.endDate} onChange={(e) => f("endDate", e.target.value)} />
-            </div>
-          </div>
-
-          {/* Technician */}
-          <div className="space-y-1.5">
-            <Label>Técnico Responsable</Label>
-            <Input placeholder="Nombre del técnico" value={form.technician} onChange={(e) => f("technician", e.target.value)} />
-          </div>
-
-          {/* Equipment selection */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-1.5">
-              <Camera className="w-4 h-4 text-muted-foreground" />
-              Equipos a Incluir *
-            </Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar equipo por ID, marca, modelo..."
-                value={equipSearch}
-                onChange={(e) => { setEquipSearch(e.target.value); setTimeout(() => setDebouncedSearch(e.target.value), 400); }}
-                className="pl-9"
-              />
-            </div>
-            {lookupResult && debouncedSearch.length >= 2 && (
-              <div className="border border-border rounded-lg overflow-hidden shadow-sm">
+          {/* Step indicator */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {STEPS.map((label, idx) => (
+              <div key={idx} className="flex items-center gap-1">
                 <button
-                  className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors"
-                  onClick={() => addEquip(lookupResult)}
+                  onClick={() => idx < step && setStep(idx)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors",
+                    idx === step ? "bg-blue-600 text-white" :
+                    idx < step ? "bg-blue-100 text-blue-700 cursor-pointer hover:bg-blue-200" :
+                    "bg-muted text-muted-foreground cursor-default",
+                  )}
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm">{lookupResult.marca} {lookupResult.modelo}</p>
-                      <p className="text-xs text-muted-foreground">{lookupResult.categoryLabel} · {lookupResult.ubicacion ?? "Sin ubicación"}</p>
-                    </div>
-                    <Plus className="w-4 h-4 text-muted-foreground" />
-                  </div>
+                  <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold border border-current">{idx + 1}</span>
+                  {label}
                 </button>
+                {idx < STEPS.length - 1 && <ChevronRight className="w-3 h-3 text-muted-foreground" />}
               </div>
-            )}
-            {selectedItems.length > 0 && (
-              <div className="space-y-1.5">
-                {selectedItems.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border border-border/30 text-sm">
-                    <Camera className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{item.itemName}</p>
-                      {item.itemLocation && <p className="text-xs text-muted-foreground">{item.itemLocation}</p>}
-                    </div>
-                    <Badge variant="outline" className="text-xs">{CATEGORY_LABEL[item.category]}</Badge>
-                    <button onClick={() => removeEquip(idx)} className="text-muted-foreground hover:text-destructive transition-colors">
-                      <XIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Auto-generate schedule toggle */}
-          <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20">
-            <input
-              type="checkbox"
-              id="genSchedule"
-              checked={form.generateSchedule}
-              onChange={(e) => f("generateSchedule", e.target.checked)}
-              className="w-4 h-4 accent-blue-600"
-            />
-            <label htmlFor="genSchedule" className="text-sm cursor-pointer">
-              <span className="font-medium">Generar visitas automáticamente</span>
-              <span className="text-muted-foreground ml-1">— Crea {form.totalVisits} entradas programadas en el calendario</span>
-            </label>
+            ))}
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Creando programa..." : "Crear Programa"}
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+
+          {/* STEP 0: Info */}
+          {step === 0 && (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-muted-foreground" />
+                  Póliza Vinculada <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+                </Label>
+                <Select value={String(form.policyId)} onValueChange={(v) => f("policyId", v)}>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar póliza..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Sin póliza</SelectItem>
+                    {policies.map((p: any) => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.name} — {p.policyNumber}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {coverage && (
+                  <div className="p-3 rounded-lg border border-blue-200 bg-blue-50/50 text-sm space-y-2">
+                    <p className="font-semibold text-blue-700 flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5" /> Cobertura de la Póliza
+                    </p>
+                    <CoverageBar used={coverage.usedMaintenances} total={coverage.totalCovered} isUnlimited={coverage.isUnlimited} />
+                    {coverage.remainingMaintenances != null && coverage.remainingMaintenances > 0 && (
+                      <p className="text-xs text-blue-600">Sugerencia: programa {coverage.remainingMaintenances} visita(s) restante(s)</p>
+                    )}
+                    {coverage.services.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {coverage.services.map((s: any) => (
+                          <span key={s.id} className="text-xs bg-white border border-blue-200 text-blue-700 px-2 py-0.5 rounded-full">{s.serviceName}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nombre del Programa *</Label>
+                <Input placeholder="Ej: Mantenimiento Preventivo Q1 2026" value={form.name} onChange={(e) => f("name", e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Descripción</Label>
+                <Textarea placeholder="Actividades incluidas, alcance..." value={form.description} onChange={(e) => f("description", e.target.value)} rows={2} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Frecuencia</Label>
+                  <Select value={form.frequency} onValueChange={(v) => f("frequency", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">Mensual</SelectItem>
+                      <SelectItem value="bimonthly">Bimestral</SelectItem>
+                      <SelectItem value="quarterly">Trimestral</SelectItem>
+                      <SelectItem value="biannual">Semestral</SelectItem>
+                      <SelectItem value="annual">Anual</SelectItem>
+                      <SelectItem value="custom">Personalizado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Total de Visitas *</Label>
+                  <Input type="number" min={1} max={365} value={form.totalVisits} onChange={(e) => f("totalVisits", parseInt(e.target.value) || 1)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Fecha de Inicio *</Label>
+                  <Input type="date" value={form.startDate} onChange={(e) => f("startDate", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Fecha de Fin *</Label>
+                  <Input type="date" value={form.endDate} onChange={(e) => f("endDate", e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Técnico Responsable</Label>
+                <Input placeholder="Nombre del técnico" value={form.technician} onChange={(e) => f("technician", e.target.value)} />
+              </div>
+            </div>
+          )}
+
+          {/* STEP 1: Inventory */}
+          {step === 1 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Selecciona los equipos a incluir en el programa</p>
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                  {selectedItems.length} seleccionado{selectedItems.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              {/* Search + filter */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nombre, ubicación, IP..."
+                    value={inventorySearch}
+                    onChange={(e) => setInventorySearch(e.target.value)}
+                    className="pl-9 text-sm"
+                  />
+                </div>
+                <Select value={inventoryFilter} onValueChange={setInventoryFilter}>
+                  <SelectTrigger className="w-36 text-sm">
+                    <Filter className="w-3.5 h-3.5 mr-1.5" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos ({(fullInventory as any[]).length})</SelectItem>
+                    {Object.entries(CATEGORY_LABEL).map(([k, v]) =>
+                      categoryCounts[k] ? (
+                        <SelectItem key={k} value={k}>{v} ({categoryCounts[k]})</SelectItem>
+                      ) : null
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Select all */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{filteredInventory.length} equipo{filteredInventory.length !== 1 ? "s" : ""} mostrado{filteredInventory.length !== 1 ? "s" : ""}</span>
+                <button onClick={selectAllFiltered} className="text-blue-600 hover:underline font-medium">
+                  {allFilteredSelected ? "Deseleccionar todos" : "Seleccionar todos"}
+                </button>
+              </div>
+
+              {/* Inventory list */}
+              {loadingInventory ? (
+                <div className="flex items-center justify-center py-12 text-muted-foreground">
+                  <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full mr-2" />
+                  Cargando inventario...
+                </div>
+              ) : filteredInventory.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <Layers className="w-8 h-8 mb-2 opacity-40" />
+                  <p className="text-sm">No se encontraron equipos</p>
+                  {inventorySearch && <p className="text-xs mt-1">Intenta con otro término de búsqueda</p>}
+                  {(fullInventory as any[]).length === 0 && !loadingInventory && (
+                    <p className="text-xs mt-2 text-amber-600">No hay equipos en el inventario CCTV aún</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
+                  {filteredInventory.map((item: any) => {
+                    const isSelected = !!selectedItems.find((i) => i.itemId === item.id && i.category === item.category);
+                    return (
+                      <button
+                        key={`${item.category}-${item.id}`}
+                        onClick={() => toggleItem(item)}
+                        className={cn(
+                          "w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-all duration-150",
+                          isSelected
+                            ? "border-blue-400 bg-blue-50/60 dark:bg-blue-900/20 dark:border-blue-600"
+                            : "border-border/50 hover:border-blue-300 hover:bg-muted/30",
+                        )}
+                      >
+                        <div className={cn("w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors",
+                          isSelected ? "text-blue-600" : "text-muted-foreground")}>
+                          {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {item.location || "Sin ubicación"}
+                            {item.extra && <span className="ml-1.5 text-blue-500">· {item.extra}</span>}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] shrink-0">{item.categoryLabel}</Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Selected summary */}
+              {selectedItems.length > 0 && (
+                <div className="p-3 rounded-lg bg-blue-50/50 border border-blue-200 text-sm">
+                  <p className="font-medium text-blue-700 flex items-center gap-1.5">
+                    <ListChecks className="w-4 h-4" />
+                    {selectedItems.length} equipo{selectedItems.length !== 1 ? "s" : ""} seleccionado{selectedItems.length !== 1 ? "s" : ""}
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {Object.entries(
+                      selectedItems.reduce((acc: Record<string, number>, i: any) => {
+                        acc[i.category] = (acc[i.category] ?? 0) + 1;
+                        return acc;
+                      }, {})
+                    ).map(([cat, count]) => (
+                      <span key={cat} className="text-xs bg-white border border-blue-200 text-blue-700 px-2 py-0.5 rounded-full">
+                        {CATEGORY_LABEL[cat] ?? cat}: {count as number}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STEP 2: Schedule */}
+          {step === 2 && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-3">
+                <p className="font-semibold text-amber-800 flex items-center gap-2">
+                  <Info className="w-4 h-4" />
+                  Configurar Capacidad Diaria
+                </p>
+                <p className="text-sm text-amber-700">
+                  Tienes <strong>{selectedItems.length} equipos</strong> seleccionados. ¿Cuántos equipos puede atender el técnico por día?
+                </p>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 space-y-1.5">
+                    <Label className="text-sm">Equipos por día</Label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPerDay((v) => Math.max(1, v - 1))}
+                        className="w-8 h-8 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center font-bold text-lg transition-colors"
+                      >-</button>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={selectedItems.length || 1}
+                        value={perDay}
+                        onChange={(e) => setPerDay(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-20 text-center text-lg font-bold"
+                      />
+                      <button
+                        onClick={() => setPerDay((v) => Math.min(selectedItems.length || 1, v + 1))}
+                        className="w-8 h-8 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center font-bold text-lg transition-colors"
+                      >+</button>
+                    </div>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <p className="text-xs text-muted-foreground">Días de trabajo estimados</p>
+                    <p className="text-3xl font-bold text-blue-600">{totalDays}</p>
+                    <p className="text-xs text-muted-foreground">día{totalDays !== 1 ? "s" : ""} hábil{totalDays !== 1 ? "es" : ""}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Work schedule preview */}
+              {workSchedule.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-blue-500" />
+                      Programa de Obra Generado
+                    </p>
+                    <button
+                      onClick={() => setShowSchedulePreview((v) => !v)}
+                      className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      {showSchedulePreview ? "Ocultar detalle" : "Ver detalle"}
+                      {showSchedulePreview ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                  </div>
+
+                  <div className="rounded-xl border border-border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/50 border-b border-border">
+                          <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Día</th>
+                          <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Fecha</th>
+                          <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Equipos</th>
+                          <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground">#</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {workSchedule.map((day) => (
+                          <tr key={day.dayNumber} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
+                            <td className="px-3 py-2">
+                              <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">
+                                {day.dayNumber}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-sm font-medium">
+                              {form.startDate
+                                ? new Date(day.date + "T12:00:00").toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" })
+                                : `Día ${day.dayNumber}`}
+                            </td>
+                            <td className="px-3 py-2 text-xs text-muted-foreground">
+                              {showSchedulePreview ? (
+                                <div className="space-y-0.5">
+                                  {day.items.map((item: any, idx: number) => (
+                                    <div key={idx} className="flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                                      <span className="truncate max-w-[180px]">{item.itemName}</span>
+                                      {item.itemLocation && <span className="text-muted-foreground/60">({item.itemLocation})</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="truncate">
+                                  {day.items.slice(0, 2).map((i: any) => i.itemName).join(", ")}
+                                  {day.items.length > 2 && <span className="text-blue-500"> +{day.items.length - 2} más</span>}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <Badge variant="outline" className="text-xs">{day.items.length}</Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {!form.startDate && (
+                    <p className="text-xs text-amber-600 flex items-center gap-1">
+                      <Info className="w-3.5 h-3.5" /> Define la fecha de inicio en el paso anterior para ver las fechas reales
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20">
+                <input
+                  type="checkbox"
+                  id="genSchedule"
+                  checked={form.generateSchedule}
+                  onChange={(e) => f("generateSchedule", e.target.checked)}
+                  className="w-4 h-4 accent-blue-600"
+                />
+                <label htmlFor="genSchedule" className="text-sm cursor-pointer">
+                  <span className="font-medium">Generar visitas automáticamente en el calendario</span>
+                  <span className="text-muted-foreground ml-1">— Crea {form.totalVisits} entradas programadas</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: Confirm */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3">
+                <p className="font-semibold text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5" />
+                  Resumen del Programa
+                </p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><p className="text-xs text-muted-foreground">Nombre</p><p className="font-medium">{form.name || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Frecuencia</p><p className="font-medium">{FREQ_LABEL[form.frequency] ?? form.frequency}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Vigencia</p><p className="font-medium">{form.startDate} → {form.endDate}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Visitas totales</p><p className="font-medium">{form.totalVisits}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Técnico</p><p className="font-medium">{form.technician || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Equipos</p><p className="font-medium">{selectedItems.length} seleccionados</p></div>
+                  <div><p className="text-xs text-muted-foreground">Capacidad diaria</p><p className="font-medium">{perDay} equipo{perDay !== 1 ? "s" : ""}/día → {totalDays} día{totalDays !== 1 ? "s" : ""} de trabajo</p></div>
+                  <div><p className="text-xs text-muted-foreground">Póliza vinculada</p><p className="font-medium">{policies.find((p: any) => String(p.id) === String(form.policyId))?.name ?? "Sin póliza"}</p></div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">Equipos incluidos</p>
+                <div className="max-h-48 overflow-y-auto space-y-1">
+                  {selectedItems.map((item: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border border-border/30 text-sm">
+                      <Camera className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{item.itemName}</p>
+                        {item.itemLocation && <p className="text-xs text-muted-foreground">{item.itemLocation}</p>}
+                      </div>
+                      <Badge variant="outline" className="text-xs shrink-0">{CATEGORY_LABEL[item.category]}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-border shrink-0 flex items-center justify-between">
+          <Button variant="outline" onClick={step === 0 ? handleClose : () => setStep((s) => s - 1)} className="gap-1.5">
+            {step === 0 ? "Cancelar" : "← Anterior"}
           </Button>
-        </DialogFooter>
+          <div className="flex items-center gap-2">
+            {step < 3 ? (
+              <Button
+                onClick={() => {
+                  if (step === 0 && !form.name.trim()) { toast.error("El nombre es obligatorio"); return; }
+                  if (step === 0 && (!form.startDate || !form.endDate)) { toast.error("Las fechas son obligatorias"); return; }
+                  if (step === 1 && selectedItems.length === 0) { toast.error("Selecciona al menos un equipo"); return; }
+                  setStep((s) => s + 1);
+                }}
+                className="gap-1.5"
+              >
+                Siguiente →
+              </Button>
+            ) : (
+              <Button onClick={handleSave} disabled={isSaving} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
+                {isSaving ? "Creando programa..." : "✓ Crear Programa"}
+              </Button>
+            )}
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

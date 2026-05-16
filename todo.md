@@ -347,3 +347,11 @@
 - [x] Frontend: panel izquierdo muestra PDF embebido con iframe o visor nativo del navegador
 - [x] Frontend: el diálogo se expande a pantalla completa cuando hay documento cargado
 - [x] Frontend: botón para quitar el documento y volver al layout de una columna
+
+## Programa de Mantenimiento - Selector de Inventario y Programa de Obra
+- [ ] Backend: endpoint para obtener todo el inventario CCTV (cámaras, IDFs, monitores, servidores, switches, UPS, licencias)
+- [ ] Backend: endpoint para generar programa de obra detallado por día (fecha, equipos asignados, técnico)
+- [ ] Frontend: selector de inventario completo con búsqueda, filtros por categoría y selección múltiple
+- [ ] Frontend: pregunta de capacidad diaria (cuántas cámaras/equipos por día)
+- [ ] Frontend: vista previa del programa de obra generado (tabla día a día con equipos asignados)
+- [ ] Frontend: posibilidad de ajustar la distribución antes de guardar

@@ -502,6 +502,57 @@ export const cctvMaintenanceProgramsRouter = router({
       return { success: true, url };
     }),
 
+  // ── GET FULL INVENTORY (all CCTV assets for maintenance program) ────────────
+  getFullInventory: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const tenantId = ctx.user.tenantId ?? 1;
+
+    const [cameras, idfs, monitors, servers, switches, ups] = await Promise.all([
+      db.select({ id: cctvCameras.id, marca: cctvCameras.marca, modelo: cctvCameras.modelo,
+        area: cctvCameras.area, edificio: cctvCameras.edificio, ip: cctvCameras.ip,
+        status: cctvCameras.status, tipo: cctvCameras.tipo, idCamera: cctvCameras.idCamera })
+        .from(cctvCameras).where(eq(cctvCameras.tenantId, tenantId)),
+      db.select({ id: cctvIdfs.id, nombre: cctvIdfs.nombre, ubicacion: cctvIdfs.ubicacion,
+        tipo: cctvIdfs.tipo, status: cctvIdfs.status })
+        .from(cctvIdfs).where(eq(cctvIdfs.tenantId, tenantId)),
+      db.select({ id: cctvMonitors.id, marca: cctvMonitors.marca, modelo: cctvMonitors.modelo,
+        ubicacion: cctvMonitors.ubicacion, status: cctvMonitors.status })
+        .from(cctvMonitors).where(eq(cctvMonitors.tenantId, tenantId)),
+      db.select({ id: cctvServers.id, marca: cctvServers.marca, modelo: cctvServers.modelo,
+        ip: cctvServers.ip, status: cctvServers.status, tipo: cctvServers.tipo })
+        .from(cctvServers).where(eq(cctvServers.tenantId, tenantId)),
+      db.select({ id: cctvSwitches.id, marca: cctvSwitches.marca, modelo: cctvSwitches.modelo,
+        ubicacion: cctvSwitches.ubicacion, status: cctvSwitches.status, ip: cctvSwitches.ip })
+        .from(cctvSwitches).where(eq(cctvSwitches.tenantId, tenantId)),
+      db.select({ id: cctvUps.id, marca: cctvUps.marca, modelo: cctvUps.modelo,
+        ubicacion: cctvUps.ubicacion, status: cctvUps.status })
+        .from(cctvUps).where(eq(cctvUps.tenantId, tenantId)),
+    ]);
+
+    const toItem = (category: string, label: string, rows: any[]) =>
+      rows.map((r) => ({
+        id: r.id,
+        category,
+        categoryLabel: label,
+        name: r.nombre
+          ? r.nombre
+          : [r.marca, r.modelo].filter(Boolean).join(" ") || `${label} #${r.id}`,
+        location: r.area ?? r.edificio ?? r.ubicacion ?? "",
+        status: r.status ?? "active",
+        extra: r.ip ?? r.idCamera ?? r.tipo ?? "",
+      }));
+
+    return [
+      ...toItem("cameras", "Cámara", cameras),
+      ...toItem("idfs", "IDF/MDF", idfs),
+      ...toItem("monitors", "Monitor", monitors),
+      ...toItem("servers", "Servidor", servers),
+      ...toItem("switches", "Switch", switches),
+      ...toItem("ups", "UPS", ups),
+    ];
+  }),
+
   // ── GET CALENDAR EVENTS (for CCTVCalendar) ─────────────────────────────────
   getCalendarEvents: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
