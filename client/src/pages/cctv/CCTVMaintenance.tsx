@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import React from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,7 @@ import {
   Calendar, FileText, Shield, ChevronDown, ChevronUp,
   Camera, ImageIcon, Upload, X as XIcon, PenLine, Eye,
   ClipboardList, Link2, BarChart3, Filter, CheckSquare, Square,
-  ListChecks, Layers, ChevronRight, Info, Users, Trash2,
+  ListChecks, Layers, ChevronRight, Info, Users, Trash2, Pencil,
 } from "lucide-react";
 import MaintenanceReportDialog from "@/components/MaintenanceReportDialog";
 
@@ -118,11 +119,20 @@ function WeeklyScheduleView({
   const MONTH_NAMES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
   const formatShort = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(2)}`;
+  // Helper: safely convert Date object or string to a Date at noon UTC to avoid timezone shifts
+  const toSafeDate = (v: unknown): Date | null => {
+    if (!v) return null;
+    if (v instanceof Date) return new Date(v.toISOString().split("T")[0] + "T12:00:00");
+    if (typeof v === "string") return new Date(v.split("T")[0] + "T12:00:00");
+    return null;
+  };
   // Use programMonth from program if available, otherwise derive from startDate
+  const startDateObj = toSafeDate(selectedProg?.startDate);
+  const endDateObj = toSafeDate(selectedProg?.endDate);
   const monthLabel = selectedProg?.programMonth
     ? selectedProg.programMonth
-    : selectedProg?.startDate
-      ? (() => { const d = new Date(selectedProg.startDate + "T12:00:00"); return `${MONTH_NAMES[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`; })()
+    : startDateObj
+      ? `${MONTH_NAMES[startDateObj.getMonth()]}-${String(startDateObj.getFullYear()).slice(2)}`
       : `${MONTH_NAMES[weekDays[0].getMonth()]}-${String(weekDays[0].getFullYear()).slice(2)}`;
 
   const [localItems, setLocalItems] = useState<any[]>(items);
@@ -214,9 +224,9 @@ function WeeklyScheduleView({
               </td>
               <td colSpan={2} className="px-3 py-2 border-r border-border">
                 <span className="font-semibold">INICIO</span>
-                <span className="ml-1 text-foreground">{selectedProg?.startDate ? formatShort(new Date(selectedProg.startDate + "T12:00:00")) : "—"}</span>
+                <span className="ml-1 text-foreground">{startDateObj ? formatShort(startDateObj) : "—"}</span>
                 <span className="font-semibold ml-4">FIN</span>
-                <span className="ml-1 text-foreground">{selectedProg?.endDate ? formatShort(new Date(selectedProg.endDate + "T12:00:00")) : "—"}</span>
+                <span className="ml-1 text-foreground">{endDateObj ? formatShort(endDateObj) : "—"}</span>
               </td>
               <td colSpan={2} className="px-3 py-2 border-r border-border"></td>
               {DAY_NAMES.map((d) => (
@@ -428,6 +438,13 @@ export default function CCTVMaintenance() {
     onError: (e) => toast.error(e.message),
   });
 
+  const [editProgramId, setEditProgramId] = useState<number | null>(null);
+  const editingProg = programs.find((p: any) => p.id === editProgramId) ?? null;
+  const updateProgram = trpc.cctvPrograms.updateProgram.useMutation({
+    onSuccess: () => { toast.success("Programa actualizado"); refetchPrograms(); setEditProgramId(null); },
+    onError: (e) => toast.error(e.message),
+  });
+
   // ── Stats ──
   const stats = {
     total: programs.length,
@@ -633,6 +650,14 @@ export default function CCTVMaintenance() {
                           <Button
                             size="sm"
                             variant="outline"
+                            className="gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50"
+                            onClick={(e) => { e.stopPropagation(); setEditProgramId(prog.id); }}
+                          >
+                            <Pencil className="w-3.5 h-3.5" /> Editar Programa
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 ml-auto"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -764,7 +789,143 @@ export default function CCTVMaintenance() {
           onClose={() => { setReportLogId(null); refetchEvents(); }}
         />
       )}
+
+      {/* ── Edit Program Dialog ── */}
+      {editingProg && (
+        <EditProgramDialog
+          program={editingProg}
+          onClose={() => setEditProgramId(null)}
+          onSave={(data) => updateProgram.mutate({ id: editingProg.id, ...data })}
+          saving={updateProgram.isPending}
+        />
+      )}
     </div>
+  );
+}
+
+// ─── EditProgramDialog ──────────────────────────────────────────────────────────────────────────────────
+function EditProgramDialog({
+  program, onClose, onSave, saving,
+}: {
+  program: any;
+  onClose: () => void;
+  onSave: (data: Record<string, any>) => void;
+  saving: boolean;
+}) {
+  const toDateStr = (v: unknown): string => {
+    if (!v) return "";
+    if (v instanceof Date) return v.toISOString().split("T")[0];
+    if (typeof v === "string") return v.split("T")[0];
+    return "";
+  };
+
+  const [form, setForm] = React.useState({
+    name: program.name ?? "",
+    description: program.description ?? "",
+    startDate: toDateStr(program.startDate),
+    endDate: toDateStr(program.endDate),
+    totalVisits: program.totalVisits ?? 4,
+    frequency: program.frequency ?? "quarterly",
+    technician: program.technician ?? "",
+    schedule: program.schedule ?? "8:00AM - 5:00 PM",
+    programMonth: program.programMonth ?? "",
+    programYear: program.programYear ?? String(new Date().getFullYear()),
+    status: program.status ?? "active",
+    changeReason: "",
+  });
+  const f = (k: string, v: any) => setForm((p) => ({ ...p, [k]: v }));
+
+  const handleSave = () => {
+    if (!form.name.trim()) { toast.error("El nombre es obligatorio"); return; }
+    onSave(form);
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="w-4 h-4 text-amber-500" />
+            Editar Programa de Mantenimiento
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="col-span-2">
+            <Label>Nombre del Programa *</Label>
+            <Input value={form.name} onChange={(e) => f("name", e.target.value)} className="mt-1" />
+          </div>
+          <div>
+            <Label>Mes</Label>
+            <Input value={form.programMonth} onChange={(e) => f("programMonth", e.target.value)} placeholder="may" className="mt-1" />
+          </div>
+          <div>
+            <Label>Año</Label>
+            <Input value={form.programYear} onChange={(e) => f("programYear", e.target.value)} placeholder="2026" className="mt-1" />
+          </div>
+          <div>
+            <Label>Fecha de Inicio</Label>
+            <Input type="date" value={form.startDate} onChange={(e) => f("startDate", e.target.value)} className="mt-1" />
+          </div>
+          <div>
+            <Label>Fecha de Fin</Label>
+            <Input type="date" value={form.endDate} onChange={(e) => f("endDate", e.target.value)} className="mt-1" />
+          </div>
+          <div>
+            <Label>Horario</Label>
+            <Input value={form.schedule} onChange={(e) => f("schedule", e.target.value)} placeholder="8:00AM - 5:00 PM" className="mt-1" />
+          </div>
+          <div>
+            <Label>Técnico Asignado</Label>
+            <Input value={form.technician} onChange={(e) => f("technician", e.target.value)} className="mt-1" />
+          </div>
+          <div>
+            <Label>Frecuencia</Label>
+            <Select value={form.frequency} onValueChange={(v) => f("frequency", v)}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="weekly">Semanal</SelectItem>
+                <SelectItem value="biweekly">Quincenal</SelectItem>
+                <SelectItem value="monthly">Mensual</SelectItem>
+                <SelectItem value="quarterly">Trimestral</SelectItem>
+                <SelectItem value="semiannual">Semestral</SelectItem>
+                <SelectItem value="annual">Anual</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Estado</Label>
+            <Select value={form.status} onValueChange={(v) => f("status", v)}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Activo</SelectItem>
+                <SelectItem value="completed">Completado</SelectItem>
+                <SelectItem value="cancelled">Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2">
+            <Label>Descripción</Label>
+            <Textarea value={form.description} onChange={(e) => f("description", e.target.value)} rows={2} className="mt-1" />
+          </div>
+          <div className="col-span-2 border-t border-border pt-3">
+            <Label className="text-amber-600 font-medium">Motivo del cambio (log de auditoría)</Label>
+            <Textarea
+              value={form.changeReason}
+              onChange={(e) => f("changeReason", e.target.value)}
+              placeholder="Describe brevemente por qué se modifica este programa..."
+              rows={2}
+              className="mt-1"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-amber-500 hover:bg-amber-600 text-white">
+            {saving ? "Guardando..." : "Guardar Cambios"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

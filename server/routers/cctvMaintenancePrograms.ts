@@ -16,6 +16,7 @@ import {
   cctvServers,
   cctvSwitches,
   cctvUps,
+  auditLogs,
 } from "../../drizzle/schema";
 import { storagePut } from "../storage";
 
@@ -397,6 +398,94 @@ export const cctvMaintenanceProgramsRouter = router({
         .update(cctvMaintenancePrograms)
         .set(updateData)
         .where(and(eq(cctvMaintenancePrograms.id, id), eq(cctvMaintenancePrograms.tenantId, tenantId)));
+      return { success: true };
+    }),
+
+  // ── UPDATE PROGRAM (with audit log) ────────────────────────────────────────
+  updateProgram: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        totalVisits: z.number().int().optional(),
+        frequency: z.enum(["weekly", "biweekly", "monthly", "quarterly", "semiannual", "annual"]).optional(),
+        technician: z.string().optional(),
+        schedule: z.string().optional(),
+        programMonth: z.string().optional(),
+        programYear: z.string().optional(),
+        status: z.enum(["active", "completed", "cancelled"]).optional(),
+        changeReason: z.string().optional(), // Motivo del cambio para el log
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const tenantId = ctx.user.tenantId ?? 1;
+      const { id, changeReason, ...fields } = input;
+
+      // Fetch current program for audit
+      const [current] = await db
+        .select()
+        .from(cctvMaintenancePrograms)
+        .where(and(eq(cctvMaintenancePrograms.id, id), eq(cctvMaintenancePrograms.tenantId, tenantId)))
+        .limit(1);
+      if (!current) throw new Error("Programa no encontrado");
+
+      // Build update payload
+      const updateData: Record<string, unknown> = {};
+      if (fields.name !== undefined) updateData.name = fields.name;
+      if (fields.description !== undefined) updateData.description = fields.description;
+      if (fields.startDate !== undefined) updateData.startDate = toDate(fields.startDate);
+      if (fields.endDate !== undefined) updateData.endDate = toDate(fields.endDate);
+      if (fields.totalVisits !== undefined) updateData.totalVisits = fields.totalVisits;
+      if (fields.frequency !== undefined) updateData.frequency = fields.frequency;
+      if (fields.technician !== undefined) updateData.technician = fields.technician;
+      if (fields.schedule !== undefined) updateData.schedule = fields.schedule;
+      if (fields.programMonth !== undefined) updateData.programMonth = fields.programMonth;
+      if (fields.programYear !== undefined) updateData.programYear = fields.programYear;
+      if (fields.status !== undefined) updateData.status = fields.status;
+
+      await db
+        .update(cctvMaintenancePrograms)
+        .set(updateData)
+        .where(and(eq(cctvMaintenancePrograms.id, id), eq(cctvMaintenancePrograms.tenantId, tenantId)));
+
+      // Build human-readable diff for audit log
+      const FIELD_LABELS: Record<string, string> = {
+        name: "Nombre", description: "Descripción", startDate: "Fecha Inicio",
+        endDate: "Fecha Fin", totalVisits: "Total Visitas", frequency: "Frecuencia",
+        technician: "Técnico", schedule: "Horario", programMonth: "Mes",
+        programYear: "Año", status: "Estado",
+      };
+      const changes: string[] = [];
+      for (const [key, newVal] of Object.entries(fields)) {
+        const oldVal = (current as any)[key];
+        if (String(oldVal) !== String(newVal)) {
+          changes.push(`${FIELD_LABELS[key] ?? key}: "${oldVal ?? ""}" → "${newVal ?? ""}"`); 
+        }
+      }
+      const description = [
+        `Programa "${current.name}" modificado por ${ctx.user.name ?? ctx.user.email ?? "usuario"}.`,
+        changes.length ? `Cambios: ${changes.join("; ")}.` : "",
+        changeReason ? `Motivo: ${changeReason}` : "",
+      ].filter(Boolean).join(" ");
+
+      await db.insert(auditLogs).values({
+        tenantId,
+        userId: ctx.user.id,
+        userName: ctx.user.name ?? ctx.user.email ?? null,
+        action: "update",
+        module: "cctv_maintenance_program",
+        entityType: "cctv_maintenance_program",
+        entityId: id,
+        description,
+        oldData: current as any,
+        newData: { ...current, ...updateData } as any,
+      });
+
       return { success: true };
     }),
 
