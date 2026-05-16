@@ -612,10 +612,10 @@ export default function FloorPlanViewer() {
                 <div ref={contentRef} className="relative shadow-2xl">
                   {isPdf ? (
                     <iframe
-                      src={plan.fileUrl!}
+                      src={plan.fileUrl! + "#toolbar=1&navpanes=1&scrollbar=1&view=FitH"}
                       style={{
-                        width: "1000px",
-                        height: "1400px",
+                        width: "min(1400px, 90vw)",
+                        height: "min(1000px, 80vh)",
                         border: "none",
                         display: "block",
                         background: "white",
