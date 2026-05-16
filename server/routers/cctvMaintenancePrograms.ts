@@ -567,6 +567,10 @@ export const cctvMaintenanceProgramsRouter = router({
       const db = await getDb();
       if (!db) throw new Error("DB not available");
       const tenantId = ctx.user.tenantId ?? 1;
+      // Eliminar eventos del calendario asociados al programa
+      await db
+        .delete(cctvMaintenanceLog)
+        .where(and(eq(cctvMaintenanceLog.programId, input.id), eq(cctvMaintenanceLog.tenantId, tenantId)));
       await db
         .delete(cctvMaintenanceProgramItems)
         .where(and(eq(cctvMaintenanceProgramItems.programId, input.id), eq(cctvMaintenanceProgramItems.tenantId, tenantId)));
