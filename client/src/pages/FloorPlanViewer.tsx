@@ -701,6 +701,214 @@ function AnnotationLabelDialog({ open, onConfirm, onCancel, defaultLabel }: {
   );
 }
 
+// ─── DXF Export ─────────────────────────────────────────────────────────────
+/**
+ * Genera un archivo DXF básico (AutoCAD R12/LT) con capas por tipo de anotación.
+ * Coordenadas en metros reales basadas en la escala del plano.
+ */
+function generateDXF(
+  annotations: { id: number; type: string | null; label: string | null; color: string | null; data: string | null; x: string; y: string }[],
+  pdfDims: { w: number; h: number } | null,
+  containerPx: { w: number; h: number } | null,
+  scaleStr: string | null | undefined
+): string {
+  const toM = (px: number) => {
+    const m = calcUtpLengthMeters(px, pdfDims, containerPx, scaleStr);
+    return m != null ? m : px * 0.001; // fallback: 1px = 1mm
+  };
+  const hexToACI = (hex: string): number => {
+    // Approximate AutoCAD Color Index from hex
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    if (r > 200 && g < 80 && b < 80) return 1;   // red
+    if (r > 200 && g > 200 && b < 80) return 2;   // yellow
+    if (r < 80 && g > 200 && b < 80) return 3;    // green
+    if (r < 80 && g > 200 && b > 200) return 4;   // cyan
+    if (r < 80 && g < 80 && b > 200) return 5;    // blue
+    if (r > 200 && g < 80 && b > 200) return 6;   // magenta
+    if (r > 200 && g > 200 && b > 200) return 7;  // white
+    return 7;
+  };
+
+  const layers = new Set<string>();
+  const entities: string[] = [];
+
+  for (const ann of annotations) {
+    const layerName = (ann.type ?? "MARKER").toUpperCase();
+    layers.add(layerName);
+    const d = parseData(ann.data);
+    const aci = hexToACI(ann.color ?? "#ffffff");
+
+    if ((ann.type === "utp" || ann.type === "ladder" || ann.type === "connection") && d.x1 !== undefined) {
+      // Convert pixel coords to meters
+      const x1m = toM(d.x1!);
+      const y1m = -toM(d.y1!); // DXF Y is inverted
+      const x2m = toM(d.x2!);
+      const y2m = -toM(d.y2!);
+      entities.push(
+        `  0\nLINE\n  8\n${layerName}\n 62\n${aci}\n 10\n${x1m.toFixed(4)}\n 20\n${y1m.toFixed(4)}\n 30\n0.0000\n 11\n${x2m.toFixed(4)}\n 21\n${y2m.toFixed(4)}\n 31\n0.0000`
+      );
+      // Add TEXT label at midpoint
+      const mxm = (x1m + x2m) / 2;
+      const mym = (y1m + y2m) / 2;
+      const labelText = ann.label ?? ann.type ?? "";
+      if (labelText) {
+        entities.push(
+          `  0\nTEXT\n  8\n${layerName}_LABELS\n 62\n${aci}\n 10\n${mxm.toFixed(4)}\n 20\n${mym.toFixed(4)}\n 30\n0.0000\n 40\n0.1500\n  1\n${labelText}`
+        );
+        layers.add(`${layerName}_LABELS`);
+      }
+    } else {
+      // Point marker
+      const xPct = parseFloat(ann.x) / 100;
+      const yPct = parseFloat(ann.y) / 100;
+      const xm = pdfDims ? toM(xPct * (containerPx?.w ?? pdfDims.w)) : xPct;
+      const ym = pdfDims ? -toM(yPct * (containerPx?.h ?? pdfDims.h)) : -yPct;
+      entities.push(
+        `  0\nPOINT\n  8\n${layerName}\n 62\n${aci}\n 10\n${xm.toFixed(4)}\n 20\n${ym.toFixed(4)}\n 30\n0.0000`
+      );
+      const labelText = ann.label ?? "";
+      if (labelText) {
+        entities.push(
+          `  0\nTEXT\n  8\n${layerName}_LABELS\n 62\n${aci}\n 10\n${xm.toFixed(4)}\n 20\n${(ym + 0.2).toFixed(4)}\n 30\n0.0000\n 40\n0.1500\n  1\n${labelText}`
+        );
+        layers.add(`${layerName}_LABELS`);
+      }
+    }
+  }
+
+  // Build DXF header + tables + entities
+  const layerDefs = Array.from(layers).map((ln) =>
+    `  0\nLAYER\n  2\n${ln}\n 70\n0\n 62\n7\n  6\nCONTINUOUS`
+  ).join("\n");
+
+  return [
+    "  0\nSECTION\n  2\nHEADER\n  9\n$ACADVER\n  1\nAC1009\n  0\nENDSEC",
+    "  0\nSECTION\n  2\nTABLES",
+    "  0\nTABLE\n  2\nLAYER\n 70\n" + layers.size,
+    layerDefs,
+    "  0\nENDTAB\n  0\nENDSEC",
+    "  0\nSECTION\n  2\nENTITIES",
+    entities.join("\n"),
+    "  0\nENDSEC\n  0\nEOF",
+  ].join("\n");
+}
+
+// ─── UTP Node Dialog ──────────────────────────────────────────────────────────
+/**
+ * Diálogo para configurar un nodo UTP completo:
+ * - Altura del techo (m)
+ * - Longitud horizontal (calculada del plano)
+ * - Calcula longitud total = horizontal + 2 * altura_techo + margen_rack
+ */
+function UtpNodeDialog({
+  open, color, category, horizontalMeters, onColorChange, onCategoryChange,
+  onConfirm, onCancel,
+}: {
+  open: boolean; color: string; category: string; horizontalMeters: number | null;
+  onColorChange: (c: string) => void; onCategoryChange: (c: string) => void;
+  onConfirm: (ceilingHeight: number, rackMargin: number) => void; onCancel: () => void;
+}) {
+  const [ceilingHeight, setCeilingHeight] = useState(2.8);
+  const [rackMargin, setRackMargin] = useState(1.5);
+  const totalLength = horizontalMeters != null
+    ? horizontalMeters + 2 * ceilingHeight + rackMargin
+    : null;
+  const isOver = totalLength != null && totalLength > UTP_MAX_METERS;
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Nodo UTP Completo</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-xs text-gray-400">Calcula la longitud real del cable considerando el recorrido vertical por el techo.</p>
+          {/* Horizontal distance */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "#1e293b", border: "1px solid #334155" }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 8h12M2 8l3-3M2 8l3 3" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span className="text-xs text-gray-400">Distancia horizontal:</span>
+            <span className="text-sm font-bold" style={{ color }}>
+              {horizontalMeters != null ? formatMeters(horizontalMeters) : "Sin escala"}
+            </span>
+          </div>
+          {/* Ceiling height */}
+          <div>
+            <Label className="mb-1 block text-xs">Altura del techo (m)</Label>
+            <div className="flex items-center gap-2">
+              <input type="range" min={1.5} max={12} step={0.1} value={ceilingHeight}
+                onChange={(e) => setCeilingHeight(parseFloat(e.target.value))}
+                className="flex-1" />
+              <span className="text-sm font-mono font-bold w-12 text-right" style={{ color: "#94a3b8" }}>{ceilingHeight.toFixed(1)} m</span>
+            </div>
+            <p className="text-[10px] text-gray-500 mt-0.5">Sube + baja = 2 × {ceilingHeight.toFixed(1)} = {(2*ceilingHeight).toFixed(1)} m</p>
+          </div>
+          {/* Rack margin */}
+          <div>
+            <Label className="mb-1 block text-xs">Margen en rack/patch panel (m)</Label>
+            <div className="flex items-center gap-2">
+              <input type="range" min={0.5} max={5} step={0.1} value={rackMargin}
+                onChange={(e) => setRackMargin(parseFloat(e.target.value))}
+                className="flex-1" />
+              <span className="text-sm font-mono font-bold w-12 text-right" style={{ color: "#94a3b8" }}>{rackMargin.toFixed(1)} m</span>
+            </div>
+          </div>
+          {/* Total */}
+          <div className="px-3 py-2 rounded-lg" style={{
+            background: isOver ? "#450a0a" : "#0f172a",
+            border: `1px solid ${isOver ? "#ef4444" : "#1e3a5f"}`,
+          }}>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold" style={{ color: isOver ? "#fca5a5" : "#94a3b8" }}>Longitud total estimada</span>
+              {isOver && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#ef4444", color: "white" }}>LÍMITE</span>}
+            </div>
+            <p className="text-xl font-bold mt-1" style={{ color: isOver ? "#ef4444" : "#3b82f6" }}>
+              {totalLength != null ? formatMeters(totalLength) : "—"}
+            </p>
+            {horizontalMeters != null && (
+              <p className="text-[10px] text-gray-500 mt-0.5">
+                {formatMeters(horizontalMeters)} horizontal + {formatMeters(2*ceilingHeight)} vertical + {formatMeters(rackMargin)} rack
+              </p>
+            )}
+            {isOver && (
+              <p className="text-[11px] mt-1" style={{ color: "#fca5a5" }}>⚠ Supera el límite IEEE 802.3 de 90 m</p>
+            )}
+          </div>
+          {/* Color + Category */}
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <Label className="mb-1 block text-xs">Color</Label>
+              <div className="flex flex-wrap gap-1">
+                {UTP_COLORS.slice(0,6).map((c) => (
+                  <button key={c.hex} title={c.label} onClick={() => onColorChange(c.hex)}
+                    className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
+                    style={{ background: c.hex, borderColor: color === c.hex ? "white" : "transparent" }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex-1">
+              <Label className="mb-1 block text-xs">Categoría</Label>
+              <Select value={category} onValueChange={onCategoryChange}>
+                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {UTP_CATEGORIES.map((cat) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button onClick={() => onConfirm(ceilingHeight, rackMargin)} style={{ background: color, color: "white" }}>
+            Crear Nodo UTP
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── PDF Canvas Renderer ──────────────────────────────────────────────────────
 function PdfCanvas({ url, onReady }: { url: string; onReady: (w: number, h: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -801,6 +1009,8 @@ export default function FloorPlanViewer() {
   const [utpPending, setUtpPending] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [utpColor, setUtpColor] = useState("#3b82f6");
   const [utpCategory, setUtpCategory] = useState("Cat6");
+  const [utpNodeDialogOpen, setUtpNodeDialogOpen] = useState(false);
+  const [utpNodePending, setUtpNodePending] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [editingScale, setEditingScale] = useState(false);
   const [scaleInput, setScaleInput] = useState("");
   const [pendingAnnotation, setPendingAnnotation] = useState<{
@@ -854,8 +1064,8 @@ export default function FloorPlanViewer() {
         setConnectionPreview({ x: e.clientX - rect.left, y: e.clientY - rect.top });
       }
     }
-    // Update UTP preview
-    if (selectedTool === "utp" && utpStart) {
+    // Update UTP / UTP-Node preview
+    if ((selectedTool === "utp" || selectedTool === "utp-node") && utpStart) {
       const rect = contentRef.current?.getBoundingClientRect();
       if (rect) {
         setUtpPreview({ x: e.clientX - rect.left, y: e.clientY - rect.top });
@@ -887,6 +1097,19 @@ export default function FloorPlanViewer() {
       setUtpStart(null);
       setUtpPreview(null);
       setUtpDialogOpen(true);
+      return;
+    }
+    // UTP Node: two-point drawing mode (opens node dialog with ceiling height)
+    if (selectedTool === "utp-node") {
+      if (!utpStart) {
+        setUtpStart({ x: xPx, y: yPx });
+        return;
+      }
+      // Second click: open node dialog
+      setUtpNodePending({ x1: utpStart.x, y1: utpStart.y, x2: xPx, y2: yPx });
+      setUtpStart(null);
+      setUtpPreview(null);
+      setUtpNodeDialogOpen(true);
       return;
     }
     // Connection: two-point drawing mode
@@ -999,6 +1222,60 @@ export default function FloorPlanViewer() {
   };
 
   const handleUtpCancel = () => { setUtpDialogOpen(false); setUtpPending(null); };
+
+  // ── UTP Node (full path with ceiling height) ─────────────────────────────
+  const handleUtpNodeConfirm = async (ceilingHeight: number, rackMargin: number) => {
+    if (!utpNodePending) return;
+    setUtpNodeDialogOpen(false);
+    try {
+      const containerEl = contentRef.current;
+      const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
+      const pxLen = Math.sqrt((utpNodePending.x2 - utpNodePending.x1) ** 2 + (utpNodePending.y2 - utpNodePending.y1) ** 2);
+      const horizMeters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan?.scale) ?? 0;
+      const totalMeters = horizMeters + 2 * ceilingHeight + rackMargin;
+      const data = JSON.stringify({
+        x1: utpNodePending.x1, y1: utpNodePending.y1,
+        x2: utpNodePending.x2, y2: utpNodePending.y2,
+        utpColor, utpCategory,
+        ceilingHeight, rackMargin, totalMeters,
+        isNode: true,
+      });
+      const activeLayer = layers && layers.length > 0 ? layers[0].id : undefined;
+      await createAnnotation.mutateAsync({
+        planId,
+        layerId: activeLayer,
+        type: "utp",
+        x: "0", y: "0",
+        label: `Nodo ${utpCategory} (${formatMeters(totalMeters)})`,
+        icon: "🟦",
+        color: utpColor,
+        data,
+      });
+      toast.success(`Nodo UTP creado: ${formatMeters(totalMeters)}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Error al crear nodo UTP");
+    }
+    setUtpNodePending(null);
+  };
+
+  const handleUtpNodeCancel = () => { setUtpNodeDialogOpen(false); setUtpNodePending(null); };
+
+  // ── Export DXF ───────────────────────────────────────────────────────────
+  const handleExportDXF = () => {
+    const containerEl = contentRef.current;
+    const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
+    const dxf = generateDXF(annotations as Annotation[], pdfDims, containerPx, plan?.scale);
+    const blob = new Blob([dxf], { type: "application/dxf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${plan?.name ?? "plano"}.dxf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("Archivo DXF exportado");
+  };
 
   // ── Move annotation (drag end) ────────────────────────────────────────────
   // Sync local rotation/scale when selection changes
@@ -1136,7 +1413,7 @@ export default function FloorPlanViewer() {
       setConnectionStart(null);
       setConnectionPreview(null);
     }
-    if (selectedTool !== "utp") {
+    if (selectedTool !== "utp" && selectedTool !== "utp-node") {
       setUtpStart(null);
       setUtpPreview(null);
     }
@@ -1200,9 +1477,31 @@ export default function FloorPlanViewer() {
               {BUILTIN_MARKERS.map((m) => (
                 <ToolButton key={m.type} active={selectedTool === m.type} onClick={() => setSelectedTool(m.type)} icon={<span>{m.icon}</span>} label={m.label} />
               ))}
+              <ToolButton
+                active={selectedTool === "utp-node"}
+                onClick={() => setSelectedTool("utp-node")}
+                icon={<span>🔵</span>}
+                label="Nodo UTP"
+              />
               {(layers as Layer[]).map((layer) => (
                 <ToolButton key={layer.id} active={selectedTool === `layer_${layer.id}`} onClick={() => setSelectedTool(`layer_${layer.id}`)} icon={<span>{layer.icon ?? "📍"}</span>} label={layer.label} />
               ))}
+            </div>
+            {/* Export DXF */}
+            <div className="px-2 pb-2 pt-1">
+              <button
+                onClick={handleExportDXF}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
+                style={{ background: "#0ea5e922", color: "#0ea5e9", border: "1px solid #0ea5e944" }}
+                title="Exportar anotaciones a AutoCAD DXF"
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <rect x="2" y="1" width="10" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                  <path d="M5 5h4M5 7.5h4M5 10h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  <path d="M9 9l2 2M11 9l-2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                </svg>
+                Exportar DXF
+              </button>
             </div>
           </div>
 
@@ -1220,6 +1519,10 @@ export default function FloorPlanViewer() {
               <p className="text-blue-400">Clic para definir el punto final del cable UTP</p>
             ) : selectedTool === "utp" ? (
               <p className="text-blue-400">Clic para definir el punto inicial del cable UTP</p>
+            ) : selectedTool === "utp-node" && utpStart ? (
+              <p className="text-cyan-400">Clic para definir el punto final del nodo UTP</p>
+            ) : selectedTool === "utp-node" ? (
+              <p className="text-cyan-400">Clic para definir el punto inicial del nodo UTP</p>
             ) : selectedTool ? (
               <p className="text-blue-400">Clic en el plano para colocar</p>
             ) : (
@@ -1439,8 +1742,12 @@ export default function FloorPlanViewer() {
                           // Calcular longitud real
                           const pxLen = Math.sqrt((d.x2! - d.x1!) ** 2 + (d.y2! - d.y1!) ** 2);
                           const containerPx = rect ? { w: rect.offsetWidth, h: rect.offsetHeight } : null;
-                          const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
-                          const lengthLabel = meters != null ? formatMeters(meters) : undefined;
+                          // Para nodos UTP: usar la longitud total guardada (incluye altura de techo)
+                          const horizMeters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+                          const meters = (d as any).isNode && (d as any).totalMeters != null
+                            ? (d as any).totalMeters as number
+                            : horizMeters;
+                          const lengthLabel = meters != null ? `${(d as any).isNode ? "🔵 " : ""}${formatMeters(meters)}` : undefined;
                           const overLimit = meters != null && meters > UTP_MAX_METERS;
                           return (
                             <g key={ann.id} style={{ pointerEvents: "all", cursor: "pointer" }} onClick={() => setSelectedAnnotation(selectedAnnotation === ann.id ? null : ann.id)}>
@@ -1519,52 +1826,112 @@ export default function FloorPlanViewer() {
               </div>
             </div>
 
-            {/* Annotations list */}
-            <div className="px-3 pt-3 pb-2 border-t mt-2" style={{ borderColor: "#2e3340" }}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">Anotaciones</p>
-                {(annotations as Annotation[]).length > 0 && (
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "#3b82f633", color: "#3b82f6" }}>{(annotations as Annotation[]).length}</span>
-                )}
-              </div>
-              <div className="space-y-0.5 max-h-64 overflow-y-auto">
-                {(annotations as Annotation[]).length === 0 ? (
-                  <p className="text-xs text-gray-600 py-2 text-center">Sin anotaciones</p>
-                ) : (
-                  (annotations as Annotation[]).map((ann) => {
-                    const color = ann.color ?? "#6366f1";
-                    const isSelected = selectedAnnotation === ann.id;
-                    // Check UTP over-limit
-                    let utpOverLimit = false;
-                    if (ann.type === "utp") {
-                      const d = parseData(ann.data);
-                      if (d.x1 !== undefined) {
-                        const pxLen = Math.sqrt((d.x2! - d.x1!) ** 2 + (d.y2! - d.y1!) ** 2);
-                        const containerEl = contentRef.current;
-                        const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
-                        const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
-                        utpOverLimit = meters != null && meters > UTP_MAX_METERS;
-                      }
-                    }
-                    return (
-                      <button key={ann.id} onClick={() => setSelectedAnnotation(isSelected ? null : ann.id)}
-                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-all group ${isSelected ? "bg-white/10" : "hover:bg-white/5"}`}
-                        style={utpOverLimit ? { borderLeft: "2px solid #ef4444" } : undefined}
-                      >
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: utpOverLimit ? "#ef4444" : color }} />
-                        <span className="flex-1 text-left truncate" style={{ color: utpOverLimit ? "#fca5a5" : "#d1d5db" }}>{ann.label || ann.type || "Marcador"}</span>
-                        {utpOverLimit && (
-                          <span className="text-[9px] font-bold px-1 py-0.5 rounded flex-shrink-0" style={{ background: "#ef444422", color: "#ef4444", border: "1px solid #ef444466" }}>+90m</span>
-                        )}
-                        <button className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 text-red-400 hover:text-red-300 flex-shrink-0" onClick={(e) => { e.stopPropagation(); handleDeleteAnnotation(ann.id); }} title="Eliminar">
-                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            {/* Annotations list - compact silver panel */}
+            {(() => {
+              const allAnns = annotations as Annotation[];
+              if (allAnns.length === 0) return null;
+              // Group by type
+              const groups: Record<string, Annotation[]> = {};
+              for (const ann of allAnns) {
+                const key = ann.type ?? "marker";
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(ann);
+              }
+              const utpAnns = groups["utp"] ?? [];
+              const utpOverCount = utpAnns.filter((ann) => {
+                const d = parseData(ann.data);
+                if (d.x1 === undefined) return false;
+                const pxLen = Math.sqrt((d.x2! - d.x1!) ** 2 + (d.y2! - d.y1!) ** 2);
+                const containerEl = contentRef.current;
+                const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
+                const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+                return meters != null && meters > UTP_MAX_METERS;
+              }).length;
+              return (
+                <div className="px-2 pt-2 pb-2 border-t mt-1" style={{ borderColor: "#2e3340" }}>
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-1.5 px-1">
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">Anotaciones</p>
+                    <div className="flex items-center gap-1">
+                      {utpOverCount > 0 && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "#ef444422", color: "#ef4444", border: "1px solid #ef444466" }}>⚠ {utpOverCount}</span>
+                      )}
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "#3b82f622", color: "#3b82f6" }}>{allAnns.length}</span>
+                    </div>
+                  </div>
+                  {/* Summary chips by type */}
+                  <div className="flex flex-wrap gap-1 mb-2 px-1">
+                    {Object.entries(groups).map(([type, items]) => {
+                      const marker = BUILTIN_MARKERS.find((m) => m.type === type);
+                      const chipColor = marker?.color ?? "#6b7280";
+                      const hasAlert = type === "utp" && utpOverCount > 0;
+                      return (
+                        <button key={type}
+                          onClick={() => setSelectedAnnotation(items[0]?.id ?? null)}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium transition-all hover:opacity-80"
+                          style={{ background: chipColor + "22", color: chipColor, border: `1px solid ${chipColor}44` }}
+                        >
+                          <span>{marker?.icon ?? "📍"}</span>
+                          <span>{items.length}</span>
+                          {hasAlert && <span style={{ color: "#ef4444" }}>⚠</span>}
                         </button>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+                      );
+                    })}
+                  </div>
+                  {/* Compact list */}
+                  <div className="rounded-lg overflow-hidden" style={{ background: "#1a1d23", border: "1px solid #2e3340" }}>
+                    <div className="max-h-48 overflow-y-auto">
+                      {allAnns.map((ann, idx) => {
+                        const color = ann.color ?? "#6366f1";
+                        const isSelected = selectedAnnotation === ann.id;
+                        let utpOverLimit = false;
+                        if (ann.type === "utp") {
+                          const d = parseData(ann.data);
+                          if (d.x1 !== undefined) {
+                            const pxLen = Math.sqrt((d.x2! - d.x1!) ** 2 + (d.y2! - d.y1!) ** 2);
+                            const containerEl = contentRef.current;
+                            const containerPx = containerEl ? { w: containerEl.offsetWidth, h: containerEl.offsetHeight } : null;
+                            const meters = calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+                            utpOverLimit = meters != null && meters > UTP_MAX_METERS;
+                          }
+                        }
+                        return (
+                          <div key={ann.id}
+                            className={`flex items-center gap-1.5 px-2 py-1 cursor-pointer transition-all group ${
+                              isSelected ? "" : "hover:bg-white/5"
+                            } ${idx > 0 ? "border-t" : ""}`}
+                            style={{
+                              background: isSelected ? (utpOverLimit ? "#450a0a" : "#1e3a5f") : undefined,
+                              borderColor: "#2e3340",
+                              borderLeft: utpOverLimit ? "2px solid #ef4444" : undefined,
+                            }}
+                            onClick={() => setSelectedAnnotation(isSelected ? null : ann.id)}
+                          >
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: utpOverLimit ? "#ef4444" : color }} />
+                            <span className="flex-1 text-[11px] truncate" style={{ color: utpOverLimit ? "#fca5a5" : "#cbd5e1" }}>
+                              {ann.label || ann.type || "Marcador"}
+                            </span>
+                            {utpOverLimit && (
+                              <span className="text-[9px] font-bold flex-shrink-0" style={{ color: "#ef4444" }}>!</span>
+                            )}
+                            <button
+                              className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                              style={{ color: "#ef4444" }}
+                              onClick={(e) => { e.stopPropagation(); handleDeleteAnnotation(ann.id); }}
+                              title="Eliminar"
+                            >
+                              <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                                <path d="M1 1L8 8M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                              </svg>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Selected annotation controls */}
@@ -1793,6 +2160,22 @@ export default function FloorPlanViewer() {
         onCategoryChange={setUtpCategory}
         onConfirm={handleUtpConfirm}
         onCancel={handleUtpCancel}
+      />
+
+      <UtpNodeDialog
+        open={utpNodeDialogOpen}
+        color={utpColor}
+        category={utpCategory}
+        horizontalMeters={(() => {
+          if (!utpNodePending) return null;
+          const pxLen = Math.sqrt((utpNodePending.x2 - utpNodePending.x1) ** 2 + (utpNodePending.y2 - utpNodePending.y1) ** 2);
+          const containerPx = contentRef.current ? { w: contentRef.current.offsetWidth, h: contentRef.current.offsetHeight } : null;
+          return calcUtpLengthMeters(pxLen, pdfDims, containerPx, plan.scale);
+        })()}
+        onColorChange={setUtpColor}
+        onCategoryChange={setUtpCategory}
+        onConfirm={handleUtpNodeConfirm}
+        onCancel={handleUtpNodeCancel}
       />
     </>
   );
