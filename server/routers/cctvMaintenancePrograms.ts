@@ -539,6 +539,34 @@ export const cctvMaintenanceProgramsRouter = router({
       return { success: true };
     }),
 
+  // ── REORDER ITEMS ─────────────────────────────────────────────────────────
+  reorderItems: protectedProcedure
+    .input(z.object({
+      programId: z.number(),
+      orderedIds: z.array(z.number()), // item IDs in new order
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const tenantId = ctx.user.tenantId ?? 1;
+      // Update sortOrder for each item
+      await Promise.all(
+        input.orderedIds.map((id, idx) =>
+          db
+            .update(cctvMaintenanceProgramItems)
+            .set({ sortOrder: idx })
+            .where(
+              and(
+                eq(cctvMaintenanceProgramItems.id, id),
+                eq(cctvMaintenanceProgramItems.programId, input.programId),
+                eq(cctvMaintenanceProgramItems.tenantId, tenantId),
+              ),
+            ),
+        ),
+      );
+      return { success: true };
+    }),
+
   // ── GET POLICY COVERAGE SUMMARY ────────────────────────────────────────────
   // Returns how many maintenances are covered by a policy and how many have been used
   getPolicyCoverage: protectedProcedure

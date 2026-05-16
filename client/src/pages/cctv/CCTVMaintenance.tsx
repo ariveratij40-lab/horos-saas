@@ -1,5 +1,22 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import React from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -84,6 +101,34 @@ function CoverageBar({ used, total, isUnlimited }: { used: number; total: number
 }
 
 // ─── Weekly Schedule View ────────────────────────────────────────────────────
+// ─── SortableRow for drag & drop ─────────────────────────────────────────────
+function SortableRow({ id, rowBg, children }: { id: number; rowBg: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    background: isDragging ? "#eff6ff" : undefined,
+  };
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={cn(rowBg, "border-b border-border/30 hover:bg-blue-50/30 transition-colors")}
+    >
+      {/* Drag handle */}
+      <td
+        className="px-2 py-2 text-center border-r border-border/20 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground select-none"
+        {...attributes}
+        {...listeners}
+      >
+        ⠿
+      </td>
+      {children}
+    </tr>
+  );
+}
+
 function WeeklyScheduleView({
   programs, scheduleProgId, setScheduleProgId,
   scheduleWeekStart, setScheduleWeekStart,
@@ -135,12 +180,41 @@ function WeeklyScheduleView({
       ? `${MONTH_NAMES[startDateObj.getMonth()]}-${String(startDateObj.getFullYear()).slice(2)}`
       : `${MONTH_NAMES[weekDays[0].getMonth()]}-${String(weekDays[0].getFullYear()).slice(2)}`;
 
-  const [localItems, setLocalItems] = useState<any[]>(items);
+  const [localItems, setLocalItems] = useState<any[]>(
+    [...items].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  );
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
   // Sync when program changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  if (localItems.length !== items.length && items.length > 0) { setLocalItems(items); }
+  useEffect(() => {
+    setLocalItems([...items].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)));
+  }, [items]);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const reorderItems = trpc.cctvPrograms.reorderItems.useMutation();
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setLocalItems((prev) => {
+      const oldIdx = prev.findIndex((it) => it.id === active.id);
+      const newIdx = prev.findIndex((it) => it.id === over.id);
+      const reordered = arrayMove(prev, oldIdx, newIdx);
+      // Persist to DB
+      if (selectedProg?.id) {
+        reorderItems.mutate({
+          programId: selectedProg.id,
+          orderedIds: reordered.map((it) => it.id),
+        });
+      }
+      return reordered;
+    });
+  }, [selectedProg, reorderItems]);
 
   const startEdit = (itemId: number, field: string, currentVal: string) => {
     setEditingItemId(itemId);
@@ -211,6 +285,27 @@ function WeeklyScheduleView({
           <label className="text-xs text-muted-foreground font-medium">Horario</label>
           <Input value={scheduleHorario} onChange={(e) => setScheduleHorario(e.target.value)} className="h-8 text-sm w-44" placeholder="8:00AM - 5:00 PM" />
         </div>
+        <div className="space-y-1 ml-auto">
+          <label className="text-xs text-muted-foreground font-medium">Exportar</label>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-green-700 border-green-300 hover:bg-green-50"
+              onClick={() => exportToExcel(selectedProg, localItems, weekDays, scheduleHorario)}
+            >
+              <FileText className="w-3.5 h-3.5" /> Excel
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-red-700 border-red-300 hover:bg-red-50"
+              onClick={() => exportToPDF(selectedProg, localItems, weekDays, scheduleHorario, monthLabel)}
+            >
+              <FileText className="w-3.5 h-3.5" /> PDF
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
@@ -249,6 +344,7 @@ function WeeklyScheduleView({
             </tr>
             {/* Row 3: Column headers */}
             <tr className="bg-muted/30 border-b border-border">
+              <th className="px-2 py-2 w-8 border-r border-border"></th>
               <th className="px-3 py-2 text-left font-semibold border-r border-border">CANT.</th>
               <th className="px-3 py-2 text-left font-semibold border-r border-border">NOMBRE</th>
               <th className="px-3 py-2 text-left font-semibold border-r border-border">TIPO DE EQUIPO</th>
@@ -263,10 +359,12 @@ function WeeklyScheduleView({
               ))}
             </tr>
           </thead>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={localItems.map((it) => it.id)} strategy={verticalListSortingStrategy}>
           <tbody>
             {localItems.length === 0 ? (
               <tr>
-                <td colSpan={14} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={15} className="px-4 py-10 text-center text-muted-foreground">
                   <p>No hay equipos en este programa</p>
                 </td>
               </tr>
@@ -278,7 +376,7 @@ function WeeklyScheduleView({
                 const isEditingLift = editingItemId === item.id && editingField === "requiresLift";
                 const rowBg = idx % 2 === 0 ? "bg-background" : "bg-muted/10";
                 return (
-                  <tr key={item.id} className={cn(rowBg, "border-b border-border/30 hover:bg-blue-50/30 transition-colors")}>
+                  <SortableRow key={item.id} id={item.id} rowBg={rowBg}>
                     <td className="px-3 py-2 text-center border-r border-border/30 font-medium">1</td>
                     <td className="px-3 py-2 border-r border-border/30 font-medium">{item.itemName ?? `Equipo #${item.itemId}`}</td>
                     <td className="px-3 py-2 border-r border-border/30 text-muted-foreground">{CATEGORY_LABEL[item.category] ?? item.category}</td>
@@ -387,11 +485,13 @@ function WeeklyScheduleView({
                         </td>
                       );
                     })}
-                  </tr>
+                  </SortableRow>
                 );
               })
             )}
           </tbody>
+          </SortableContext>
+          </DndContext>
         </table>
       </div>
       <p className="text-xs text-muted-foreground">Haz clic en cualquier celda de Área, Carrito Elevador, No. Técnicos u Observaciones para editarla directamente.</p>
@@ -929,6 +1029,132 @@ function EditProgramDialog({
   );
 }
 
+
+// ─── Export Functions ────────────────────────────────────────────────────────
+const DAY_NAMES_EXPORT = ["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "SABADO", "DOMINGO"];
+
+function exportToExcel(program: any, items: any[], weekDays: Date[], horario: string) {
+  if (!program) { return; }
+  import("xlsx").then((XLSX) => {
+    const startStr = program.startDate
+      ? new Date(program.startDate).toLocaleDateString("es-MX")
+      : "";
+    const endStr = program.endDate
+      ? new Date(program.endDate).toLocaleDateString("es-MX")
+      : "";
+    const monthLabel = program.programMonth ?? "";
+    const yearLabel = program.programYear ?? "";
+
+    // Header rows
+    const headerRows: any[][] = [
+      ["NOMBRE PROGRAMA DE MANTENIMIENTO", "", "", "", "INICIO", startStr, "FIN", endStr],
+      ["MES", `${monthLabel}-${yearLabel}`, "", "", "HORARIO:", horario],
+      ["CANTIDAD", "NOMBRE", "TIPO DE EQUIPO", "AREA", "CARRITO ELEVADOR", "NO TECNICOS", "OBSERVACIONES",
+        ...weekDays.map((d, i) => `${DAY_NAMES_EXPORT[i]}\n${d.toLocaleDateString("es-MX")}`)
+      ],
+    ];
+
+    const dataRows = items.map((item: any) => {
+      const scheduledDates = (item.scheduledDates ?? "").split(",").filter(Boolean);
+      const scheduledDayNums = (item.scheduledDays ?? "").split(",").filter(Boolean).map(Number);
+      return [
+        1,
+        item.itemName ?? `Equipo #${item.itemId}`,
+        item.category ?? "",
+        item.area ?? "",
+        item.requiresLift ? "SI" : "NO",
+        item.noTechnicians ?? 1,
+        item.observations ?? "",
+        ...weekDays.map((d, di) => {
+          const dateStr = d.toISOString().split("T")[0];
+          const isScheduled = scheduledDates.includes(dateStr) || scheduledDayNums.includes(di + 1);
+          return isScheduled ? "✓" : "";
+        }),
+      ];
+    });
+
+    const wsData = [...headerRows, ...dataRows];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    // Column widths
+    ws["!cols"] = [
+      { wch: 8 }, { wch: 30 }, { wch: 18 }, { wch: 18 },
+      { wch: 14 }, { wch: 12 }, { wch: 22 },
+      ...weekDays.map(() => ({ wch: 12 })),
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Programa");
+    const filename = `Programa_${(program.name ?? "mantenimiento").replace(/\s+/g, "_")}_${monthLabel}${yearLabel}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  });
+}
+
+function exportToPDF(program: any, items: any[], weekDays: Date[], horario: string, monthLabel: string) {
+  if (!program) return;
+  import("jspdf").then(async ({ default: jsPDF }) => {
+    const { default: autoTable } = await import("jspdf-autotable");
+    const startStr = program.startDate
+      ? new Date(program.startDate).toLocaleDateString("es-MX")
+      : "";
+    const endStr = program.endDate
+      ? new Date(program.endDate).toLocaleDateString("es-MX")
+      : "";
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a3" });
+
+    // Title
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(program.name ?? "Programa de Mantenimiento", 14, 14);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`INICIO: ${startStr}   FIN: ${endStr}   MES: ${monthLabel}   HORARIO: ${horario}`, 14, 20);
+
+    const dayHeaders = weekDays.map((d, i) =>
+      `${DAY_NAMES_EXPORT[i]}\n${d.toLocaleDateString("es-MX")}`
+    );
+
+    const head = [["CANT.", "NOMBRE", "TIPO EQUIPO", "AREA", "CARRITO", "TÉCNICOS", "OBSERVACIONES", ...dayHeaders]];
+
+    const body = items.map((item: any) => {
+      const scheduledDates = (item.scheduledDates ?? "").split(",").filter(Boolean);
+      const scheduledDayNums = (item.scheduledDays ?? "").split(",").filter(Boolean).map(Number);
+      return [
+        "1",
+        item.itemName ?? `Equipo #${item.itemId}`,
+        item.category ?? "",
+        item.area ?? "",
+        item.requiresLift ? "SI" : "NO",
+        String(item.noTechnicians ?? 1),
+        item.observations ?? "",
+        ...weekDays.map((d, di) => {
+          const dateStr = d.toISOString().split("T")[0];
+          return (scheduledDates.includes(dateStr) || scheduledDayNums.includes(di + 1)) ? "✓" : "";
+        }),
+      ];
+    });
+
+    autoTable(doc, {
+      head,
+      body,
+      startY: 25,
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold", halign: "center" },
+      columnStyles: {
+        0: { halign: "center", cellWidth: 10 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 22 },
+        4: { halign: "center", cellWidth: 16 },
+        5: { halign: "center", cellWidth: 14 },
+        6: { cellWidth: 28 },
+      },
+      alternateRowStyles: { fillColor: [240, 245, 255] },
+    });
+
+    const filename = `Programa_${(program.name ?? "mantenimiento").replace(/\s+/g, "_")}_${monthLabel}.pdf`;
+    doc.save(filename);
+  });
+}
 
 // ─── Work Schedule Generator ──────────────────────────────────────────────────
 interface WorkDay { dayNumber: number; date: string; items: any[]; }
