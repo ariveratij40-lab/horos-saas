@@ -125,6 +125,11 @@ function NewPlanDialog({
       if (ext && ["pdf", "dwg", "dxf", "png", "jpg"].includes(ext)) {
         setFormat(ext as typeof format);
       }
+      // Auto-fill name from filename if still empty
+      if (!name.trim()) {
+        const autoName = f.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ");
+        setName(autoName);
+      }
     }
   };
 
@@ -137,8 +142,13 @@ function NewPlanDialog({
       if (ext && ["pdf", "dwg", "dxf", "png", "jpg"].includes(ext)) {
         setFormat(ext as typeof format);
       }
+      // Auto-fill name from filename if still empty
+      if (!name.trim()) {
+        const autoName = f.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ");
+        setName(autoName);
+      }
     }
-  }, []);
+  }, [name]);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
