@@ -3,6 +3,7 @@ import {
   uuid,
   varchar,
   text,
+  jsonb,
   boolean,
   integer,
   timestamp,
@@ -1266,6 +1267,410 @@ export const assetSystemMemberships = pgTable(
       foreignColumns: [
         branchSystems.tenantId,
         branchSystems.id,
+      ],
+    })
+      .onDelete("cascade"),
+  }),
+);
+
+/* ============================================================================
+ * HOROS ONBOARD-001A
+ * Shared staging layer for Wizard / Excel / PDF onboarding
+ * ========================================================================== */
+
+export const onboardingSessions = pgTable(
+  "onboarding_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    branchId: uuid("branch_id"),
+
+    sourceType: varchar("source_type", {
+      length: 32,
+    }).notNull(),
+
+    status: varchar("status", {
+      length: 32,
+    })
+      .notNull()
+      .default("draft"),
+
+    originalFilename: varchar(
+      "original_filename",
+      { length: 512 },
+    ),
+
+    contentType: varchar(
+      "content_type",
+      { length: 128 },
+    ),
+
+    sourceChecksum: varchar(
+      "source_checksum",
+      { length: 128 },
+    ),
+
+    totalItems: integer("total_items")
+      .notNull()
+      .default(0),
+
+    validItems: integer("valid_items")
+      .notNull()
+      .default(0),
+
+    warningItems: integer("warning_items")
+      .notNull()
+      .default(0),
+
+    errorItems: integer("error_items")
+      .notNull()
+      .default(0),
+
+    createdByUserId: uuid(
+      "created_by_user_id",
+    ),
+
+    committedByUserId: uuid(
+      "committed_by_user_id",
+    ),
+
+    startedAt: timestamp("started_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+
+    validatedAt: timestamp(
+      "validated_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    committedAt: timestamp(
+      "committed_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    failedAt: timestamp("failed_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+
+    cancelledAt: timestamp(
+      "cancelled_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    failureCode: varchar(
+      "failure_code",
+      { length: 64 },
+    ),
+
+    failureMessage: text(
+      "failure_message",
+    ),
+
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantIdIdUnique: unique(
+      "onboarding_sessions_tenant_id_id_uq",
+    ).on(
+      table.tenantId,
+      table.id,
+    ),
+
+    tenantIdx: index(
+      "onboarding_sessions_tenant_idx",
+    ).on(table.tenantId),
+
+    tenantStatusIdx: index(
+      "onboarding_sessions_tenant_status_idx",
+    ).on(
+      table.tenantId,
+      table.status,
+    ),
+
+    sourceChecksumIdx: index(
+      "onboarding_sessions_source_checksum_idx",
+    ).on(table.sourceChecksum),
+
+    branchTenantFk: foreignKey({
+      name: "onboarding_sessions_tenant_branch_fk",
+      columns: [
+        table.tenantId,
+        table.branchId,
+      ],
+      foreignColumns: [
+        branches.tenantId,
+        branches.id,
+      ],
+    })
+      .onDelete("restrict"),
+  }),
+);
+
+
+export const onboardingItems = pgTable(
+  "onboarding_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    sessionId: uuid("session_id")
+      .notNull(),
+
+    sequence: integer("sequence")
+      .notNull(),
+
+    entityType: varchar("entity_type", {
+      length: 64,
+    }).notNull(),
+
+    operation: varchar("operation", {
+      length: 32,
+    })
+      .notNull()
+      .default("upsert"),
+
+    status: varchar("status", {
+      length: 32,
+    })
+      .notNull()
+      .default("pending"),
+
+    sourceSheet: varchar(
+      "source_sheet",
+      { length: 255 },
+    ),
+
+    sourcePage: integer("source_page"),
+
+    sourceRow: integer("source_row"),
+
+    rawPayload: jsonb("raw_payload")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+
+    normalizedPayload: jsonb(
+      "normalized_payload",
+    )
+      .$type<Record<string, unknown>>(),
+
+    fingerprint: varchar(
+      "fingerprint",
+      { length: 128 },
+    ),
+
+    targetEntityId: uuid(
+      "target_entity_id",
+    ),
+
+    committedAt: timestamp(
+      "committed_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantSessionSequenceUnique: unique(
+      "onboarding_items_tenant_session_sequence_uq",
+    ).on(
+      table.tenantId,
+      table.sessionId,
+      table.sequence,
+    ),
+
+    tenantIdIdUnique: unique(
+      "onboarding_items_tenant_id_id_uq",
+    ).on(
+      table.tenantId,
+      table.id,
+    ),
+
+    tenantSessionIdx: index(
+      "onboarding_items_tenant_session_idx",
+    ).on(
+      table.tenantId,
+      table.sessionId,
+    ),
+
+    fingerprintIdx: index(
+      "onboarding_items_fingerprint_idx",
+    ).on(table.fingerprint),
+
+    sessionTenantFk: foreignKey({
+      name: "onboarding_items_tenant_session_fk",
+      columns: [
+        table.tenantId,
+        table.sessionId,
+      ],
+      foreignColumns: [
+        onboardingSessions.tenantId,
+        onboardingSessions.id,
+      ],
+    })
+      .onDelete("cascade"),
+  }),
+);
+
+
+export const onboardingIssues = pgTable(
+  "onboarding_issues",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    sessionId: uuid("session_id")
+      .notNull(),
+
+    itemId: uuid("item_id"),
+
+    severity: varchar("severity", {
+      length: 16,
+    }).notNull(),
+
+    code: varchar("code", {
+      length: 64,
+    }).notNull(),
+
+    field: varchar("field", {
+      length: 128,
+    }),
+
+    message: text("message")
+      .notNull(),
+
+    details: jsonb("details")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+
+    status: varchar("status", {
+      length: 32,
+    })
+      .notNull()
+      .default("open"),
+
+    resolution: text("resolution"),
+
+    resolvedAt: timestamp(
+      "resolved_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantIdx: index(
+      "onboarding_issues_tenant_idx",
+    ).on(table.tenantId),
+
+    sessionIdx: index(
+      "onboarding_issues_session_idx",
+    ).on(
+      table.tenantId,
+      table.sessionId,
+    ),
+
+    itemIdx: index(
+      "onboarding_issues_item_idx",
+    ).on(
+      table.tenantId,
+      table.itemId,
+    ),
+
+    severityIdx: index(
+      "onboarding_issues_severity_idx",
+    ).on(table.severity),
+
+    sessionTenantFk: foreignKey({
+      name: "onboarding_issues_tenant_session_fk",
+      columns: [
+        table.tenantId,
+        table.sessionId,
+      ],
+      foreignColumns: [
+        onboardingSessions.tenantId,
+        onboardingSessions.id,
+      ],
+    })
+      .onDelete("cascade"),
+
+    itemTenantFk: foreignKey({
+      name: "onboarding_issues_tenant_item_fk",
+      columns: [
+        table.tenantId,
+        table.itemId,
+      ],
+      foreignColumns: [
+        onboardingItems.tenantId,
+        onboardingItems.id,
       ],
     })
       .onDelete("cascade"),

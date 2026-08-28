@@ -120,6 +120,34 @@
       "when": 1787950689139,
       "tag": "0016_asset_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1787951596790,
+      "tag": "0017_dry_dragon_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787951653526,
+      "tag": "0018_onboarding_controls",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787951654086,
+      "tag": "0019_onboarding_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787951841800,
+      "tag": "0020_onboarding_commit_readiness",
+      "breakpoints": true
     }
   ]
 }
