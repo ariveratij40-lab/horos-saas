@@ -4,6 +4,7 @@ import {
   varchar,
   text,
   boolean,
+  integer,
   timestamp,
   uniqueIndex,
   unique,
@@ -513,6 +514,14 @@ export const racks = pgTable(
       table.id,
     ),
 
+    tenantBranchIdUnique: unique(
+      "racks_tenant_branch_id_uq",
+    ).on(
+      table.tenantId,
+      table.branchId,
+      table.id,
+    ),
+
     tenantIdx: index(
       "racks_tenant_idx",
     ).on(table.tenantId),
@@ -536,6 +545,727 @@ export const racks = pgTable(
         telecomSpaces.tenantId,
         telecomSpaces.branchId,
         telecomSpaces.id,
+      ],
+    })
+      .onDelete("cascade"),
+  }),
+);
+
+/* ============================================================================
+ * HOROS CORE-001A
+ * Platform catalogs: managed systems + canonical asset types
+ * ========================================================================== */
+
+export const systemsCatalog = pgTable(
+  "systems_catalog",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    code: varchar("code", {
+      length: 64,
+    }).notNull(),
+
+    name: varchar("name", {
+      length: 255,
+    }).notNull(),
+
+    description: text("description"),
+
+    status: varchar("status", {
+      length: 32,
+    })
+      .notNull()
+      .default("active"),
+
+    sortOrder: integer("sort_order")
+      .notNull()
+      .default(0),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    codeUnique: unique(
+      "systems_catalog_code_uq",
+    ).on(table.code),
+  }),
+);
+
+export const assetTypes = pgTable(
+  "asset_types",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    code: varchar("code", {
+      length: 64,
+    }).notNull(),
+
+    name: varchar("name", {
+      length: 255,
+    }).notNull(),
+
+    category: varchar("category", {
+      length: 64,
+    }).notNull(),
+
+    description: text("description"),
+
+    isInfrastructure: boolean(
+      "is_infrastructure",
+    )
+      .notNull()
+      .default(false),
+
+    isPhysical: boolean(
+      "is_physical",
+    )
+      .notNull()
+      .default(true),
+
+    status: varchar("status", {
+      length: 32,
+    })
+      .notNull()
+      .default("active"),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    codeUnique: unique(
+      "asset_types_code_uq",
+    ).on(table.code),
+
+    categoryIdx: index(
+      "asset_types_category_idx",
+    ).on(table.category),
+
+    infrastructureIdx: index(
+      "asset_types_infrastructure_idx",
+    ).on(table.isInfrastructure),
+  }),
+);
+
+/* ============================================================================
+ * HOROS CORE-001B
+ * Subscription plans + tenant system entitlements
+ * ========================================================================== */
+
+export const subscriptionPlans = pgTable(
+  "subscription_plans",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    code: varchar("code", {
+      length: 64,
+    }).notNull(),
+
+    name: varchar("name", {
+      length: 255,
+    }).notNull(),
+
+    description: text("description"),
+
+    includedSystemCount: integer(
+      "included_system_count",
+    ).notNull(),
+
+    billingPeriod: varchar(
+      "billing_period",
+      { length: 32 },
+    )
+      .notNull()
+      .default("monthly"),
+
+    status: varchar("status", {
+      length: 32,
+    })
+      .notNull()
+      .default("active"),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull().defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull().defaultNow(),
+  },
+  table => ({
+    codeUnique: unique(
+      "subscription_plans_code_uq",
+    ).on(table.code),
+  }),
+);
+
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => subscriptionPlans.id, {
+        onDelete: "restrict",
+      }),
+
+    status: varchar("status", {
+      length: 32,
+    })
+      .notNull()
+      .default("active"),
+
+    billingCycle: varchar("billing_cycle", {
+      length: 32,
+    })
+      .notNull()
+      .default("monthly"),
+
+    startDate: timestamp("start_date", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+
+    currentPeriodStart: timestamp(
+      "current_period_start",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    currentPeriodEnd: timestamp(
+      "current_period_end",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    trialEndsAt: timestamp("trial_ends_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+
+    cancelledAt: timestamp("cancelled_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull().defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull().defaultNow(),
+  },
+  table => ({
+    tenantIdIdUnique: unique(
+      "subscriptions_tenant_id_id_uq",
+    ).on(
+      table.tenantId,
+      table.id,
+    ),
+
+    tenantIdx: index(
+      "subscriptions_tenant_idx",
+    ).on(table.tenantId),
+
+    planIdx: index(
+      "subscriptions_plan_idx",
+    ).on(table.planId),
+  }),
+);
+
+export const tenantSystemEntitlements = pgTable(
+  "tenant_system_entitlements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    subscriptionId: uuid(
+      "subscription_id",
+    ).notNull(),
+
+    systemId: uuid("system_id")
+      .notNull()
+      .references(() => systemsCatalog.id, {
+        onDelete: "restrict",
+      }),
+
+    status: varchar("status", {
+      length: 32,
+    })
+      .notNull()
+      .default("enabled"),
+
+    enabledAt: timestamp("enabled_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull().defaultNow(),
+
+    disabledAt: timestamp("disabled_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull().defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull().defaultNow(),
+  },
+  table => ({
+    tenantSubscriptionSystemUnique: unique(
+      "tenant_system_entitlements_tenant_subscription_system_uq",
+    ).on(
+      table.tenantId,
+      table.subscriptionId,
+      table.systemId,
+    ),
+
+    tenantIdx: index(
+      "tenant_system_entitlements_tenant_idx",
+    ).on(table.tenantId),
+
+    systemIdx: index(
+      "tenant_system_entitlements_system_idx",
+    ).on(table.systemId),
+
+    subscriptionTenantFk: foreignKey({
+      name: "tenant_system_entitlements_subscription_tenant_fk",
+      columns: [
+        table.tenantId,
+        table.subscriptionId,
+      ],
+      foreignColumns: [
+        subscriptions.tenantId,
+        subscriptions.id,
+      ],
+    })
+      .onDelete("cascade"),
+  }),
+);
+
+/* ============================================================================
+ * HOROS CORE-001C
+ * Operational system activation per branch
+ * ========================================================================== */
+
+export const branchSystems = pgTable(
+  "branch_systems",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    branchId: uuid("branch_id")
+      .notNull(),
+
+    systemId: uuid("system_id")
+      .notNull()
+      .references(() => systemsCatalog.id, {
+        onDelete: "restrict",
+      }),
+
+    status: varchar("status", {
+      length: 32,
+    })
+      .notNull()
+      .default("not_started"),
+
+    onboardingStartedAt: timestamp(
+      "onboarding_started_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    activatedAt: timestamp("activated_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+
+    notes: text("notes"),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantBranchSystemUnique: unique(
+      "branch_systems_tenant_branch_system_uq",
+    ).on(
+      table.tenantId,
+      table.branchId,
+      table.systemId,
+    ),
+
+    tenantIdIdUnique: unique(
+      "branch_systems_tenant_id_id_uq",
+    ).on(
+      table.tenantId,
+      table.id,
+    ),
+
+    tenantIdx: index(
+      "branch_systems_tenant_idx",
+    ).on(table.tenantId),
+
+    branchIdx: index(
+      "branch_systems_branch_idx",
+    ).on(table.branchId),
+
+    systemIdx: index(
+      "branch_systems_system_idx",
+    ).on(table.systemId),
+
+    branchTenantFk: foreignKey({
+      name: "branch_systems_tenant_branch_fk",
+      columns: [
+        table.tenantId,
+        table.branchId,
+      ],
+      foreignColumns: [
+        branches.tenantId,
+        branches.id,
+      ],
+    })
+      .onDelete("cascade"),
+  }),
+);
+
+/* ============================================================================
+ * HOROS CORE-001D
+ * Canonical physical assets
+ * ========================================================================== */
+
+export const assets = pgTable(
+  "assets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    branchId: uuid("branch_id")
+      .notNull(),
+
+    assetTypeId: uuid("asset_type_id")
+      .notNull()
+      .references(() => assetTypes.id, {
+        onDelete: "restrict",
+      }),
+
+    locationId: uuid("location_id"),
+
+    telecomSpaceId: uuid("telecom_space_id"),
+
+    rackId: uuid("rack_id"),
+
+    assetCode: varchar("asset_code", {
+      length: 128,
+    }).notNull(),
+
+    assetTag: varchar("asset_tag", {
+      length: 128,
+    }),
+
+    serialNumber: varchar("serial_number", {
+      length: 255,
+    }),
+
+    manufacturer: varchar("manufacturer", {
+      length: 255,
+    }),
+
+    model: varchar("model", {
+      length: 255,
+    }),
+
+    rfidEpc: varchar("rfid_epc", {
+      length: 255,
+    }),
+
+    lifecycleStatus: varchar(
+      "lifecycle_status",
+      { length: 32 },
+    )
+      .notNull()
+      .default("active"),
+
+    operationalStatus: varchar(
+      "operational_status",
+      { length: 32 },
+    )
+      .notNull()
+      .default("unknown"),
+
+    source: varchar("source", {
+      length: 32,
+    })
+      .notNull()
+      .default("manual"),
+
+    notes: text("notes"),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantAssetCodeUnique: unique(
+      "assets_tenant_asset_code_uq",
+    ).on(
+      table.tenantId,
+      table.assetCode,
+    ),
+
+    tenantIdIdUnique: unique(
+      "assets_tenant_id_id_uq",
+    ).on(
+      table.tenantId,
+      table.id,
+    ),
+
+    rfidUnique: unique(
+      "assets_rfid_epc_uq",
+    ).on(
+      table.rfidEpc,
+    ),
+
+    tenantAssetTagUnique: unique(
+      "assets_tenant_asset_tag_uq",
+    ).on(
+      table.tenantId,
+      table.assetTag,
+    ),
+
+    tenantIdx: index(
+      "assets_tenant_idx",
+    ).on(table.tenantId),
+
+    branchIdx: index(
+      "assets_branch_idx",
+    ).on(table.branchId),
+
+    assetTypeIdx: index(
+      "assets_asset_type_idx",
+    ).on(table.assetTypeId),
+
+    serialIdx: index(
+      "assets_serial_number_idx",
+    ).on(table.serialNumber),
+
+    branchTenantFk: foreignKey({
+      name: "assets_tenant_branch_fk",
+      columns: [
+        table.tenantId,
+        table.branchId,
+      ],
+      foreignColumns: [
+        branches.tenantId,
+        branches.id,
+      ],
+    })
+      .onDelete("cascade"),
+
+    locationTenantFk: foreignKey({
+      name: "assets_tenant_location_fk",
+      columns: [
+        table.tenantId,
+        table.branchId,
+        table.locationId,
+      ],
+      foreignColumns: [
+        locations.tenantId,
+        locations.branchId,
+        locations.id,
+      ],
+    })
+      .onDelete("restrict"),
+
+    telecomSpaceTenantFk: foreignKey({
+      name: "assets_tenant_telecom_space_fk",
+      columns: [
+        table.tenantId,
+        table.branchId,
+        table.telecomSpaceId,
+      ],
+      foreignColumns: [
+        telecomSpaces.tenantId,
+        telecomSpaces.branchId,
+        telecomSpaces.id,
+      ],
+    })
+      .onDelete("restrict"),
+
+    rackTenantFk: foreignKey({
+      name: "assets_tenant_rack_fk",
+      columns: [
+        table.tenantId,
+        table.branchId,
+        table.rackId,
+      ],
+      foreignColumns: [
+        racks.tenantId,
+        racks.branchId,
+        racks.id,
+      ],
+    })
+      .onDelete("restrict"),
+  }),
+);
+
+
+export const assetSystemMemberships = pgTable(
+  "asset_system_memberships",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    assetId: uuid("asset_id")
+      .notNull(),
+
+    branchSystemId: uuid(
+      "branch_system_id",
+    ).notNull(),
+
+    role: varchar("role", {
+      length: 64,
+    })
+      .notNull()
+      .default("member"),
+
+    isPrimary: boolean("is_primary")
+      .notNull()
+      .default(false),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantAssetSystemUnique: unique(
+      "asset_system_memberships_tenant_asset_system_uq",
+    ).on(
+      table.tenantId,
+      table.assetId,
+      table.branchSystemId,
+    ),
+
+    tenantIdx: index(
+      "asset_system_memberships_tenant_idx",
+    ).on(table.tenantId),
+
+    assetIdx: index(
+      "asset_system_memberships_asset_idx",
+    ).on(table.assetId),
+
+    branchSystemIdx: index(
+      "asset_system_memberships_branch_system_idx",
+    ).on(table.branchSystemId),
+
+    assetTenantFk: foreignKey({
+      name: "asset_system_memberships_tenant_asset_fk",
+      columns: [
+        table.tenantId,
+        table.assetId,
+      ],
+      foreignColumns: [
+        assets.tenantId,
+        assets.id,
+      ],
+    })
+      .onDelete("cascade"),
+
+    branchSystemTenantFk: foreignKey({
+      name: "asset_system_memberships_tenant_branch_system_fk",
+      columns: [
+        table.tenantId,
+        table.branchSystemId,
+      ],
+      foreignColumns: [
+        branchSystems.tenantId,
+        branchSystems.id,
       ],
     })
       .onDelete("cascade"),

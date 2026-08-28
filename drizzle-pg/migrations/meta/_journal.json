@@ -29,6 +29,97 @@
       "when": 1787949793728,
       "tag": "0003_infra_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787950102791,
+      "tag": "0004_abnormal_the_twelve",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787950103436,
+      "tag": "0005_core_catalog_seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787950156201,
+      "tag": "0006_free_black_bolt",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787950156723,
+      "tag": "0007_subscription_plan_seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787950157245,
+      "tag": "0008_subscription_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787950213398,
+      "tag": "0009_entitlement_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787950336289,
+      "tag": "0010_runtime_catalog_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787950416730,
+      "tag": "0011_flimsy_northstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787950417229,
+      "tag": "0012_branch_system_entitlement_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787950417728,
+      "tag": "0013_branch_system_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787950687999,
+      "tag": "0014_perfect_strong_guy",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1787950688545,
+      "tag": "0015_asset_integrity_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787950689139,
+      "tag": "0016_asset_rls",
+      "breakpoints": true
     }
   ]
 }
