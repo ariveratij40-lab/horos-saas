@@ -15,6 +15,20 @@
       "when": 1787948823980,
       "tag": "0001_mt_rls_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787949793216,
+      "tag": "0002_nostalgic_stingray",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787949793728,
+      "tag": "0003_infra_rls",
+      "breakpoints": true
     }
   ]
 }
