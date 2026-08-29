@@ -20,6 +20,8 @@ export const tenants = pgTable(
     code: varchar("code", { length: 64 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
 
+    legacyTenantId: integer("legacy_tenant_id"),
+
     status: varchar("status", { length: 32 })
       .notNull()
       .default("active"),
@@ -40,6 +42,11 @@ export const tenants = pgTable(
   },
   table => ({
     codeUnique: uniqueIndex("tenants_code_uq").on(table.code),
+
+    legacyTenantIdUnique: uniqueIndex(
+      "tenants_legacy_tenant_id_uq",
+    ).on(table.legacyTenantId),
+
     statusIdx: index("tenants_status_idx").on(table.status),
   }),
 );

@@ -1,9 +1,111 @@
 import { z } from "zod";
-import { protectedProcedure, router } from "../_core/trpc";
+import {
+  pgProtectedProcedure,
+  protectedProcedure,
+  router,
+} from "../_core/trpc";
+import { withTenantTransaction } from "../db.pg";
 import { TRPCError } from "@trpc/server";
 import { getAssetsByTenant, getAssetById, createAsset, updateAsset, createAuditLog } from "../db";
 
+
 export const assetsRouter = router({
+
+  /**
+   * PostgreSQL canonical read pilot.
+   *
+   * Deliberately additive: legacy list/get/create/update
+   * remain unchanged while the canonical data plane is
+   * validated independently.
+   */
+  canonicalList: pgProtectedProcedure
+    .input(
+      z.object({
+        lifecycleStatus: z.string().optional(),
+        operationalStatus: z.string().optional(),
+        branchId: z.string().uuid().optional(),
+        assetTypeId: z.string().uuid().optional(),
+      }).optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      return withTenantTransaction(
+        ctx.pgTenant.tenantId,
+        async tx => {
+          const lifecycleStatus =
+            input?.lifecycleStatus ?? null;
+
+          const operationalStatus =
+            input?.operationalStatus ?? null;
+
+          const branchId =
+            input?.branchId ?? null;
+
+          const assetTypeId =
+            input?.assetTypeId ?? null;
+
+          return tx<{
+            id: string;
+            tenantId: string;
+            branchId: string;
+            assetTypeId: string;
+            assetCode: string;
+            assetTag: string | null;
+            serialNumber: string | null;
+            manufacturer: string | null;
+            model: string | null;
+            lifecycleStatus: string;
+            operationalStatus: string;
+            source: string;
+            notes: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+          }[]>`
+            SELECT
+              id::text AS "id",
+              tenant_id::text AS "tenantId",
+              branch_id::text AS "branchId",
+              asset_type_id::text AS "assetTypeId",
+              asset_code AS "assetCode",
+              asset_tag AS "assetTag",
+              serial_number AS "serialNumber",
+              manufacturer,
+              model,
+              lifecycle_status AS "lifecycleStatus",
+              operational_status AS "operationalStatus",
+              source,
+              notes,
+              created_at AS "createdAt",
+              updated_at AS "updatedAt"
+            FROM assets
+            WHERE
+              (
+                ${lifecycleStatus}::text IS NULL
+                OR lifecycle_status =
+                  ${lifecycleStatus}
+              )
+              AND (
+                ${operationalStatus}::text IS NULL
+                OR operational_status =
+                  ${operationalStatus}
+              )
+              AND (
+                ${branchId}::uuid IS NULL
+                OR branch_id =
+                  ${branchId}::uuid
+              )
+              AND (
+                ${assetTypeId}::uuid IS NULL
+                OR asset_type_id =
+                  ${assetTypeId}::uuid
+              )
+            ORDER BY
+              asset_code,
+              id
+          `;
+        },
+      );
+    }),
+
   list: protectedProcedure.input(z.object({
     status: z.string().optional(),
     criticality: z.string().optional(),
