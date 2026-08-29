@@ -106,6 +106,280 @@ export const assetsRouter = router({
       );
     }),
 
+  /**
+   * Transitional PostgreSQL read DTO.
+   *
+   * This endpoint exposes canonical assets in a shape that
+   * can be compared with the legacy Assets UI contract.
+   *
+   * IMPORTANT:
+   * Fields not represented in the canonical model remain
+   * null. No financial, lifecycle or criticality values are
+   * fabricated.
+   */
+  canonicalCompatList: pgProtectedProcedure
+    .input(
+      z.object({
+        status: z.string().optional(),
+        category: z.string().optional(),
+        branchId: z.string().uuid().optional(),
+      }).optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      return withTenantTransaction(
+        ctx.pgTenant.tenantId,
+        async tx => {
+          const status =
+            input?.status ?? null;
+
+          const category =
+            input?.category ?? null;
+
+          const branchId =
+            input?.branchId ?? null;
+
+          return tx<{
+            id: string;
+            assetCode: string;
+            name: string;
+            description: string | null;
+            category: string;
+            canonicalCategory: string;
+            assetTypeCode: string;
+            brand: string | null;
+            model: string | null;
+            serialNumber: string | null;
+            status: string;
+            criticality: string | null;
+            location: string;
+            branchId: string;
+            installDate: string | null;
+            warrantyExpiry: string | null;
+            usefulLifeYears: number | null;
+            purchaseDate: string | null;
+            purchaseCost: string | null;
+            currentValue: string | null;
+            depreciationRate: string | null;
+            depreciationMethod: string | null;
+            replacementCost: string | null;
+            maintenanceCostYearly: string | null;
+            riskScore: null;
+            notes: string | null;
+            imageUrl: null;
+            createdAt: Date;
+            updatedAt: Date;
+          }[]>`
+            SELECT
+              a.id::text AS "id",
+              a.asset_code AS "assetCode",
+
+              COALESCE(
+                NULLIF(at.name, ''),
+                a.asset_code
+              ) AS "name",
+
+              at.description AS "description",
+
+              CASE
+                WHEN at.code = 'CAMERA'
+                  THEN 'camera'
+
+                WHEN at.code = 'NVR'
+                  THEN 'nvr_dvr'
+
+                WHEN at.code IN (
+                  'ACCESS_CONTROLLER',
+                  'DOOR',
+                  'READER'
+                )
+                  THEN 'access_control'
+
+                WHEN at.code IN (
+                  'SWITCH'
+                )
+                  THEN 'network'
+
+                WHEN at.code IN (
+                  'SERVER',
+                  'VMS_SERVER'
+                )
+                  THEN 'server'
+
+                WHEN at.code = 'UPS'
+                  THEN 'ups'
+
+                ELSE 'other'
+              END AS "category",
+
+              at.category
+                AS "canonicalCategory",
+
+              at.code
+                AS "assetTypeCode",
+
+              a.manufacturer AS "brand",
+              a.model AS "model",
+
+              a.serial_number
+                AS "serialNumber",
+
+              a.lifecycle_status
+                AS "status",
+
+              alp.criticality
+                AS "criticality",
+
+              CONCAT_WS(
+                ' / ',
+                NULLIF(b.name, ''),
+                NULLIF(l.name, ''),
+                NULLIF(ts.name, ''),
+                NULLIF(r.name, '')
+              ) AS "location",
+
+              a.branch_id::text
+                AS "branchId",
+
+              alp.install_date::text
+                AS "installDate",
+
+              alp.warranty_expiry::text
+                AS "warrantyExpiry",
+
+              alp.useful_life_years
+                AS "usefulLifeYears",
+
+              afp.purchase_date::text
+                AS "purchaseDate",
+
+              afp.purchase_cost::text
+                AS "purchaseCost",
+
+              afp.current_value::text
+                AS "currentValue",
+
+              afp.depreciation_rate::text
+                AS "depreciationRate",
+
+              afp.depreciation_method
+                AS "depreciationMethod",
+
+              afp.replacement_cost::text
+                AS "replacementCost",
+
+              afp.maintenance_cost_yearly::text
+                AS "maintenanceCostYearly",
+
+              NULL::integer
+                AS "riskScore",
+
+              a.notes AS "notes",
+
+              NULL::text
+                AS "imageUrl",
+
+              a.created_at
+                AS "createdAt",
+
+              a.updated_at
+                AS "updatedAt"
+
+            FROM assets a
+
+            JOIN asset_types at
+              ON at.id =
+                a.asset_type_id
+
+            JOIN branches b
+              ON b.id =
+                a.branch_id
+              AND b.tenant_id =
+                a.tenant_id
+
+            LEFT JOIN locations l
+              ON l.id =
+                a.location_id
+              AND l.tenant_id =
+                a.tenant_id
+
+            LEFT JOIN telecom_spaces ts
+              ON ts.id =
+                a.telecom_space_id
+              AND ts.tenant_id =
+                a.tenant_id
+
+            LEFT JOIN racks r
+              ON r.id =
+                a.rack_id
+              AND r.tenant_id =
+                a.tenant_id
+
+            LEFT JOIN asset_lifecycle_profiles alp
+              ON alp.asset_id =
+                a.id
+              AND alp.tenant_id =
+                a.tenant_id
+
+            LEFT JOIN asset_financial_profiles afp
+              ON afp.asset_id =
+                a.id
+              AND afp.tenant_id =
+                a.tenant_id
+
+            WHERE
+              (
+                ${status}::text IS NULL
+                OR a.lifecycle_status =
+                  ${status}
+              )
+
+              AND (
+                ${category}::text IS NULL
+
+                OR CASE
+                  WHEN at.code = 'CAMERA'
+                    THEN 'camera'
+
+                  WHEN at.code = 'NVR'
+                    THEN 'nvr_dvr'
+
+                  WHEN at.code IN (
+                    'ACCESS_CONTROLLER',
+                    'DOOR',
+                    'READER'
+                  )
+                    THEN 'access_control'
+
+                  WHEN at.code = 'SWITCH'
+                    THEN 'network'
+
+                  WHEN at.code IN (
+                    'SERVER',
+                    'VMS_SERVER'
+                  )
+                    THEN 'server'
+
+                  WHEN at.code = 'UPS'
+                    THEN 'ups'
+
+                  ELSE 'other'
+                END = ${category}
+              )
+
+              AND (
+                ${branchId}::uuid IS NULL
+                OR a.branch_id =
+                  ${branchId}::uuid
+              )
+
+            ORDER BY
+              a.created_at DESC,
+              a.asset_code
+          `;
+        },
+      );
+    }),
+
   list: protectedProcedure.input(z.object({
     status: z.string().optional(),
     criticality: z.string().optional(),

@@ -1,16 +1,18 @@
 import {
+  boolean,
+  date,
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  numeric,
   pgTable,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
   uuid,
   varchar,
-  text,
-  jsonb,
-  boolean,
-  integer,
-  timestamp,
-  uniqueIndex,
-  unique,
-  index,
-  foreignKey,
 } from "drizzle-orm/pg-core";
 
 export const tenants = pgTable(
@@ -1820,5 +1822,229 @@ export const onboardingProvisioningRuns = pgTable(
       ],
     })
       .onDelete("cascade"),
+  }),
+);
+
+/*
+ * Asset lifecycle facts.
+ *
+ * Kept separate from the canonical technical asset identity.
+ * One optional profile per asset.
+ */
+export const assetLifecycleProfiles = pgTable(
+  "asset_lifecycle_profiles",
+  {
+    id: uuid("id")
+      .defaultRandom()
+      .primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    assetId: uuid("asset_id")
+      .notNull(),
+
+    criticality: varchar(
+      "criticality",
+      { length: 16 },
+    ),
+
+    installDate: date(
+      "install_date",
+    ),
+
+    warrantyExpiry: date(
+      "warranty_expiry",
+    ),
+
+    usefulLifeYears: integer(
+      "useful_life_years",
+    ),
+
+    createdAt: timestamp(
+      "created_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    )
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp(
+      "updated_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    )
+      .notNull()
+      .defaultNow(),
+  },
+
+  table => ({
+    tenantAssetUnique: unique(
+      "asset_lifecycle_profiles_tenant_asset_uq",
+    ).on(
+      table.tenantId,
+      table.assetId,
+    ),
+
+    tenantIdx: index(
+      "asset_lifecycle_profiles_tenant_idx",
+    ).on(
+      table.tenantId,
+    ),
+
+    assetIdx: index(
+      "asset_lifecycle_profiles_asset_idx",
+    ).on(
+      table.assetId,
+    ),
+
+    tenantAssetFk: foreignKey({
+      columns: [
+        table.tenantId,
+        table.assetId,
+      ],
+      foreignColumns: [
+        assets.tenantId,
+        assets.id,
+      ],
+      name:
+        "asset_lifecycle_profiles_tenant_asset_fk",
+    }).onDelete("cascade"),
+  }),
+);
+
+
+/*
+ * Asset financial facts.
+ *
+ * Monetary inputs are stored here rather than on the
+ * technical asset identity. Derived values remain outside
+ * this table.
+ */
+export const assetFinancialProfiles = pgTable(
+  "asset_financial_profiles",
+  {
+    id: uuid("id")
+      .defaultRandom()
+      .primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    assetId: uuid("asset_id")
+      .notNull(),
+
+    purchaseDate: date(
+      "purchase_date",
+    ),
+
+    purchaseCost: numeric(
+      "purchase_cost",
+      {
+        precision: 14,
+        scale: 2,
+      },
+    ),
+
+    currentValue: numeric(
+      "current_value",
+      {
+        precision: 14,
+        scale: 2,
+      },
+    ),
+
+    depreciationRate: numeric(
+      "depreciation_rate",
+      {
+        precision: 7,
+        scale: 4,
+      },
+    ),
+
+    depreciationMethod: varchar(
+      "depreciation_method",
+      { length: 32 },
+    ),
+
+    replacementCost: numeric(
+      "replacement_cost",
+      {
+        precision: 14,
+        scale: 2,
+      },
+    ),
+
+    maintenanceCostYearly: numeric(
+      "maintenance_cost_yearly",
+      {
+        precision: 14,
+        scale: 2,
+      },
+    ),
+
+    createdAt: timestamp(
+      "created_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    )
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp(
+      "updated_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    )
+      .notNull()
+      .defaultNow(),
+  },
+
+  table => ({
+    tenantAssetUnique: unique(
+      "asset_financial_profiles_tenant_asset_uq",
+    ).on(
+      table.tenantId,
+      table.assetId,
+    ),
+
+    tenantIdx: index(
+      "asset_financial_profiles_tenant_idx",
+    ).on(
+      table.tenantId,
+    ),
+
+    assetIdx: index(
+      "asset_financial_profiles_asset_idx",
+    ).on(
+      table.assetId,
+    ),
+
+    tenantAssetFk: foreignKey({
+      columns: [
+        table.tenantId,
+        table.assetId,
+      ],
+      foreignColumns: [
+        assets.tenantId,
+        assets.id,
+      ],
+      name:
+        "asset_financial_profiles_tenant_asset_fk",
+    }).onDelete("cascade"),
   }),
 );

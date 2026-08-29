@@ -232,6 +232,13 @@
       "when": 1787982623199,
       "tag": "0032_identity_bootstrap_resolver",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788016650772,
+      "tag": "0033_asset_lifecycle_financial_profiles",
+      "breakpoints": true
     }
   ]
 }
