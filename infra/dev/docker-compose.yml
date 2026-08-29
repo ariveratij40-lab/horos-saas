@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: horos_postgres_dev
+    restart: unless-stopped
+
+    env_file:
+      - .env.dev
+
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
+
+    volumes:
+      - horos_dev_postgres_data:/var/lib/postgresql/data
+      - ./bootstrap:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-horos_dev} -d ${POSTGRES_DB:-horos_dev}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+    networks:
+      - horos_dev_internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: horos_redis_dev
+    restart: unless-stopped
+
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes"
+      ]
+
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-56379}:6379"
+
+    volumes:
+      - horos_dev_redis_data:/data
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "ping"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+    networks:
+      - horos_dev_internal
+
+networks:
+  horos_dev_internal:
+    name: horos_dev_internal
+    driver: bridge
+
+volumes:
+  horos_dev_postgres_data:
+    name: horos_dev_postgres_data
+
+  horos_dev_redis_data:
+    name: horos_dev_redis_data
