@@ -148,6 +148,41 @@
       "when": 1787951841800,
       "tag": "0020_onboarding_commit_readiness",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787952173804,
+      "tag": "0021_majestic_spyke",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1787952359478,
+      "tag": "0022_provisioning_run_controls",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787952360035,
+      "tag": "0023_provisioning_run_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787964042510,
+      "tag": "0024_provisioning_internal_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787964043040,
+      "tag": "0025_physical_canonical_provisioner",
+      "breakpoints": true
     }
   ]
 }

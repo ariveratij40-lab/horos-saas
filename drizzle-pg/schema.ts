@@ -1676,3 +1676,142 @@ export const onboardingIssues = pgTable(
       .onDelete("cascade"),
   }),
 );
+
+/* ============================================================================
+ * HOROS ONBOARD-002A
+ * Canonical provisioning execution history
+ * ========================================================================== */
+
+export const onboardingProvisioningRuns = pgTable(
+  "onboarding_provisioning_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    sessionId: uuid("session_id")
+      .notNull(),
+
+    attemptNumber: integer(
+      "attempt_number",
+    ).notNull(),
+
+    status: varchar("status", {
+      length: 32,
+    })
+      .notNull()
+      .default("pending"),
+
+    totalItems: integer("total_items")
+      .notNull()
+      .default(0),
+
+    processedItems: integer(
+      "processed_items",
+    )
+      .notNull()
+      .default(0),
+
+    createdItems: integer(
+      "created_items",
+    )
+      .notNull()
+      .default(0),
+
+    updatedItems: integer(
+      "updated_items",
+    )
+      .notNull()
+      .default(0),
+
+    skippedItems: integer(
+      "skipped_items",
+    )
+      .notNull()
+      .default(0),
+
+    failedItems: integer(
+      "failed_items",
+    )
+      .notNull()
+      .default(0),
+
+    startedAt: timestamp("started_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+
+    finishedAt: timestamp("finished_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+
+    failureCode: varchar(
+      "failure_code",
+      { length: 64 },
+    ),
+
+    failureMessage: text(
+      "failure_message",
+    ),
+
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantIdIdUnique: unique(
+      "onboarding_provisioning_runs_tenant_id_id_uq",
+    ).on(
+      table.tenantId,
+      table.id,
+    ),
+
+    tenantSessionAttemptUnique: unique(
+      "onboarding_provisioning_runs_tenant_session_attempt_uq",
+    ).on(
+      table.tenantId,
+      table.sessionId,
+      table.attemptNumber,
+    ),
+
+    tenantSessionIdx: index(
+      "onboarding_provisioning_runs_tenant_session_idx",
+    ).on(
+      table.tenantId,
+      table.sessionId,
+    ),
+
+    tenantStatusIdx: index(
+      "onboarding_provisioning_runs_tenant_status_idx",
+    ).on(
+      table.tenantId,
+      table.status,
+    ),
+
+    sessionTenantFk: foreignKey({
+      name: "onboarding_provisioning_runs_tenant_session_fk",
+      columns: [
+        table.tenantId,
+        table.sessionId,
+      ],
+      foreignColumns: [
+        onboardingSessions.tenantId,
+        onboardingSessions.id,
+      ],
+    })
+      .onDelete("cascade"),
+  }),
+);
