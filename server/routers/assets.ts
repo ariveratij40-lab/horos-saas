@@ -380,6 +380,393 @@ export const assetsRouter = router({
       );
     }),
 
+  /**
+   * Canonical PostgreSQL asset detail.
+   *
+   * Additive during migration:
+   * legacy numeric getById remains unchanged.
+   */
+  canonicalGetById: pgProtectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const rows =
+        await withTenantTransaction(
+          ctx.pgTenant.tenantId,
+          async tx => {
+            return tx<{
+              id: string;
+              assetCode: string;
+              name: string;
+              description: string | null;
+              category: string;
+              canonicalCategory: string;
+              assetTypeCode: string;
+              brand: string | null;
+              model: string | null;
+              serialNumber: string | null;
+              status: string;
+              criticality: string | null;
+              location: string;
+              branchId: string;
+              installDate: string | null;
+              warrantyExpiry: string | null;
+              usefulLifeYears: number | null;
+              purchaseDate: string | null;
+              purchaseCost: string | null;
+              currentValue: string | null;
+              depreciationRate: string | null;
+              depreciationMethod: string | null;
+              replacementCost: string | null;
+              maintenanceCostYearly: string | null;
+              riskScore: null;
+              notes: string | null;
+              imageUrl: null;
+              createdAt: Date;
+              updatedAt: Date;
+            }[]>`
+              SELECT
+                a.id::text AS "id",
+                a.asset_code AS "assetCode",
+
+                COALESCE(
+                  NULLIF(at.name, ''),
+                  a.asset_code
+                ) AS "name",
+
+                at.description
+                  AS "description",
+
+                CASE
+                  WHEN at.code = 'CAMERA'
+                    THEN 'camera'
+                  WHEN at.code = 'NVR'
+                    THEN 'nvr_dvr'
+                  WHEN at.code IN (
+                    'ACCESS_CONTROLLER',
+                    'DOOR',
+                    'READER'
+                  )
+                    THEN 'access_control'
+                  WHEN at.code = 'SWITCH'
+                    THEN 'network'
+                  WHEN at.code IN (
+                    'SERVER',
+                    'VMS_SERVER'
+                  )
+                    THEN 'server'
+                  WHEN at.code = 'UPS'
+                    THEN 'ups'
+                  ELSE 'other'
+                END AS "category",
+
+                at.category
+                  AS "canonicalCategory",
+
+                at.code
+                  AS "assetTypeCode",
+
+                a.manufacturer
+                  AS "brand",
+
+                a.model
+                  AS "model",
+
+                a.serial_number
+                  AS "serialNumber",
+
+                a.lifecycle_status
+                  AS "status",
+
+                alp.criticality
+                  AS "criticality",
+
+                CONCAT_WS(
+                  ' / ',
+                  NULLIF(b.name, ''),
+                  NULLIF(l.name, ''),
+                  NULLIF(ts.name, ''),
+                  NULLIF(r.name, '')
+                ) AS "location",
+
+                a.branch_id::text
+                  AS "branchId",
+
+                alp.install_date::text
+                  AS "installDate",
+
+                alp.warranty_expiry::text
+                  AS "warrantyExpiry",
+
+                alp.useful_life_years
+                  AS "usefulLifeYears",
+
+                afp.purchase_date::text
+                  AS "purchaseDate",
+
+                afp.purchase_cost::text
+                  AS "purchaseCost",
+
+                afp.current_value::text
+                  AS "currentValue",
+
+                afp.depreciation_rate::text
+                  AS "depreciationRate",
+
+                afp.depreciation_method
+                  AS "depreciationMethod",
+
+                afp.replacement_cost::text
+                  AS "replacementCost",
+
+                afp.maintenance_cost_yearly::text
+                  AS "maintenanceCostYearly",
+
+                NULL::integer
+                  AS "riskScore",
+
+                a.notes
+                  AS "notes",
+
+                NULL::text
+                  AS "imageUrl",
+
+                a.created_at
+                  AS "createdAt",
+
+                a.updated_at
+                  AS "updatedAt"
+
+              FROM assets a
+
+              JOIN asset_types at
+                ON at.id =
+                  a.asset_type_id
+
+              JOIN branches b
+                ON b.id =
+                  a.branch_id
+                AND b.tenant_id =
+                  a.tenant_id
+
+              LEFT JOIN locations l
+                ON l.id =
+                  a.location_id
+                AND l.tenant_id =
+                  a.tenant_id
+
+              LEFT JOIN telecom_spaces ts
+                ON ts.id =
+                  a.telecom_space_id
+                AND ts.tenant_id =
+                  a.tenant_id
+
+              LEFT JOIN racks r
+                ON r.id =
+                  a.rack_id
+                AND r.tenant_id =
+                  a.tenant_id
+
+              LEFT JOIN asset_lifecycle_profiles alp
+                ON alp.asset_id =
+                  a.id
+                AND alp.tenant_id =
+                  a.tenant_id
+
+              LEFT JOIN asset_financial_profiles afp
+                ON afp.asset_id =
+                  a.id
+                AND afp.tenant_id =
+                  a.tenant_id
+
+              WHERE
+                a.id = ${input.id}::uuid
+
+              LIMIT 1
+            `;
+          },
+        );
+
+      const asset = rows[0];
+
+      if (!asset) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+        });
+      }
+
+      const now = new Date();
+
+      let ageYears: number | null = null;
+
+      if (asset.installDate) {
+        const installedAt =
+          new Date(
+            `${asset.installDate}T00:00:00Z`,
+          );
+
+        ageYears =
+          (
+            now.getTime() -
+            installedAt.getTime()
+          ) /
+          (
+            1000 *
+            60 *
+            60 *
+            24 *
+            365.2425
+          );
+
+        ageYears =
+          Math.max(
+            0,
+            ageYears,
+          );
+      }
+
+      const remainingLifeYears =
+        ageYears !== null &&
+        asset.usefulLifeYears !== null
+          ? Math.max(
+              0,
+              asset.usefulLifeYears -
+                ageYears,
+            )
+          : null;
+
+      const obsolescenceRisk =
+        remainingLifeYears === null
+          ? null
+          : remainingLifeYears <= 1
+            ? "critical"
+            : remainingLifeYears <= 2
+              ? "high"
+              : remainingLifeYears <= 3
+                ? "medium"
+                : "low";
+
+      const maintenanceCost =
+        asset.maintenanceCostYearly !== null
+          ? Number(
+              asset.maintenanceCostYearly,
+            )
+          : null;
+
+      const totalMaintenanceCost =
+        maintenanceCost !== null &&
+        ageYears !== null
+          ? maintenanceCost *
+            ageYears
+          : null;
+
+      /*
+       * Canonical depreciation:
+       * straight-line is derivable when purchase cost,
+       * depreciation rate and age are known.
+       *
+       * Other methods require an explicit canonical
+       * calculation policy before they are derived.
+       */
+      let depreciatedValue:
+        number | null = null;
+
+      const purchaseCost =
+        asset.purchaseCost !== null
+          ? Number(asset.purchaseCost)
+          : null;
+
+      const depreciationRate =
+        asset.depreciationRate !== null
+          ? Number(
+              asset.depreciationRate,
+            )
+          : null;
+
+      if (
+        purchaseCost !== null &&
+        depreciationRate !== null &&
+        ageYears !== null &&
+        asset.depreciationMethod ===
+          "straight_line"
+      ) {
+        depreciatedValue =
+          Math.max(
+            0,
+            purchaseCost *
+              (
+                1 -
+                depreciationRate *
+                  ageYears
+              ),
+          );
+      }
+
+      const replacementRecommended =
+        remainingLifeYears !== null
+          ? remainingLifeYears <= 1
+          : null;
+
+      const round1 = (
+        value: number | null,
+      ) =>
+        value === null
+          ? null
+          : Math.round(
+              value * 10,
+            ) / 10;
+
+      const round2 = (
+        value: number | null,
+      ) =>
+        value === null
+          ? null
+          : Math.round(
+              value * 100,
+            ) / 100;
+
+      return {
+        ...asset,
+
+        analysis: {
+          ageYears:
+            round1(ageYears),
+
+          remainingLifeYears:
+            round1(
+              remainingLifeYears,
+            ),
+
+          obsolescenceRisk,
+
+          depreciatedValue:
+            round2(
+              depreciatedValue,
+            ),
+
+          totalMaintenanceCost:
+            round2(
+              totalMaintenanceCost,
+            ),
+
+          replacementRecommended,
+
+          capexEstimate:
+            asset.replacementCost !== null
+              ? Number(
+                  asset.replacementCost,
+                )
+              : null,
+
+          opexYearly:
+            maintenanceCost,
+        },
+      };
+    }),
+
   list: protectedProcedure.input(z.object({
     status: z.string().optional(),
     criticality: z.string().optional(),
