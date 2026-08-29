@@ -217,10 +217,56 @@ export default function Assets() {
   const [showCreate, setShowCreate] = useState(false);
   const [, navigate] = useLocation();
 
-  const { data: assets, isLoading } = trpc.assets.list.useQuery(filters);
-  const filtered = assets?.filter((a) =>
-    !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.assetCode.toLowerCase().includes(search.toLowerCase())
-  ) ?? [];
+  /**
+   * Canonical PostgreSQL read boundary.
+   *
+   * Mutations remain on legacy MySQL during the
+   * migration window. Tickets also remain legacy
+   * because their assetId contract is numeric.
+   */
+  const canonicalFilters = {
+    status:
+      filters.status || undefined,
+    category:
+      filters.category || undefined,
+  };
+
+  const {
+    data: assets,
+    isLoading,
+  } =
+    trpc.assets.canonicalCompatList.useQuery(
+      canonicalFilters,
+    );
+  /*
+   * canonicalCompatList does not yet expose
+   * criticality as a server-side filter.
+   * Preserve the current UI behavior client-side.
+   */
+  const filtered = assets?.filter((a) => {
+    const matchesSearch =
+      !search ||
+      a.name
+        .toLowerCase()
+        .includes(
+          search.toLowerCase(),
+        ) ||
+      a.assetCode
+        .toLowerCase()
+        .includes(
+          search.toLowerCase(),
+        );
+
+    const matchesCriticality =
+      !filters.criticality ||
+      a.criticality ===
+        filters.criticality;
+
+    return (
+      matchesSearch &&
+      matchesCriticality
+    );
+  }) ?? [];
 
   const stats = {
     total: assets?.length ?? 0,
@@ -236,8 +282,8 @@ export default function Assets() {
           <h1 className="text-2xl font-bold font-display text-foreground tracking-tight">Inventario Técnico</h1>
           <p className="text-sm text-muted-foreground mt-1">Control de activos con análisis CAPEX/OPEX y vida útil</p>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="gap-2 gradient-horos text-white shadow-sm text-sm">
-          <Plus className="w-4 h-4" /> Registrar Activo
+        <Button disabled title="Alta temporalmente deshabilitada durante la migración a PostgreSQL" className="gap-2 gradient-horos text-white shadow-sm text-sm">
+          <Plus className="w-4 h-4" /> Alta en migración
         </Button>
       </div>
 
@@ -298,8 +344,8 @@ export default function Assets() {
         <div className="text-center py-16">
           <Package className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
           <p className="text-base font-medium text-muted-foreground">No se encontraron activos</p>
-          <Button onClick={() => setShowCreate(true)} className="mt-4 gap-2 gradient-horos text-white text-sm">
-            <Plus className="w-4 h-4" /> Registrar Activo
+          <Button  className="mt-4 gap-2 gradient-horos text-white text-sm" disabled title="Alta temporalmente deshabilitada durante la migración a PostgreSQL">
+            <Plus className="w-4 h-4" /> Alta en migración
           </Button>
         </div>
       ) : (
