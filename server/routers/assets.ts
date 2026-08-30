@@ -808,6 +808,593 @@ export const assetsRouter = router({
     };
   }),
 
+  /**
+   * Canonical PostgreSQL asset creation.
+   *
+   * Contract:
+   * - authenticated canonical tenant context
+   * - UUID branch and asset type identifiers
+   * - one PostgreSQL transaction
+   * - optional lifecycle and financial profiles
+   * - no legacy MySQL write
+   * - no free-text location fabrication
+   */
+  /**
+   * Canonical catalog data required by the
+   * PostgreSQL asset creation form.
+   *
+   * Branch and physical hierarchy records are
+   * tenant-scoped. Asset types are global catalog
+   * records.
+   *
+   * A branch must be selected before placement
+   * hierarchy records are returned.
+   */
+  canonicalCreateCatalogs: pgProtectedProcedure
+    .input(
+      z.object({
+        branchId:
+          z.string().uuid().optional(),
+      }).optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const tenantId =
+        ctx.pgTenant.tenantId;
+
+      return withTenantTransaction(
+        tenantId,
+        async tx => {
+          const branches =
+            await tx<{
+              id: string;
+              code: string;
+              name: string;
+            }[]>`
+              SELECT
+                id::text AS id,
+                code,
+                name
+              FROM branches
+              WHERE
+                tenant_id =
+                  ${tenantId}::uuid
+                AND status = 'active'
+                AND is_active = true
+              ORDER BY
+                name,
+                code
+            `;
+
+          const assetTypes =
+            await tx<{
+              id: string;
+              code: string;
+              name: string;
+              category: string;
+            }[]>`
+              SELECT
+                id::text AS id,
+                code,
+                name,
+                category
+              FROM asset_types
+              WHERE
+                status = 'active'
+              ORDER BY
+                category,
+                name,
+                code
+            `;
+
+          const branchId =
+            input?.branchId ?? null;
+
+          if (!branchId) {
+            return {
+              branches,
+              assetTypes,
+              locations: [],
+              telecomSpaces: [],
+              racks: [],
+            };
+          }
+
+          const selectedBranch =
+            branches.find(
+              branch =>
+                branch.id === branchId,
+            );
+
+          if (!selectedBranch) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Canonical branch is not available for this tenant",
+            });
+          }
+
+          const locations =
+            await tx<{
+              id: string;
+              branchId: string;
+              code: string;
+              name: string;
+              type: string | null;
+            }[]>`
+              SELECT
+                id::text AS id,
+                branch_id::text
+                  AS "branchId",
+                code,
+                name,
+                location_type
+                  AS "type"
+              FROM locations
+              WHERE
+                tenant_id =
+                  ${tenantId}::uuid
+                AND branch_id =
+                  ${branchId}::uuid
+                AND status = 'active'
+              ORDER BY
+                name,
+                code
+            `;
+
+          const telecomSpaces =
+            await tx<{
+              id: string;
+              branchId: string;
+              locationId: string;
+              code: string;
+              name: string;
+              type: string;
+            }[]>`
+              SELECT
+                id::text AS id,
+                branch_id::text
+                  AS "branchId",
+                location_id::text
+                  AS "locationId",
+                code,
+                name,
+                space_type
+                  AS "type"
+              FROM telecom_spaces
+              WHERE
+                tenant_id =
+                  ${tenantId}::uuid
+                AND branch_id =
+                  ${branchId}::uuid
+                AND status = 'active'
+              ORDER BY
+                name,
+                code
+            `;
+
+          const racks =
+            await tx<{
+              id: string;
+              branchId: string;
+              telecomSpaceId: string;
+              code: string;
+              name: string;
+            }[]>`
+              SELECT
+                id::text AS id,
+                branch_id::text
+                  AS "branchId",
+                telecom_space_id::text
+                  AS "telecomSpaceId",
+                code,
+                name
+              FROM racks
+              WHERE
+                tenant_id =
+                  ${tenantId}::uuid
+                AND branch_id =
+                  ${branchId}::uuid
+                AND status = 'active'
+              ORDER BY
+                name,
+                code
+            `;
+
+          return {
+            branches,
+            assetTypes,
+            locations,
+            telecomSpaces,
+            racks,
+          };
+        },
+      );
+    }),
+
+  canonicalCreate: pgProtectedProcedure
+    .input(
+      z.object({
+        assetCode:
+          z.string().trim().min(1).max(128),
+
+        branchId:
+          z.string().uuid(),
+
+        assetTypeId:
+          z.string().uuid(),
+
+        locationId:
+          z.string().uuid().optional(),
+
+        telecomSpaceId:
+          z.string().uuid().optional(),
+
+        rackId:
+          z.string().uuid().optional(),
+
+        brand:
+          z.string().trim().max(255).optional(),
+
+        model:
+          z.string().trim().max(255).optional(),
+
+        serialNumber:
+          z.string().trim().max(255).optional(),
+
+        status:
+          z.enum([
+            "active",
+            "inactive",
+            "maintenance",
+            "obsolete",
+            "disposed",
+          ]).optional(),
+
+        operationalStatus:
+          z.string().trim().min(1).max(32).optional(),
+
+        notes:
+          z.string().optional(),
+
+        criticality:
+          z.enum([
+            "critical",
+            "high",
+            "medium",
+            "low",
+          ]).optional(),
+
+        installDate:
+          z.string().date().optional(),
+
+        warrantyExpiry:
+          z.string().date().optional(),
+
+        usefulLifeYears:
+          z.number().int().positive().optional(),
+
+        purchaseDate:
+          z.string().date().optional(),
+
+        purchaseCost:
+          z.string().optional(),
+
+        currentValue:
+          z.string().optional(),
+
+        depreciationRate:
+          z.string().optional(),
+
+        depreciationMethod:
+          z.enum([
+            "straight_line",
+            "declining_balance",
+            "sum_of_years",
+          ]).optional(),
+
+        replacementCost:
+          z.string().optional(),
+
+        maintenanceCostYearly:
+          z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const tenantId =
+        ctx.pgTenant.tenantId;
+
+      return withTenantTransaction(
+        tenantId,
+        async tx => {
+          /*
+           * Validate the required branch inside the
+           * established tenant/RLS context.
+           */
+          const branchRows = await tx<{
+            id: string;
+          }[]>`
+            SELECT
+              id::text AS id
+            FROM branches
+            WHERE
+              id = ${input.branchId}::uuid
+              AND tenant_id =
+                ${tenantId}::uuid
+              AND is_active = true
+              AND status = 'active'
+            LIMIT 1
+          `;
+
+          if (branchRows.length !== 1) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Canonical branch is not available for this tenant",
+            });
+          }
+
+          /*
+           * Asset types are global catalog records.
+           * Only active catalog entries may be used.
+           */
+          const typeRows = await tx<{
+            id: string;
+          }[]>`
+            SELECT
+              id::text AS id
+            FROM asset_types
+            WHERE
+              id = ${input.assetTypeId}::uuid
+              AND status = 'active'
+            LIMIT 1
+          `;
+
+          if (typeRows.length !== 1) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Canonical asset type is not available",
+            });
+          }
+
+          /*
+           * Optional hierarchy IDs are validated before
+           * the asset insert. Composite database FKs are
+           * still the final integrity boundary.
+           */
+          if (input.locationId) {
+            const rows = await tx<{
+              id: string;
+            }[]>`
+              SELECT
+                id::text AS id
+              FROM locations
+              WHERE
+                id =
+                  ${input.locationId}::uuid
+                AND tenant_id =
+                  ${tenantId}::uuid
+                AND branch_id =
+                  ${input.branchId}::uuid
+                AND status = 'active'
+              LIMIT 1
+            `;
+
+            if (rows.length !== 1) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message:
+                  "Canonical location is not available for this branch",
+              });
+            }
+          }
+
+          if (input.telecomSpaceId) {
+            const rows = await tx<{
+              id: string;
+              location_id: string;
+            }[]>`
+              SELECT
+                id::text AS id,
+                location_id::text
+                  AS location_id
+              FROM telecom_spaces
+              WHERE
+                id =
+                  ${input.telecomSpaceId}::uuid
+                AND tenant_id =
+                  ${tenantId}::uuid
+                AND branch_id =
+                  ${input.branchId}::uuid
+                AND status = 'active'
+              LIMIT 1
+            `;
+
+            if (rows.length !== 1) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message:
+                  "Canonical telecom space is not available for this branch",
+              });
+            }
+
+            if (
+              input.locationId &&
+              rows[0]?.location_id !==
+                input.locationId
+            ) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message:
+                  "Canonical telecom space does not belong to the selected location",
+              });
+            }
+          }
+
+          if (input.rackId) {
+            const rows = await tx<{
+              id: string;
+              telecom_space_id: string;
+            }[]>`
+              SELECT
+                id::text AS id,
+                telecom_space_id::text
+                  AS telecom_space_id
+              FROM racks
+              WHERE
+                id =
+                  ${input.rackId}::uuid
+                AND tenant_id =
+                  ${tenantId}::uuid
+                AND branch_id =
+                  ${input.branchId}::uuid
+                AND status = 'active'
+              LIMIT 1
+            `;
+
+            if (rows.length !== 1) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message:
+                  "Canonical rack is not available for this branch",
+              });
+            }
+
+            if (
+              input.telecomSpaceId &&
+              rows[0]?.telecom_space_id !==
+                input.telecomSpaceId
+            ) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message:
+                  "Canonical rack does not belong to the selected telecom space",
+              });
+            }
+          }
+
+          const assetRows = await tx<{
+            id: string;
+            assetCode: string;
+          }[]>`
+            INSERT INTO assets (
+              tenant_id,
+              branch_id,
+              asset_type_id,
+              location_id,
+              telecom_space_id,
+              rack_id,
+              asset_code,
+              serial_number,
+              manufacturer,
+              model,
+              lifecycle_status,
+              operational_status,
+              source,
+              notes
+            )
+            VALUES (
+              ${tenantId}::uuid,
+              ${input.branchId}::uuid,
+              ${input.assetTypeId}::uuid,
+              ${input.locationId ?? null}::uuid,
+              ${input.telecomSpaceId ?? null}::uuid,
+              ${input.rackId ?? null}::uuid,
+              ${input.assetCode},
+              ${input.serialNumber ?? null},
+              ${input.brand ?? null},
+              ${input.model ?? null},
+              ${input.status ?? "active"},
+              ${input.operationalStatus ?? "unknown"},
+              'manual',
+              ${input.notes ?? null}
+            )
+            RETURNING
+              id::text AS id,
+              asset_code AS "assetCode"
+          `;
+
+          if (assetRows.length !== 1) {
+            throw new Error(
+              "Canonical asset insert returned unexpected cardinality",
+            );
+          }
+
+          const asset =
+            assetRows[0];
+
+          const hasLifecycleProfile =
+            input.criticality !== undefined ||
+            input.installDate !== undefined ||
+            input.warrantyExpiry !== undefined ||
+            input.usefulLifeYears !== undefined;
+
+          if (hasLifecycleProfile) {
+            await tx`
+              INSERT INTO asset_lifecycle_profiles (
+                tenant_id,
+                asset_id,
+                criticality,
+                install_date,
+                warranty_expiry,
+                useful_life_years
+              )
+              VALUES (
+                ${tenantId}::uuid,
+                ${asset.id}::uuid,
+                ${input.criticality ?? null},
+                ${input.installDate ?? null}::date,
+                ${input.warrantyExpiry ?? null}::date,
+                ${input.usefulLifeYears ?? null}
+              )
+            `;
+          }
+
+          const hasFinancialProfile =
+            input.purchaseDate !== undefined ||
+            input.purchaseCost !== undefined ||
+            input.currentValue !== undefined ||
+            input.depreciationRate !== undefined ||
+            input.depreciationMethod !== undefined ||
+            input.replacementCost !== undefined ||
+            input.maintenanceCostYearly !== undefined;
+
+          if (hasFinancialProfile) {
+            await tx`
+              INSERT INTO asset_financial_profiles (
+                tenant_id,
+                asset_id,
+                purchase_date,
+                purchase_cost,
+                current_value,
+                depreciation_rate,
+                depreciation_method,
+                replacement_cost,
+                maintenance_cost_yearly
+              )
+              VALUES (
+                ${tenantId}::uuid,
+                ${asset.id}::uuid,
+                ${input.purchaseDate ?? null}::date,
+                ${input.purchaseCost ?? null}::numeric,
+                ${input.currentValue ?? null}::numeric,
+                ${input.depreciationRate ?? null}::numeric,
+                ${input.depreciationMethod ?? null},
+                ${input.replacementCost ?? null}::numeric,
+                ${input.maintenanceCostYearly ?? null}::numeric
+              )
+            `;
+          }
+
+          return {
+            id: asset.id,
+            assetCode:
+              asset.assetCode,
+          };
+        },
+      );
+    }),
+
   create: protectedProcedure.input(z.object({
     assetCode: z.string().min(1),
     name: z.string().min(1),
