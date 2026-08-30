@@ -1,321 +1,605 @@
-import { useState } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useLocation, useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
-import { ArrowLeft, MessageSquare, Clock, User, Activity, Send, Shield, Wrench, CheckCircle, FileCheck } from "lucide-react";
-import { cn } from "@/lib/utils";
-import TicketResolutionDialog from "@/components/TicketResolutionDialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ArrowLeft,
+  Building2,
+  Calendar,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  FileCheck,
+  Package,
+  Shield,
+  User,
+  Wrench,
+} from "lucide-react";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function formatDate(
+  value: Date | string | null | undefined,
+) {
+  if (!value) return "No definido";
+
+  return new Date(value).toLocaleString(
+    "es-MX",
+  );
+}
+
+function formatMoney(
+  value: string | null | undefined,
+) {
+  if (value === null || value === undefined) {
+    return "No definido";
+  }
+
+  return Number(value).toLocaleString(
+    "es-MX",
+    {
+      style: "currency",
+      currency: "MXN",
+    },
+  );
+}
 
 export default function TicketDetail() {
-  const [, params] = useRoute("/tickets/:id");
-  const [, navigate] = useLocation();
-  const id = Number(params?.id);
-  const utils = trpc.useUtils();
+  const [, params] =
+    useRoute("/tickets/:id");
 
-  const { data: ticket, isLoading } = trpc.tickets.getById.useQuery({ id }, { enabled: !!id });
-  const updateOpStatus = trpc.tickets.updateOperationalStatus.useMutation({
-    onSuccess: () => { utils.tickets.getById.invalidate({ id }); toast.success("Estado operativo actualizado"); },
-    onError: (e) => toast.error(e.message),
-  });
-  const updateContStatus = trpc.tickets.updateContractualStatus.useMutation({
-    onSuccess: () => { utils.tickets.getById.invalidate({ id }); toast.success("Estado contractual actualizado"); },
-    onError: (e) => toast.error(e.message),
-  });
-  const addComment = trpc.tickets.addComment.useMutation({
-    onSuccess: () => { utils.tickets.getById.invalidate({ id }); setComment(""); toast.success("Comentario agregado"); },
-    onError: (e) => toast.error(e.message),
-  });
+  const [, navigate] =
+    useLocation();
 
-  const [comment, setComment] = useState("");
-  const [showResolveDialog, setShowResolveDialog] = useState(false);
+  const id =
+    params?.id ?? "";
+
+  const validUuid =
+    UUID_RE.test(id);
+
+  const {
+    data: ticket,
+    isLoading,
+    error,
+  } =
+    trpc.tickets.canonicalGetById.useQuery(
+      { id },
+      {
+        enabled: validUuid,
+        retry: false,
+      },
+    );
+
+  if (!validUuid) {
+    return (
+      <div className="animate-fade-up max-w-4xl">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() =>
+            navigate("/tickets")
+          }
+          className="gap-2 mb-6"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Volver a Tickets
+        </Button>
+
+        <Card className="border-border/50">
+          <CardContent className="py-16 text-center">
+            <p className="text-sm font-medium">
+              Identificador de ticket no válido
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              El detalle canónico requiere un UUID.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
-      <div className="animate-fade-up space-y-6">
+      <div className="animate-fade-up space-y-6 max-w-4xl">
         <Skeleton className="h-8 w-64" />
-        <div className="grid grid-cols-2 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[...Array(6)].map(
+            (_, i) => (
+              <Skeleton
+                key={i}
+                className="h-28 rounded-xl"
+              />
+            ),
+          )}
         </div>
       </div>
     );
   }
 
-  if (!ticket) return <div className="text-center py-16 text-muted-foreground">Ticket no encontrado</div>;
+  if (error || !ticket) {
+    return (
+      <div className="animate-fade-up max-w-4xl">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() =>
+            navigate("/tickets")
+          }
+          className="gap-2 mb-6"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Volver a Tickets
+        </Button>
+
+        <Card className="border-border/50">
+          <CardContent className="py-16 text-center">
+            <p className="text-sm font-medium">
+              Ticket no encontrado
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              El ticket no existe o no pertenece al tenant activo.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const assetLabel =
+    [
+      ticket.assetManufacturer,
+      ticket.assetModel,
+    ]
+      .filter(Boolean)
+      .join(" ") ||
+    ticket.assetCode ||
+    "Sin activo asociado";
 
   return (
-    <div className="animate-fade-up max-w-4xl">
-      {/* Header */}
+    <div className="animate-fade-up max-w-5xl">
       <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/tickets")} className="w-8 h-8">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() =>
+            navigate("/tickets")
+          }
+          className="w-8 h-8"
+        >
           <ArrowLeft className="w-4 h-4" />
         </Button>
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-mono text-muted-foreground">{ticket.ticketNumber}</span>
-            <Badge variant="outline" className="text-[10px] capitalize">{ticket.priority}</Badge>
+            <span className="text-xs font-mono text-muted-foreground">
+              {ticket.ticketNumber}
+            </span>
+
+            <Badge
+              variant="outline"
+              className="text-[10px] capitalize"
+            >
+              {ticket.priority}
+            </Badge>
           </div>
-          <h1 className="text-xl font-bold font-display text-foreground mt-0.5">{ticket.title}</h1>
+
+          <h1 className="text-xl font-bold font-display text-foreground mt-0.5">
+            {ticket.title}
+          </h1>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content */}
-        <div className="lg:col-span-2 space-y-5">
-          {/* Description */}
-          {ticket.description && (
-            <Card className="border-border/50 card-elevated">
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Descripción</CardTitle></CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-sm text-foreground/80 leading-relaxed">{ticket.description}</p>
-              </CardContent>
-            </Card>
-          )}
+      <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3 dark:border-blue-900 dark:bg-blue-950/20">
+        <p className="text-xs font-medium text-blue-800 dark:text-blue-300">
+          Vista canónica de solo lectura
+        </p>
+        <p className="text-xs text-blue-700/80 dark:text-blue-400 mt-0.5">
+          Cambios de estado, comentarios y resolución permanecen temporalmente deshabilitados durante la migración a PostgreSQL.
+        </p>
+      </div>
 
-          {/* Comments */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 space-y-5">
+          <Card className="border-border/50 card-elevated">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">
+                Descripción
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent>
+              <p className="text-sm text-foreground/80 whitespace-pre-wrap">
+                {ticket.description ||
+                  "Sin descripción registrada"}
+              </p>
+            </CardContent>
+          </Card>
+
           <Card className="border-border/50 card-elevated">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <MessageSquare className="w-4 h-4" /> Comentarios ({ticket.comments?.length ?? 0})
+                <Package className="w-4 h-4" />
+                Ubicación y activo
               </CardTitle>
             </CardHeader>
-            <CardContent className="pt-0 space-y-3">
-              {ticket.comments?.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No hay comentarios aún</p>
-              ) : (
-                ticket.comments?.map((c: any) => (
-                  <div key={c.id} className={cn("p-3 rounded-lg text-sm", c.isInternal ? "bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800" : "bg-muted/40")}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="font-semibold text-xs text-foreground">Usuario #{c.userId}</span>
-                      {c.isInternal && <Badge className="text-[10px] bg-amber-100 text-amber-700">Interno</Badge>}
-                      <span className="text-xs text-muted-foreground ml-auto">{new Date(c.createdAt).toLocaleString("es-MX")}</span>
-                    </div>
-                    <p className="text-foreground/80">{c.comment}</p>
-                  </div>
-                ))
-              )}
-              <Separator />
-              <div className="space-y-2">
-                <Textarea
-                  placeholder="Agregar comentario..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  className="text-sm resize-none"
-                  rows={3}
-                />
-                <Button
-                  size="sm"
-                  onClick={() => comment.trim() && addComment.mutate({ ticketId: id, comment })}
-                  disabled={!comment.trim() || addComment.isPending}
-                  className="gap-2 text-xs gradient-horos text-white"
-                >
-                  <Send className="w-3.5 h-3.5" /> Enviar
-                </Button>
+
+            <CardContent className="space-y-3">
+              <div className="flex items-start gap-3">
+                <Building2 className="w-4 h-4 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    Sucursal
+                  </p>
+                  <p className="text-sm font-medium">
+                    {ticket.branchName}
+                  </p>
+                  <p className="text-xs font-mono text-muted-foreground">
+                    {ticket.branchCode}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Package className="w-4 h-4 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    Activo
+                  </p>
+                  <p className="text-sm font-medium">
+                    {assetLabel}
+                  </p>
+                  {ticket.assetCode && (
+                    <p className="text-xs font-mono text-muted-foreground">
+                      {ticket.assetCode}
+                    </p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Resolution Report in Bitácora */}
-          {ticket.operationalStatus === "resolved" && ticket.resolutionNotes && (
-            <Card className="border-green-200 bg-green-50/50 card-elevated">
+          {ticket.resolutionNotes && (
+            <Card className="border-green-200 bg-green-50/50 card-elevated dark:border-green-900 dark:bg-green-950/20">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-green-700">
-                  <FileCheck className="w-4 h-4" /> Reporte de Resolución
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-green-700 dark:text-green-400">
+                  <FileCheck className="w-4 h-4" />
+                  Reporte de Resolución
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-0 space-y-3">
+
+              <CardContent className="space-y-4">
                 {ticket.resolvedByName && (
                   <div className="flex items-center gap-2 text-xs">
-                    <User className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-muted-foreground">Resuelto por:</span>
-                    <span className="font-medium">{ticket.resolvedByName}</span>
+                    <User className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">
+                      Resuelto por:
+                    </span>
+                    <span className="font-medium">
+                      {ticket.resolvedByName}
+                    </span>
                   </div>
                 )}
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Notas de resolución</p>
-                  <p className="text-xs bg-white rounded p-2 border border-green-200 whitespace-pre-wrap">{ticket.resolutionNotes}</p>
-                </div>
-                {(ticket.resolutionEvidenceUrls as string[] | null)?.length ? (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Evidencia fotográfica ({(ticket.resolutionEvidenceUrls as string[]).length} imagen{(ticket.resolutionEvidenceUrls as string[]).length !== 1 ? "es" : ""})</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(ticket.resolutionEvidenceUrls as string[]).map((url: string, i: number) => (
-                        <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                          <img src={url} alt={`Evidencia ${i + 1}`} className="w-full h-20 object-cover rounded border border-green-200 hover:opacity-80 transition-opacity" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                {ticket.resolutionSignatureUrl && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Firma electrónica</p>
-                    <div className="border border-green-200 rounded p-2 bg-white inline-block">
-                      <img src={ticket.resolutionSignatureUrl} alt="Firma" className="h-16" />
-                    </div>
-                  </div>
-                )}
-                {ticket.notificationSentAt && (
-                  <div className="flex items-center gap-1.5 text-xs text-green-600">
-                    <CheckCircle className="h-3.5 w-3.5" />
-                    Notificación enviada al solicitante el {new Date(ticket.notificationSentAt).toLocaleString("es-MX")}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
 
-          {/* History */}
-          {ticket.history && ticket.history.length > 0 && (
-            <Card className="border-border/50 card-elevated">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Activity className="w-4 h-4" /> Historial de cambios
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-2">
-                  {ticket.history.map((h: any) => (
-                    <div key={h.id} className="flex items-start gap-2.5 text-xs">
-                      <div className={cn(
-                        "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
-                        h.action === "RESOLVED_WITH_REPORT" ? "bg-green-500" : "bg-primary"
-                      )} />
-                      <div className="flex-1 min-w-0">
-                        {h.action === "RESOLVED_WITH_REPORT" ? (
-                          <span className="text-green-600 font-medium">Resuelto con reporte firmado</span>
-                        ) : (
-                          <>
-                            <span className="text-muted-foreground">{h.fieldChanged}: </span>
-                            <span className="text-foreground font-medium">{h.oldValue} → {h.newValue}</span>
-                          </>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">
+                    Notas de resolución
+                  </p>
+                  <p className="text-xs bg-background rounded p-3 border whitespace-pre-wrap">
+                    {ticket.resolutionNotes}
+                  </p>
+                </div>
+
+                {Array.isArray(
+                  ticket.resolutionEvidenceUrls,
+                ) &&
+                  ticket.resolutionEvidenceUrls.length >
+                    0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">
+                        Evidencia fotográfica
+                      </p>
+
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {(
+                          ticket.resolutionEvidenceUrls as string[]
+                        ).map(
+                          (url, index) => (
+                            <a
+                              key={url}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <img
+                                src={url}
+                                alt={`Evidencia ${index + 1}`}
+                                className="w-full h-24 object-cover rounded border hover:opacity-80 transition-opacity"
+                              />
+                            </a>
+                          ),
                         )}
                       </div>
-                      <span className="text-muted-foreground shrink-0">{new Date(h.createdAt).toLocaleString("es-MX")}</span>
                     </div>
-                  ))}
-                </div>
+                  )}
+
+                {ticket.resolutionSignatureUrl && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Firma electrónica
+                    </p>
+
+                    <div className="inline-block bg-white rounded border p-2">
+                      <img
+                        src={
+                          ticket.resolutionSignatureUrl
+                        }
+                        alt="Firma electrónica"
+                        className="h-16"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {ticket.resolutionReportUrl && (
+                  <a
+                    href={ticket.resolutionReportUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    Abrir reporte de resolución
+                  </a>
+                )}
+
+                {ticket.notificationSentAt && (
+                  <div className="flex items-center gap-2 text-xs text-green-600">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Notificación enviada el{" "}
+                    {formatDate(
+                      ticket.notificationSentAt,
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-4">
-          {/* Dual Status */}
+        <div className="space-y-5">
           <Card className="border-border/50 card-elevated">
-            <CardContent className="p-4 space-y-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">
+                Estados
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
               <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <Wrench className="w-3.5 h-3.5" /> Estado Operativo
+                <p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                  <Wrench className="w-3.5 h-3.5" />
+                  Estado operativo
                 </p>
-                <StatusBadge type="operational" value={ticket.operationalStatus} size="md" />
-                <Select
-                  value={ticket.operationalStatus}
-                  onValueChange={(v) => {
-                    if (v === "resolved") {
-                      setShowResolveDialog(true);
-                    } else {
-                      updateOpStatus.mutate({ id, operationalStatus: v as any });
-                    }
-                  }}
-                >
-                  <SelectTrigger className="text-xs mt-2 h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="open">Abierto</SelectItem>
-                    <SelectItem value="assigned">Asignado</SelectItem>
-                    <SelectItem value="technician_on_route">Técnico en ruta</SelectItem>
-                    <SelectItem value="waiting_parts">Esperando partes</SelectItem>
-                    <SelectItem value="resolved">Resuelto</SelectItem>
-                  </SelectContent>
-                </Select>
-                {ticket.operationalStatus !== "resolved" && (
-                  <Button
-                    size="sm"
-                    className="w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs h-8"
-                    onClick={() => setShowResolveDialog(true)}
-                  >
-                    <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                    Resolver con reporte
-                  </Button>
-                )}
+
+                <StatusBadge
+                  type="operational"
+                  value={
+                    ticket.operationalStatus
+                  }
+                  size="md"
+                />
               </div>
 
-              <Separator />
+              <div>
+                <p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5" />
+                  Estado contractual
+                </p>
+
+                <StatusBadge
+                  type="contractual"
+                  value={
+                    ticket.contractualStatus
+                  }
+                  size="md"
+                />
+              </div>
 
               <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5" /> Estado Contractual
+                <p className="text-xs text-muted-foreground mb-1.5">
+                  Prioridad
                 </p>
-                <StatusBadge type="contractual" value={ticket.contractualStatus} size="md" />
-                <Select
-                  value={ticket.contractualStatus}
-                  onValueChange={(v) => updateContStatus.mutate({ id, contractualStatus: v as any })}
-                >
-                  <SelectTrigger className="text-xs mt-2 h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="covered">Cubierto</SelectItem>
-                    <SelectItem value="not_covered">No cubierto</SelectItem>
-                    <SelectItem value="pending_approval">Pendiente aprobación</SelectItem>
-                    <SelectItem value="outside_sla">Fuera de SLA</SelectItem>
-                    <SelectItem value="billable">Facturable</SelectItem>
-                  </SelectContent>
-                </Select>
+
+                <StatusBadge
+                  type="priority"
+                  value={ticket.priority}
+                />
+              </div>
+
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Categoría
+                </p>
+                <p className="text-sm font-medium capitalize">
+                  {ticket.category}
+                </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Details */}
           <Card className="border-border/50 card-elevated">
-            <CardContent className="p-4 space-y-3">
-              {[
-                { label: "Prioridad", value: ticket.priority, badge: true },
-                { label: "Categoría", value: ticket.category },
-                { label: "Creado", value: new Date(ticket.createdAt).toLocaleString("es-MX") },
-                { label: "Actualizado", value: new Date(ticket.updatedAt).toLocaleString("es-MX") },
-                ticket.resolvedAt && { label: "Resuelto", value: new Date(ticket.resolvedAt).toLocaleString("es-MX") },
-              ].filter(Boolean).map((item: any) => (
-                <div key={item.label} className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">{item.label}</span>
-                  {item.badge ? (
-                    <StatusBadge type="priority" value={item.value} />
-                  ) : (
-                    <span className="font-medium text-foreground capitalize">{item.value}</span>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                SLA
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent className="space-y-3 text-xs">
+              <div>
+                <p className="text-muted-foreground">
+                  Nivel SLA
+                </p>
+                <p className="font-medium">
+                  {ticket.slaTier ||
+                    "No definido"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-muted-foreground">
+                  Horas objetivo
+                </p>
+                <p className="font-medium">
+                  {ticket.slaDeadlineHours ??
+                    "No definido"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-muted-foreground">
+                  Límite de respuesta
+                </p>
+                <p className="font-medium">
+                  {formatDate(
+                    ticket.responseDeadline,
                   )}
-                </div>
-              ))}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-muted-foreground">
+                  Límite de resolución
+                </p>
+                <p className="font-medium">
+                  {formatDate(
+                    ticket.resolutionDeadline,
+                  )}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 card-elevated">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <DollarSign className="w-4 h-4" />
+                Costos
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent className="space-y-3 text-xs">
+              <div>
+                <p className="text-muted-foreground">
+                  Costo estimado
+                </p>
+                <p className="font-medium">
+                  {formatMoney(
+                    ticket.estimatedCost,
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-muted-foreground">
+                  Costo real
+                </p>
+                <p className="font-medium">
+                  {formatMoney(
+                    ticket.actualCost,
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-muted-foreground">
+                  Facturable
+                </p>
+                <p className="font-medium">
+                  {ticket.isBillable
+                    ? "Sí"
+                    : "No"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 card-elevated">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Fechas
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent className="space-y-3 text-xs">
+              <div>
+                <p className="text-muted-foreground">
+                  Creado
+                </p>
+                <p className="font-medium">
+                  {formatDate(
+                    ticket.createdAt,
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-muted-foreground">
+                  Actualizado
+                </p>
+                <p className="font-medium">
+                  {formatDate(
+                    ticket.updatedAt,
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-muted-foreground">
+                  Respondido
+                </p>
+                <p className="font-medium">
+                  {formatDate(
+                    ticket.respondedAt,
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-muted-foreground">
+                  Resuelto
+                </p>
+                <p className="font-medium">
+                  {formatDate(
+                    ticket.resolvedAt,
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-muted-foreground">
+                  Cerrado
+                </p>
+                <p className="font-medium">
+                  {formatDate(
+                    ticket.closedAt,
+                  )}
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
       </div>
-      {showResolveDialog && (
-        <TicketResolutionDialog
-          open={showResolveDialog}
-          onClose={() => setShowResolveDialog(false)}
-          ticket={{
-            id: ticket.id,
-            ticketNumber: ticket.ticketNumber,
-            title: ticket.title,
-            description: ticket.description,
-            assetName: ticket.assetName,
-            assetCategory: ticket.assetCategory,
-            priority: ticket.priority,
-            createdAt: ticket.createdAt,
-          }}
-          onResolved={() => utils.tickets.getById.invalidate({ id })}
-        />
-      )}
     </div>
   );
 }

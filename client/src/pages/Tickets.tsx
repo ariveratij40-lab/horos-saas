@@ -157,10 +157,23 @@ export default function Tickets() {
   const [showCreate, setShowCreate] = useState(false);
   const [, navigate] = useLocation();
 
-  const { data: tickets, isLoading } = trpc.tickets.list.useQuery({
-    operationalStatus: filters.operationalStatus || undefined,
-    contractualStatus: filters.contractualStatus || undefined,
-    priority: filters.priority || undefined,
+  /**
+   * Canonical PostgreSQL ticket read boundary.
+   *
+   * Ticket mutations and detail remain temporarily
+   * unavailable until their numeric MySQL identity
+   * contracts are migrated to canonical UUIDs.
+   */
+  const {
+    data: tickets,
+    isLoading,
+  } = trpc.tickets.canonicalList.useQuery({
+    operationalStatus:
+      filters.operationalStatus || undefined,
+    contractualStatus:
+      filters.contractualStatus || undefined,
+    priority:
+      filters.priority || undefined,
   });
 
   const filtered = tickets?.filter((t) =>
@@ -181,8 +194,12 @@ export default function Tickets() {
           <h1 className="text-2xl font-bold font-display text-foreground tracking-tight">Tickets</h1>
           <p className="text-sm text-muted-foreground mt-1">Sistema de gestión de solicitudes de servicio</p>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="gap-2 gradient-horos text-white shadow-sm text-sm">
-          <Plus className="w-4 h-4" /> Nuevo Ticket
+        <Button
+          disabled
+          title="Alta temporalmente deshabilitada durante la migración de Tickets a PostgreSQL"
+          className="gap-2 gradient-horos text-white shadow-sm text-sm"
+        >
+          <Plus className="w-4 h-4" /> Alta en migración
         </Button>
       </div>
 
@@ -271,13 +288,25 @@ export default function Tickets() {
           <div className="text-center py-16">
             <Ticket className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-sm font-medium text-muted-foreground">No se encontraron tickets</p>
-            <Button onClick={() => setShowCreate(true)} className="mt-4 gap-2 gradient-horos text-white text-sm">
-              <Plus className="w-4 h-4" /> Nuevo Ticket
+            <Button
+              disabled
+              title="Alta temporalmente deshabilitada durante la migración de Tickets a PostgreSQL"
+              className="mt-4 gap-2 gradient-horos text-white text-sm"
+            >
+              <Plus className="w-4 h-4" /> Alta en migración
             </Button>
           </div>
         ) : (
           filtered.map((ticket) => (
-            <TicketRow key={ticket.id} ticket={ticket} onClick={() => navigate(`/tickets/${ticket.id}`)} />
+            <TicketRow
+              key={ticket.id}
+              ticket={ticket}
+              onClick={() =>
+                navigate(
+                  `/tickets/${ticket.id}`,
+                )
+              }
+            />
           ))
         )}
       </Card>

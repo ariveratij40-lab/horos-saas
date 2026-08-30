@@ -2048,3 +2048,271 @@ export const assetFinancialProfiles = pgTable(
     }).onDelete("cascade"),
   }),
 );
+
+/**
+ * Canonical PostgreSQL service tickets.
+ *
+ * UUID-native identity.
+ * No legacy numeric asset identity is stored.
+ */
+export const serviceTickets = pgTable(
+  "service_tickets",
+  {
+    id: uuid("id")
+      .defaultRandom()
+      .primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(
+        () => tenants.id,
+        { onDelete: "cascade" },
+      ),
+
+    branchId: uuid("branch_id")
+      .notNull(),
+
+    assetId: uuid("asset_id"),
+
+    ticketNumber: varchar(
+      "ticket_number",
+      { length: 64 },
+    ).notNull(),
+
+    title: varchar(
+      "title",
+      { length: 500 },
+    ).notNull(),
+
+    description: text("description"),
+
+    operationalStatus: varchar(
+      "operational_status",
+      { length: 32 },
+    )
+      .notNull()
+      .default("open"),
+
+    contractualStatus: varchar(
+      "contractual_status",
+      { length: 32 },
+    )
+      .notNull()
+      .default("pending_approval"),
+
+    priority: varchar(
+      "priority",
+      { length: 16 },
+    )
+      .notNull()
+      .default("medium"),
+
+    category: varchar(
+      "category",
+      { length: 32 },
+    )
+      .notNull()
+      .default("corrective"),
+
+    responseDeadline: timestamp(
+      "response_deadline",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    resolutionDeadline: timestamp(
+      "resolution_deadline",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    respondedAt: timestamp(
+      "responded_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    resolvedAt: timestamp(
+      "resolved_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    closedAt: timestamp(
+      "closed_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    estimatedCost: numeric(
+      "estimated_cost",
+      {
+        precision: 14,
+        scale: 2,
+      },
+    ),
+
+    actualCost: numeric(
+      "actual_cost",
+      {
+        precision: 14,
+        scale: 2,
+      },
+    ),
+
+    isBillable: boolean(
+      "is_billable",
+    )
+      .notNull()
+      .default(false),
+
+    notes: text("notes"),
+
+    slaTier: varchar(
+      "sla_tier",
+      { length: 16 },
+    ),
+
+    slaDeadlineHours: integer(
+      "sla_deadline_hours",
+    ),
+
+    evidenceImageUrl: text(
+      "evidence_image_url",
+    ),
+
+    evidenceImageKey: varchar(
+      "evidence_image_key",
+      { length: 500 },
+    ),
+
+    resolutionNotes: text(
+      "resolution_notes",
+    ),
+
+    resolutionEvidenceUrls: jsonb(
+      "resolution_evidence_urls",
+    ).$type<string[]>(),
+
+    resolutionSignatureUrl: text(
+      "resolution_signature_url",
+    ),
+
+    resolutionReportUrl: text(
+      "resolution_report_url",
+    ),
+
+    resolutionReportKey: varchar(
+      "resolution_report_key",
+      { length: 500 },
+    ),
+
+    resolvedByName: varchar(
+      "resolved_by_name",
+      { length: 255 },
+    ),
+
+    notificationSentAt: timestamp(
+      "notification_sent_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    createdAt: timestamp(
+      "created_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    )
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp(
+      "updated_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    )
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantTicketNumberUnique:
+      uniqueIndex(
+        "service_tickets_tenant_ticket_number_uq",
+      ).on(
+        table.tenantId,
+        table.ticketNumber,
+      ),
+
+    tenantIdIdUnique:
+      unique(
+        "service_tickets_tenant_id_id_uq",
+      ).on(
+        table.tenantId,
+        table.id,
+      ),
+
+    tenantBranchFk:
+      foreignKey({
+        name:
+          "service_tickets_tenant_branch_fk",
+        columns: [
+          table.tenantId,
+          table.branchId,
+        ],
+        foreignColumns: [
+          branches.tenantId,
+          branches.id,
+        ],
+      }).onDelete("cascade"),
+
+    tenantAssetFk:
+      foreignKey({
+        name:
+          "service_tickets_tenant_asset_fk",
+        columns: [
+          table.tenantId,
+          table.assetId,
+        ],
+        foreignColumns: [
+          assets.tenantId,
+          assets.id,
+        ],
+      }).onDelete("restrict"),
+
+    tenantIdx: index(
+      "service_tickets_tenant_idx",
+    ).on(table.tenantId),
+
+    branchIdx: index(
+      "service_tickets_branch_idx",
+    ).on(table.branchId),
+
+    assetIdx: index(
+      "service_tickets_asset_idx",
+    ).on(table.assetId),
+
+    statusIdx: index(
+      "service_tickets_operational_status_idx",
+    ).on(table.operationalStatus),
+
+    createdAtIdx: index(
+      "service_tickets_created_at_idx",
+    ).on(table.createdAt),
+  }),
+);
