@@ -904,6 +904,71 @@ export const tenantSystemEntitlements = pgTable(
  * Operational system activation per branch
  * ========================================================================== */
 
+
+export const departments = pgTable(
+  "departments",
+  {
+    id: uuid("id")
+      .defaultRandom()
+      .primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
+
+    code: varchar("code", {
+      length: 64,
+    }).notNull(),
+
+    name: varchar("name", {
+      length: 255,
+    }).notNull(),
+
+    description: text("description"),
+
+    status: varchar("status", {
+      length: 32,
+    })
+      .notNull()
+      .default("active"),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantCodeUnique: unique(
+      "departments_tenant_code_uq",
+    ).on(
+      table.tenantId,
+      table.code,
+    ),
+
+    tenantIdIdUnique: unique(
+      "departments_tenant_id_id_uq",
+    ).on(
+      table.tenantId,
+      table.id,
+    ),
+
+    tenantIdx: index(
+      "departments_tenant_idx",
+    ).on(table.tenantId),
+  }),
+);
+
 export const branchSystems = pgTable(
   "branch_systems",
   {
@@ -923,6 +988,41 @@ export const branchSystems = pgTable(
       .references(() => systemsCatalog.id, {
         onDelete: "restrict",
       }),
+
+    departmentId: uuid(
+      "department_id",
+    ),
+
+    departmentCode: varchar(
+      "department_code",
+      { length: 128 },
+    ),
+
+    displayName: varchar(
+      "display_name",
+      { length: 255 },
+    ),
+
+    functionalStatus: varchar(
+      "functional_status",
+      { length: 32 },
+    )
+      .notNull()
+      .default("unknown"),
+
+    normativeStatus: varchar(
+      "normative_status",
+      { length: 32 },
+    )
+      .notNull()
+      .default("pending_assessment"),
+
+    documentationLevel: varchar(
+      "documentation_level",
+      { length: 32 },
+    )
+      .notNull()
+      .default("basic"),
 
     status: varchar("status", {
       length: 32,
@@ -986,6 +1086,20 @@ export const branchSystems = pgTable(
     systemIdx: index(
       "branch_systems_system_idx",
     ).on(table.systemId),
+
+    departmentTenantFk: foreignKey({
+      name:
+        "branch_systems_tenant_department_fk",
+      columns: [
+        table.tenantId,
+        table.departmentId,
+      ],
+      foreignColumns: [
+        departments.tenantId,
+        departments.id,
+      ],
+    })
+      .onDelete("restrict"),
 
     branchTenantFk: foreignKey({
       name: "branch_systems_tenant_branch_fk",
@@ -1070,6 +1184,13 @@ export const assets = pgTable(
     )
       .notNull()
       .default("unknown"),
+
+    normativeStatus: varchar(
+      "normative_status",
+      { length: 32 },
+    )
+      .notNull()
+      .default("pending_assessment"),
 
     source: varchar("source", {
       length: 32,
@@ -1286,6 +1407,149 @@ export const assetSystemMemberships = pgTable(
  * HOROS ONBOARD-001A
  * Shared staging layer for Wizard / Excel / PDF onboarding
  * ========================================================================== */
+
+
+export const systemInfrastructureDependencies =
+  pgTable(
+    "system_infrastructure_dependencies",
+    {
+      id: uuid("id")
+        .defaultRandom()
+        .primaryKey(),
+
+      tenantId: uuid("tenant_id")
+        .notNull()
+        .references(() => tenants.id, {
+          onDelete: "cascade",
+        }),
+
+      branchSystemId: uuid(
+        "branch_system_id",
+      ).notNull(),
+
+      locationId: uuid("location_id"),
+
+      telecomSpaceId: uuid(
+        "telecom_space_id",
+      ),
+
+      rackId: uuid("rack_id"),
+
+      assetId: uuid("asset_id"),
+
+      dependencyRole: varchar(
+        "dependency_role",
+        { length: 64 },
+      )
+        .notNull()
+        .default("supporting"),
+
+      isCritical: boolean(
+        "is_critical",
+      )
+        .notNull()
+        .default(false),
+
+      notes: text("notes"),
+
+      createdAt: timestamp(
+        "created_at",
+        {
+          withTimezone: true,
+          mode: "date",
+        },
+      )
+        .notNull()
+        .defaultNow(),
+    },
+    table => ({
+      tenantIdIdUnique: unique(
+        "system_infrastructure_dependencies_tenant_id_id_uq",
+      ).on(
+        table.tenantId,
+        table.id,
+      ),
+
+      tenantIdx: index(
+        "system_infrastructure_dependencies_tenant_idx",
+      ).on(table.tenantId),
+
+      branchSystemIdx: index(
+        "system_infrastructure_dependencies_branch_system_idx",
+      ).on(table.branchSystemId),
+
+      branchSystemTenantFk: foreignKey({
+        name:
+          "system_infrastructure_dependencies_tenant_system_fk",
+        columns: [
+          table.tenantId,
+          table.branchSystemId,
+        ],
+        foreignColumns: [
+          branchSystems.tenantId,
+          branchSystems.id,
+        ],
+      })
+        .onDelete("cascade"),
+
+      locationTenantFk: foreignKey({
+        name:
+          "system_infrastructure_dependencies_tenant_location_fk",
+        columns: [
+          table.tenantId,
+          table.locationId,
+        ],
+        foreignColumns: [
+          locations.tenantId,
+          locations.id,
+        ],
+      })
+        .onDelete("restrict"),
+
+      telecomSpaceTenantFk: foreignKey({
+        name:
+          "system_infrastructure_dependencies_tenant_space_fk",
+        columns: [
+          table.tenantId,
+          table.telecomSpaceId,
+        ],
+        foreignColumns: [
+          telecomSpaces.tenantId,
+          telecomSpaces.id,
+        ],
+      })
+        .onDelete("restrict"),
+
+      rackTenantFk: foreignKey({
+        name:
+          "system_infrastructure_dependencies_tenant_rack_fk",
+        columns: [
+          table.tenantId,
+          table.rackId,
+        ],
+        foreignColumns: [
+          racks.tenantId,
+          racks.id,
+        ],
+      })
+        .onDelete("restrict"),
+
+      assetTenantFk: foreignKey({
+        name:
+          "system_infrastructure_dependencies_tenant_asset_fk",
+        columns: [
+          table.tenantId,
+          table.assetId,
+        ],
+        foreignColumns: [
+          assets.tenantId,
+          assets.id,
+        ],
+      })
+        .onDelete("restrict"),
+    }),
+  );
+
 
 export const onboardingSessions = pgTable(
   "onboarding_sessions",
