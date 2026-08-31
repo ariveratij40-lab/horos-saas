@@ -5,6 +5,7 @@ import { tenantsRouter, branchesRouter } from "./routers/tenants";
 import { policiesRouter } from "./routers/policies";
 import { ticketsRouter } from "./routers/tickets";
 import { serviceRequestsRouter } from "./routers/serviceRequests";
+import { serviceRequestContextRouter } from "./routers/serviceRequestContext";
 import { assetsRouter } from "./routers/assets";
 import { maintenanceRouter } from "./routers/maintenance";
 import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashboard";
@@ -240,6 +241,7 @@ export const appRouter = router({
   policies: policiesRouter,
   tickets: ticketsRouter,
   serviceRequests: serviceRequestsRouter,
+  serviceRequestContext: serviceRequestContextRouter,
   assets: assetsRouter,
   maintenance: maintenanceRouter,
   sla: slaRouter,
