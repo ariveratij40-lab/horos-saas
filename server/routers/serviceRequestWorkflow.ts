@@ -109,6 +109,110 @@ export const serviceRequestWorkflowRouter =
           );
         }),
 
+    canonicalCancel:
+      pgProtectedProcedure
+        .input(
+          z.object({
+            id: z.string().uuid(),
+            reason:
+              z.string()
+                .trim()
+                .min(1)
+                .max(1000)
+                .optional(),
+          }),
+        )
+        .mutation(async ({ ctx, input }) => {
+          return withTenantTransaction(
+            ctx.pgTenant.tenantId,
+            async tx => {
+              const rows = await tx<{
+                id: string;
+                requestNumber: string;
+                status: string;
+                cancelledAt: Date;
+                updatedAt: Date;
+              }[]>`
+                UPDATE service_requests
+                SET
+                  status = 'cancelled',
+                  cancelled_at = now(),
+                  updated_at = now()
+                WHERE id = ${input.id}::uuid
+                  AND status IN (
+                    'draft',
+                    'submitted',
+                    'needs_information',
+                    'ready_for_review'
+                  )
+                RETURNING
+                  id::text AS "id",
+                  request_number AS "requestNumber",
+                  status AS "status",
+                  cancelled_at AS "cancelledAt",
+                  updated_at AS "updatedAt"
+              `;
+
+              if (rows.length !== 1) {
+                const current = await tx<{
+                  status: string;
+                }[]>`
+                  SELECT status AS "status"
+                  FROM service_requests
+                  WHERE id = ${input.id}::uuid
+                  LIMIT 1
+                `;
+
+                if (current.length !== 1) {
+                  throw new TRPCError({
+                    code: "NOT_FOUND",
+                    message:
+                      "Service request was not found",
+                  });
+                }
+
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    `Service request cannot be cancelled from status ${current[0]!.status}`,
+                });
+              }
+
+              const actorName =
+                ctx.user.name
+                ?? ctx.user.email
+                ?? "Authenticated user";
+
+              await tx`
+                INSERT INTO service_request_events (
+                  tenant_id,
+                  service_request_id,
+                  event_type,
+                  actor_name,
+                  message,
+                  metadata
+                )
+                VALUES (
+                  ${ctx.pgTenant.tenantId}::uuid,
+                  ${rows[0]!.id}::uuid,
+                  'cancelled',
+                  ${actorName},
+                  ${input.reason
+                    ? `Service request cancelled: ${input.reason}`
+                    : 'Service request cancelled'},
+                  ${JSON.stringify({
+                    toStatus: "cancelled",
+                    reason:
+                      input.reason ?? null,
+                  })}::jsonb
+                )
+              `;
+
+              return rows[0]!;
+            },
+          );
+        }),
+
     canonicalEvents:
       pgProtectedProcedure
         .input(
