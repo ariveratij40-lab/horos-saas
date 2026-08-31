@@ -16,6 +16,7 @@ import {
   Send,
   ShieldCheck,
   User,
+  XCircle,
 } from "lucide-react";
 
 import {
@@ -87,6 +88,8 @@ const eventLabels:
       "Solicitud creada",
     submitted:
       "Solicitud enviada",
+    cancelled:
+      "Solicitud cancelada",
   };
 
 function formatDate(
@@ -282,6 +285,28 @@ export default function ServiceRequestDetail() {
         },
       );
 
+  const refreshRequest =
+    async () => {
+      await Promise.all([
+        utils.serviceRequests
+          .canonicalGetById
+          .invalidate({
+            id:
+              requestId,
+          }),
+        utils.serviceRequests
+          .canonicalList
+          .invalidate(),
+        utils.serviceRequestContext
+          .workflow
+          .canonicalEvents
+          .invalidate({
+            id:
+              requestId,
+          }),
+      ]);
+    };
+
   const submitRequest =
     trpc.serviceRequestContext
       .workflow
@@ -289,27 +314,31 @@ export default function ServiceRequestDetail() {
       .useMutation({
         onSuccess:
           async () => {
-            await Promise.all([
-              utils.serviceRequests
-                .canonicalGetById
-                .invalidate({
-                  id:
-                    requestId,
-                }),
-              utils.serviceRequests
-                .canonicalList
-                .invalidate(),
-              utils.serviceRequestContext
-                .workflow
-                .canonicalEvents
-                .invalidate({
-                  id:
-                    requestId,
-                }),
-            ]);
+            await refreshRequest();
 
             toast.success(
               "Solicitud enviada",
+            );
+          },
+        onError:
+          mutationError => {
+            toast.error(
+              mutationError.message,
+            );
+          },
+      });
+
+  const cancelRequest =
+    trpc.serviceRequestContext
+      .workflow
+      .canonicalCancel
+      .useMutation({
+        onSuccess:
+          async () => {
+            await refreshRequest();
+
+            toast.success(
+              "Solicitud cancelada",
             );
           },
         onError:
@@ -369,6 +398,16 @@ export default function ServiceRequestDetail() {
     );
   }
 
+  const canCancel =
+    [
+      "draft",
+      "submitted",
+      "needs_information",
+      "ready_for_review",
+    ].includes(
+      request.status,
+    );
+
   return (
     <div className="animate-fade-up">
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -385,38 +424,88 @@ export default function ServiceRequestDetail() {
           Solicitudes
         </Button>
 
-        {
-          request.status === "draft"
-          && (
-            <Button
-              className="gap-2 gradient-horos text-white"
-              disabled={
-                submitRequest.isPending
-              }
-              onClick={() =>
-                submitRequest.mutate({
-                  id:
-                    request.id,
-                })
-              }
-            >
-              {
-                submitRequest.isPending
-                  ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  )
-                  : (
-                    <Send className="w-4 h-4" />
-                  )
-              }
-              {
-                submitRequest.isPending
-                  ? "Enviando..."
-                  : "Enviar solicitud"
-              }
-            </Button>
-          )
-        }
+        <div className="flex items-center gap-2">
+          {
+            canCancel
+            && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={
+                  cancelRequest.isPending
+                  || submitRequest.isPending
+                }
+                onClick={() => {
+                  const reason =
+                    window.prompt(
+                      "Motivo de cancelación (opcional)",
+                    );
+
+                  if (reason === null) {
+                    return;
+                  }
+
+                  cancelRequest.mutate({
+                    id:
+                      request.id,
+                    reason:
+                      reason.trim()
+                      || undefined,
+                  });
+                }}
+              >
+                {
+                  cancelRequest.isPending
+                    ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )
+                    : (
+                      <XCircle className="w-4 h-4" />
+                    )
+                }
+                {
+                  cancelRequest.isPending
+                    ? "Cancelando..."
+                    : "Cancelar solicitud"
+                }
+              </Button>
+            )
+          }
+
+          {
+            request.status === "draft"
+            && (
+              <Button
+                className="gap-2 gradient-horos text-white"
+                disabled={
+                  submitRequest.isPending
+                  || cancelRequest.isPending
+                }
+                onClick={() =>
+                  submitRequest.mutate({
+                    id:
+                      request.id,
+                  })
+                }
+              >
+                {
+                  submitRequest.isPending
+                    ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )
+                    : (
+                      <Send className="w-4 h-4" />
+                    )
+                }
+                {
+                  submitRequest.isPending
+                    ? "Enviando..."
+                    : "Enviar solicitud"
+                }
+              </Button>
+            )
+          }
+        </div>
       </div>
 
       <Card className="border-border/50 card-elevated">
