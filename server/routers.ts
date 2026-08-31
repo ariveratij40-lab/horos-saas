@@ -4,6 +4,7 @@ import { publicProcedure, router } from "./_core/trpc";
 import { tenantsRouter, branchesRouter } from "./routers/tenants";
 import { policiesRouter } from "./routers/policies";
 import { ticketsRouter } from "./routers/tickets";
+import { serviceRequestsRouter } from "./routers/serviceRequests";
 import { assetsRouter } from "./routers/assets";
 import { maintenanceRouter } from "./routers/maintenance";
 import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashboard";
@@ -238,6 +239,7 @@ export const appRouter = router({
   branches: branchesRouter,
   policies: policiesRouter,
   tickets: ticketsRouter,
+  serviceRequests: serviceRequestsRouter,
   assets: assetsRouter,
   maintenance: maintenanceRouter,
   sla: slaRouter,
