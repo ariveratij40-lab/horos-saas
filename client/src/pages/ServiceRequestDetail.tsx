@@ -10,10 +10,17 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileQuestion,
+  History,
+  Loader2,
   MonitorCog,
+  Send,
   ShieldCheck,
   User,
 } from "lucide-react";
+
+import {
+  toast,
+} from "sonner";
 
 import {
   trpc,
@@ -72,6 +79,14 @@ const statusLabels:
       "Cancelada",
     rejected:
       "Rechazada",
+  };
+
+const eventLabels:
+  Record<string, string> = {
+    created:
+      "Solicitud creada",
+    submitted:
+      "Solicitud enviada",
   };
 
 function formatDate(
@@ -224,6 +239,9 @@ export default function ServiceRequestDetail() {
   const requestId =
     params?.id ?? "";
 
+  const utils =
+    trpc.useUtils();
+
   const {
     data: request,
     isLoading,
@@ -243,6 +261,64 @@ export default function ServiceRequestDetail() {
             ),
         },
       );
+
+  const {
+    data: events,
+    isLoading: eventsLoading,
+  } =
+    trpc.serviceRequestContext
+      .workflow
+      .canonicalEvents
+      .useQuery(
+        {
+          id:
+            requestId,
+        },
+        {
+          enabled:
+            Boolean(
+              requestId,
+            ),
+        },
+      );
+
+  const submitRequest =
+    trpc.serviceRequestContext
+      .workflow
+      .canonicalSubmit
+      .useMutation({
+        onSuccess:
+          async () => {
+            await Promise.all([
+              utils.serviceRequests
+                .canonicalGetById
+                .invalidate({
+                  id:
+                    requestId,
+                }),
+              utils.serviceRequests
+                .canonicalList
+                .invalidate(),
+              utils.serviceRequestContext
+                .workflow
+                .canonicalEvents
+                .invalidate({
+                  id:
+                    requestId,
+                }),
+            ]);
+
+            toast.success(
+              "Solicitud enviada",
+            );
+          },
+        onError:
+          mutationError => {
+            toast.error(
+              mutationError.message,
+            );
+          },
+      });
 
   if (isLoading) {
     return (
@@ -295,18 +371,53 @@ export default function ServiceRequestDetail() {
 
   return (
     <div className="animate-fade-up">
-      <Button
-        variant="ghost"
-        className="gap-2 mb-4"
-        onClick={() =>
-          navigate(
-            "/requests",
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <Button
+          variant="ghost"
+          className="gap-2"
+          onClick={() =>
+            navigate(
+              "/requests",
+            )
+          }
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Solicitudes
+        </Button>
+
+        {
+          request.status === "draft"
+          && (
+            <Button
+              className="gap-2 gradient-horos text-white"
+              disabled={
+                submitRequest.isPending
+              }
+              onClick={() =>
+                submitRequest.mutate({
+                  id:
+                    request.id,
+                })
+              }
+            >
+              {
+                submitRequest.isPending
+                  ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  )
+                  : (
+                    <Send className="w-4 h-4" />
+                  )
+              }
+              {
+                submitRequest.isPending
+                  ? "Enviando..."
+                  : "Enviar solicitud"
+              }
+            </Button>
           )
         }
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Solicitudes
-      </Button>
+      </div>
 
       <Card className="border-border/50 card-elevated">
         <CardContent className="p-6">
@@ -671,6 +782,90 @@ export default function ServiceRequestDetail() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-border/50 card-elevated mt-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <History className="w-4 h-4 text-primary" />
+            Historial
+          </CardTitle>
+        </CardHeader>
+
+        <CardContent>
+          {
+            eventsLoading
+              ? (
+                <div className="space-y-3 py-2">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              )
+              : !events
+                || events.length === 0
+                ? (
+                  <p className="text-sm text-muted-foreground py-3">
+                    No hay eventos registrados.
+                  </p>
+                )
+                : (
+                  <div className="divide-y divide-border/40">
+                    {events.map(
+                      event => (
+                        <div
+                          key={
+                            event.id
+                          }
+                          className="py-3 flex flex-col md:flex-row md:items-start justify-between gap-2"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-foreground">
+                              {
+                                eventLabels[
+                                  event.eventType
+                                ]
+                                ??
+                                event.eventType
+                              }
+                            </p>
+
+                            {
+                              event.message
+                              && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {
+                                    event.message
+                                  }
+                                </p>
+                              )
+                            }
+
+                            {
+                              event.actorName
+                              && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Por {
+                                    event.actorName
+                                  }
+                                </p>
+                              )
+                            }
+                          </div>
+
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {
+                              formatDateTime(
+                                event.createdAt,
+                              )
+                            }
+                          </span>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                )
+          }
+        </CardContent>
+      </Card>
     </div>
   );
 }
