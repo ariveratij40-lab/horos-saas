@@ -114,7 +114,8 @@ export const serviceRequestContextRouter =
                 assetCode: string;
                 manufacturer: string | null;
                 model: string | null;
-                status: string | null;
+                lifecycleStatus: string;
+                operationalStatus: string;
               }[]>`
                 SELECT
                   a.id::text AS "id",
@@ -122,7 +123,8 @@ export const serviceRequestContextRouter =
                   a.asset_code AS "assetCode",
                   a.manufacturer AS "manufacturer",
                   a.model AS "model",
-                  a.status AS "status"
+                  a.lifecycle_status AS "lifecycleStatus",
+                  a.operational_status AS "operationalStatus"
                 FROM assets a
                 WHERE a.tenant_id = ${tenantId}::uuid
                   AND (
