@@ -69,6 +69,7 @@ const menuGroups: NavGroup[] = [
     label: "Operaciones",
     items: [
       { icon: FileText, label: "Pólizas", path: "/policies" },
+      { icon: ClipboardList, label: "Solicitudes", path: "/requests" },
       { icon: Ticket, label: "Tickets", path: "/tickets" },
       { icon: Shield, label: "SLA", path: "/sla" },
       { icon: Map, label: "Planos", path: "/floor-plans" },
