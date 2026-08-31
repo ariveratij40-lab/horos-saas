@@ -8,6 +8,7 @@ import {
   numeric,
   pgTable,
   text,
+  time,
   timestamp,
   unique,
   uniqueIndex,
@@ -2580,3 +2581,631 @@ export const serviceTickets = pgTable(
     ).on(table.createdAt),
   }),
 );
+
+// ============================================================================
+// APP-007D — Canonical Service Intake
+// ============================================================================
+
+export const serviceRequests = pgTable(
+  "service_requests",
+  {
+    id: uuid("id")
+      .defaultRandom()
+      .primaryKey(),
+
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(
+        () => tenants.id,
+        { onDelete: "cascade" },
+      ),
+
+    requestNumber: varchar(
+      "request_number",
+      { length: 64 },
+    ).notNull(),
+
+    requestType: varchar(
+      "request_type",
+      { length: 40 },
+    ).notNull(),
+
+    status: varchar(
+      "status",
+      { length: 32 },
+    )
+      .notNull()
+      .default("draft"),
+
+    requestedByUserId: uuid(
+      "requested_by_user_id",
+    ).references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+
+    requesterName: varchar(
+      "requester_name",
+      { length: 255 },
+    ).notNull(),
+
+    requesterEmail: varchar(
+      "requester_email",
+      { length: 320 },
+    ),
+
+    requesterPhone: varchar(
+      "requester_phone",
+      { length: 64 },
+    ),
+
+    branchId: uuid(
+      "branch_id",
+    ),
+
+    branchSystemId: uuid(
+      "branch_system_id",
+    ),
+
+    assetId: uuid(
+      "asset_id",
+    ),
+
+    departmentId: uuid(
+      "department_id",
+    ),
+
+    title: varchar(
+      "title",
+      { length: 255 },
+    ).notNull(),
+
+    description: text(
+      "description",
+    ),
+
+    desiredDate: date(
+      "desired_date",
+    ),
+
+    desiredStartTime: time(
+      "desired_start_time",
+    ),
+
+    desiredEndTime: time(
+      "desired_end_time",
+    ),
+
+    remoteAllowed: boolean(
+      "remote_allowed",
+    ),
+
+    accessRequirements: text(
+      "access_requirements",
+    ),
+
+    safetyRequirements: text(
+      "safety_requirements",
+    ),
+
+    personnelRequirements: text(
+      "personnel_requirements",
+    ),
+
+    certificationRequirements: text(
+      "certification_requirements",
+    ),
+
+    equipmentRequirements: text(
+      "equipment_requirements",
+    ),
+
+    toolRequirements: text(
+      "tool_requirements",
+    ),
+
+    clarityStatus: varchar(
+      "clarity_status",
+      { length: 32 },
+    )
+      .notNull()
+      .default("not_evaluated"),
+
+    clarityScore: integer(
+      "clarity_score",
+    ),
+
+    claritySummary: text(
+      "clarity_summary",
+    ),
+
+    missingInformation: jsonb(
+      "missing_information",
+    )
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+
+    requesterConfirmedAt:
+      timestamp(
+        "requester_confirmed_at",
+        {
+          withTimezone: true,
+          mode: "date",
+        },
+      ),
+
+    commercialStatus: varchar(
+      "commercial_status",
+      { length: 32 },
+    )
+      .notNull()
+      .default("not_required"),
+
+    estimatedAmount: numeric(
+      "estimated_amount",
+      {
+        precision: 14,
+        scale: 2,
+      },
+    ),
+
+    quotedAt: timestamp(
+      "quoted_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    authorizedAt: timestamp(
+      "authorized_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    rejectedAt: timestamp(
+      "rejected_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    rejectionReason: text(
+      "rejection_reason",
+    ),
+
+    submittedAt: timestamp(
+      "submitted_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    completedAt: timestamp(
+      "completed_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    cancelledAt: timestamp(
+      "cancelled_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    ),
+
+    createdAt: timestamp(
+      "created_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    )
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp(
+      "updated_at",
+      {
+        withTimezone: true,
+        mode: "date",
+      },
+    )
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantRequestNumberUnique:
+      uniqueIndex(
+        "service_requests_tenant_number_uq",
+      ).on(
+        table.tenantId,
+        table.requestNumber,
+      ),
+
+    tenantIdIdUnique:
+      unique(
+        "service_requests_tenant_id_id_uq",
+      ).on(
+        table.tenantId,
+        table.id,
+      ),
+
+    tenantBranchFk:
+      foreignKey({
+        name:
+          "service_requests_tenant_branch_fk",
+        columns: [
+          table.tenantId,
+          table.branchId,
+        ],
+        foreignColumns: [
+          branches.tenantId,
+          branches.id,
+        ],
+      }).onDelete("restrict"),
+
+    tenantSystemFk:
+      foreignKey({
+        name:
+          "service_requests_tenant_system_fk",
+        columns: [
+          table.tenantId,
+          table.branchSystemId,
+        ],
+        foreignColumns: [
+          branchSystems.tenantId,
+          branchSystems.id,
+        ],
+      }).onDelete("restrict"),
+
+    tenantAssetFk:
+      foreignKey({
+        name:
+          "service_requests_tenant_asset_fk",
+        columns: [
+          table.tenantId,
+          table.assetId,
+        ],
+        foreignColumns: [
+          assets.tenantId,
+          assets.id,
+        ],
+      }).onDelete("restrict"),
+
+    tenantDepartmentFk:
+      foreignKey({
+        name:
+          "service_requests_tenant_department_fk",
+        columns: [
+          table.tenantId,
+          table.departmentId,
+        ],
+        foreignColumns: [
+          departments.tenantId,
+          departments.id,
+        ],
+      }).onDelete("restrict"),
+
+    tenantStatusIdx: index(
+      "service_requests_tenant_status_idx",
+    ).on(
+      table.tenantId,
+      table.status,
+    ),
+
+    tenantTypeIdx: index(
+      "service_requests_tenant_type_idx",
+    ).on(
+      table.tenantId,
+      table.requestType,
+    ),
+
+    tenantBranchIdx: index(
+      "service_requests_tenant_branch_idx",
+    ).on(
+      table.tenantId,
+      table.branchId,
+    ),
+
+    createdAtIdx: index(
+      "service_requests_created_at_idx",
+    ).on(
+      table.tenantId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export const serviceRequestAttachments =
+  pgTable(
+    "service_request_attachments",
+    {
+      id: uuid("id")
+        .defaultRandom()
+        .primaryKey(),
+
+      tenantId: uuid("tenant_id")
+        .notNull()
+        .references(
+          () => tenants.id,
+          { onDelete: "cascade" },
+        ),
+
+      serviceRequestId: uuid(
+        "service_request_id",
+      ).notNull(),
+
+      attachmentType: varchar(
+        "attachment_type",
+        { length: 32 },
+      )
+        .notNull()
+        .default("document"),
+
+      fileName: varchar(
+        "file_name",
+        { length: 255 },
+      ).notNull(),
+
+      mimeType: varchar(
+        "mime_type",
+        { length: 128 },
+      ),
+
+      fileSize: integer(
+        "file_size",
+      ),
+
+      storageKey: varchar(
+        "storage_key",
+        { length: 1024 },
+      ).notNull(),
+
+      fileUrl: text(
+        "file_url",
+      ),
+
+      description: text(
+        "description",
+      ),
+
+      uploadedByUserId: uuid(
+        "uploaded_by_user_id",
+      ).references(
+        () => users.id,
+        { onDelete: "set null" },
+      ),
+
+      createdAt: timestamp(
+        "created_at",
+        {
+          withTimezone: true,
+          mode: "date",
+        },
+      )
+        .notNull()
+        .defaultNow(),
+    },
+    table => ({
+      requestIdx: index(
+        "service_request_attachments_request_idx",
+      ).on(
+        table.tenantId,
+        table.serviceRequestId,
+      ),
+
+      tenantRequestFk:
+        foreignKey({
+          name:
+            "service_request_attachments_tenant_request_fk",
+          columns: [
+            table.tenantId,
+            table.serviceRequestId,
+          ],
+          foreignColumns: [
+            serviceRequests.tenantId,
+            serviceRequests.id,
+          ],
+        }).onDelete("cascade"),
+    }),
+  );
+
+export const serviceRequestEvents =
+  pgTable(
+    "service_request_events",
+    {
+      id: uuid("id")
+        .defaultRandom()
+        .primaryKey(),
+
+      tenantId: uuid("tenant_id")
+        .notNull()
+        .references(
+          () => tenants.id,
+          { onDelete: "cascade" },
+        ),
+
+      serviceRequestId: uuid(
+        "service_request_id",
+      ).notNull(),
+
+      eventType: varchar(
+        "event_type",
+        { length: 48 },
+      ).notNull(),
+
+      actorUserId: uuid(
+        "actor_user_id",
+      ).references(
+        () => users.id,
+        { onDelete: "set null" },
+      ),
+
+      actorName: varchar(
+        "actor_name",
+        { length: 255 },
+      ),
+
+      message: text(
+        "message",
+      ),
+
+      metadata: jsonb(
+        "metadata",
+      )
+        .$type<Record<string, unknown>>()
+        .notNull()
+        .default({}),
+
+      createdAt: timestamp(
+        "created_at",
+        {
+          withTimezone: true,
+          mode: "date",
+        },
+      )
+        .notNull()
+        .defaultNow(),
+    },
+    table => ({
+      requestCreatedIdx: index(
+        "service_request_events_request_created_idx",
+      ).on(
+        table.tenantId,
+        table.serviceRequestId,
+        table.createdAt,
+      ),
+
+      eventTypeIdx: index(
+        "service_request_events_type_idx",
+      ).on(
+        table.tenantId,
+        table.eventType,
+      ),
+
+      tenantRequestFk:
+        foreignKey({
+          name:
+            "service_request_events_tenant_request_fk",
+          columns: [
+            table.tenantId,
+            table.serviceRequestId,
+          ],
+          foreignColumns: [
+            serviceRequests.tenantId,
+            serviceRequests.id,
+          ],
+        }).onDelete("cascade"),
+    }),
+  );
+
+export const serviceRequestTicketLinks =
+  pgTable(
+    "service_request_ticket_links",
+    {
+      id: uuid("id")
+        .defaultRandom()
+        .primaryKey(),
+
+      tenantId: uuid("tenant_id")
+        .notNull()
+        .references(
+          () => tenants.id,
+          { onDelete: "cascade" },
+        ),
+
+      serviceRequestId: uuid(
+        "service_request_id",
+      ).notNull(),
+
+      serviceTicketId: uuid(
+        "service_ticket_id",
+      ).notNull(),
+
+      relationType: varchar(
+        "relation_type",
+        { length: 32 },
+      )
+        .notNull()
+        .default("converted"),
+
+      createdByUserId: uuid(
+        "created_by_user_id",
+      ).references(
+        () => users.id,
+        { onDelete: "set null" },
+      ),
+
+      createdAt: timestamp(
+        "created_at",
+        {
+          withTimezone: true,
+          mode: "date",
+        },
+      )
+        .notNull()
+        .defaultNow(),
+    },
+    table => ({
+      tenantRequestTicketUnique:
+        uniqueIndex(
+          "service_request_ticket_links_request_ticket_uq",
+        ).on(
+          table.tenantId,
+          table.serviceRequestId,
+          table.serviceTicketId,
+        ),
+
+      requestIdx: index(
+        "service_request_ticket_links_request_idx",
+      ).on(
+        table.tenantId,
+        table.serviceRequestId,
+      ),
+
+      ticketIdx: index(
+        "service_request_ticket_links_ticket_idx",
+      ).on(
+        table.tenantId,
+        table.serviceTicketId,
+      ),
+
+      tenantRequestFk:
+        foreignKey({
+          name:
+            "service_request_ticket_links_tenant_request_fk",
+          columns: [
+            table.tenantId,
+            table.serviceRequestId,
+          ],
+          foreignColumns: [
+            serviceRequests.tenantId,
+            serviceRequests.id,
+          ],
+        }).onDelete("cascade"),
+
+      tenantTicketFk:
+        foreignKey({
+          name:
+            "service_request_ticket_links_tenant_ticket_fk",
+          columns: [
+            table.tenantId,
+            table.serviceTicketId,
+          ],
+          foreignColumns: [
+            serviceTickets.tenantId,
+            serviceTickets.id,
+          ],
+        }).onDelete("restrict"),
+    }),
+  );
+

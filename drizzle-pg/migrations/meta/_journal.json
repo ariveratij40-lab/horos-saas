@@ -253,6 +253,13 @@
       "when": 1788102551399,
       "tag": "0035_system_governance",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788209516732,
+      "tag": "0036_service_intake",
+      "breakpoints": true
     }
   ]
 }
