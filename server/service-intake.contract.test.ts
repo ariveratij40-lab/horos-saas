@@ -65,6 +65,18 @@ describe(
 
         expect(
           procedures[
+            "serviceRequestContext.workflow.canonicalRequestInformation"
+          ],
+        ).toBeDefined();
+
+        expect(
+          procedures[
+            "serviceRequestContext.workflow.canonicalMarkReadyForReview"
+          ],
+        ).toBeDefined();
+
+        expect(
+          procedures[
             "serviceRequestContext.workflow.canonicalEvents"
           ],
         ).toBeDefined();
