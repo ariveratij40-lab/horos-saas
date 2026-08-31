@@ -59,6 +59,12 @@ describe(
 
         expect(
           procedures[
+            "serviceRequestContext.workflow.canonicalCancel"
+          ],
+        ).toBeDefined();
+
+        expect(
+          procedures[
             "serviceRequestContext.workflow.canonicalEvents"
           ],
         ).toBeDefined();
