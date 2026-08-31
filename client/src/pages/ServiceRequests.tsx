@@ -260,19 +260,17 @@ export default function ServiceRequests() {
 
         <div className="flex flex-wrap gap-2">
           <Button
-            disabled
             variant="outline"
             className="gap-2 text-sm"
-            title="Se habilitará en el siguiente gate"
+            onClick={() => navigate("/requests/new?type=meeting")}
           >
             <MessageSquare className="w-4 h-4" />
             Solicitar reunión
           </Button>
 
           <Button
-            disabled
             className="gap-2 gradient-horos text-white text-sm"
-            title="Se habilitará en el siguiente gate"
+            onClick={() => navigate("/requests/new?type=service_attention")}
           >
             <ClipboardList className="w-4 h-4" />
             Solicitar atención
