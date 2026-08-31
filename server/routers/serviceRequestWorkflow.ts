@@ -10,6 +10,18 @@ import {
   withTenantTransaction,
 } from "../db.pg";
 
+function requireReviewerRole(
+  tenantRole: string,
+) {
+  if (tenantRole !== "admin") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        "Service request review requires tenant administrator access",
+    });
+  }
+}
+
 /**
  * Canonical lifecycle actions for Service Intake.
  *
@@ -204,6 +216,274 @@ export const serviceRequestWorkflowRouter =
                     toStatus: "cancelled",
                     reason:
                       input.reason ?? null,
+                  })}::jsonb
+                )
+              `;
+
+              return rows[0]!;
+            },
+          );
+        }),
+
+    canonicalRequestInformation:
+      pgProtectedProcedure
+        .input(
+          z.object({
+            id: z.string().uuid(),
+            missingInformation:
+              z.array(
+                z.string()
+                  .trim()
+                  .min(1)
+                  .max(255),
+              )
+                .min(1)
+                .max(25),
+            message:
+              z.string()
+                .trim()
+                .min(1)
+                .max(2000)
+                .optional(),
+          }),
+        )
+        .mutation(async ({ ctx, input }) => {
+          requireReviewerRole(
+            ctx.pgTenant.tenantRole,
+          );
+
+          return withTenantTransaction(
+            ctx.pgTenant.tenantId,
+            async tx => {
+              const current = await tx<{
+                id: string;
+                status: string;
+              }[]>`
+                SELECT
+                  id::text AS "id",
+                  status AS "status"
+                FROM service_requests
+                WHERE id = ${input.id}::uuid
+                LIMIT 1
+                FOR UPDATE
+              `;
+
+              if (current.length !== 1) {
+                throw new TRPCError({
+                  code: "NOT_FOUND",
+                  message:
+                    "Service request was not found",
+                });
+              }
+
+              const fromStatus =
+                current[0]!.status;
+
+              if (
+                ![
+                  "submitted",
+                  "needs_information",
+                  "ready_for_review",
+                ].includes(fromStatus)
+              ) {
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    `Service request cannot request more information from status ${fromStatus}`,
+                });
+              }
+
+              const rows = await tx<{
+                id: string;
+                requestNumber: string;
+                status: string;
+                clarityStatus: string;
+                missingInformation: unknown;
+                updatedAt: Date;
+              }[]>`
+                UPDATE service_requests
+                SET
+                  status = 'needs_information',
+                  clarity_status = 'needs_clarification',
+                  clarity_summary =
+                    ${input.message ?? null},
+                  missing_information =
+                    ${JSON.stringify(
+                      input.missingInformation,
+                    )}::jsonb,
+                  requester_confirmed_at = NULL,
+                  updated_at = now()
+                WHERE id = ${input.id}::uuid
+                RETURNING
+                  id::text AS "id",
+                  request_number AS "requestNumber",
+                  status AS "status",
+                  clarity_status AS "clarityStatus",
+                  missing_information AS "missingInformation",
+                  updated_at AS "updatedAt"
+              `;
+
+              const actorName =
+                ctx.user.name
+                ?? ctx.user.email
+                ?? "Authenticated user";
+
+              await tx`
+                INSERT INTO service_request_events (
+                  tenant_id,
+                  service_request_id,
+                  event_type,
+                  actor_name,
+                  message,
+                  metadata
+                )
+                VALUES (
+                  ${ctx.pgTenant.tenantId}::uuid,
+                  ${rows[0]!.id}::uuid,
+                  'information_requested',
+                  ${actorName},
+                  ${input.message
+                    ?? 'Additional information requested'},
+                  ${JSON.stringify({
+                    fromStatus,
+                    toStatus:
+                      "needs_information",
+                    missingInformation:
+                      input.missingInformation,
+                  })}::jsonb
+                )
+              `;
+
+              return rows[0]!;
+            },
+          );
+        }),
+
+    canonicalMarkReadyForReview:
+      pgProtectedProcedure
+        .input(
+          z.object({
+            id: z.string().uuid(),
+            clarityScore:
+              z.number()
+                .int()
+                .min(0)
+                .max(100)
+                .optional(),
+            summary:
+              z.string()
+                .trim()
+                .min(1)
+                .max(2000)
+                .optional(),
+          }),
+        )
+        .mutation(async ({ ctx, input }) => {
+          requireReviewerRole(
+            ctx.pgTenant.tenantRole,
+          );
+
+          return withTenantTransaction(
+            ctx.pgTenant.tenantId,
+            async tx => {
+              const current = await tx<{
+                id: string;
+                status: string;
+              }[]>`
+                SELECT
+                  id::text AS "id",
+                  status AS "status"
+                FROM service_requests
+                WHERE id = ${input.id}::uuid
+                LIMIT 1
+                FOR UPDATE
+              `;
+
+              if (current.length !== 1) {
+                throw new TRPCError({
+                  code: "NOT_FOUND",
+                  message:
+                    "Service request was not found",
+                });
+              }
+
+              const fromStatus =
+                current[0]!.status;
+
+              if (
+                ![
+                  "submitted",
+                  "needs_information",
+                ].includes(fromStatus)
+              ) {
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    `Service request cannot be marked ready for review from status ${fromStatus}`,
+                });
+              }
+
+              const rows = await tx<{
+                id: string;
+                requestNumber: string;
+                status: string;
+                clarityStatus: string;
+                clarityScore: number | null;
+                updatedAt: Date;
+              }[]>`
+                UPDATE service_requests
+                SET
+                  status = 'ready_for_review',
+                  clarity_status = 'sufficient',
+                  clarity_score = COALESCE(
+                    ${input.clarityScore ?? null}::integer,
+                    clarity_score
+                  ),
+                  clarity_summary = COALESCE(
+                    ${input.summary ?? null}::text,
+                    clarity_summary
+                  ),
+                  missing_information = '[]'::jsonb,
+                  updated_at = now()
+                WHERE id = ${input.id}::uuid
+                RETURNING
+                  id::text AS "id",
+                  request_number AS "requestNumber",
+                  status AS "status",
+                  clarity_status AS "clarityStatus",
+                  clarity_score AS "clarityScore",
+                  updated_at AS "updatedAt"
+              `;
+
+              const actorName =
+                ctx.user.name
+                ?? ctx.user.email
+                ?? "Authenticated user";
+
+              await tx`
+                INSERT INTO service_request_events (
+                  tenant_id,
+                  service_request_id,
+                  event_type,
+                  actor_name,
+                  message,
+                  metadata
+                )
+                VALUES (
+                  ${ctx.pgTenant.tenantId}::uuid,
+                  ${rows[0]!.id}::uuid,
+                  'clarity_evaluated',
+                  ${actorName},
+                  ${input.summary
+                    ?? 'Service request clarity marked sufficient'},
+                  ${JSON.stringify({
+                    fromStatus,
+                    toStatus:
+                      "ready_for_review",
+                    clarityStatus:
+                      "sufficient",
+                    clarityScore:
+                      input.clarityScore ?? null,
                   })}::jsonb
                 )
               `;
