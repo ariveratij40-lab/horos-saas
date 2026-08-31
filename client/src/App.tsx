@@ -16,6 +16,7 @@ import PolicyDetail from "./pages/PolicyDetail";
 import Tickets from "./pages/Tickets";
 import TicketDetail from "./pages/TicketDetail";
 import ServiceRequests from "./pages/ServiceRequests";
+import ServiceRequestCreate from "./pages/ServiceRequestCreate";
 import ServiceRequestDetail from "./pages/ServiceRequestDetail";
 import Assets from "./pages/Assets";
 import SLA from "./pages/SLA";
@@ -87,6 +88,7 @@ function Router() {
       <Route path="/policies" component={() => <ProtectedRoute component={Policies} />} />
       <Route path="/policies/:id" component={() => <ProtectedRoute component={PolicyDetail} />} />
       <Route path="/requests" component={() => <ProtectedRoute component={ServiceRequests} />} />
+      <Route path="/requests/new" component={() => <ProtectedRoute component={ServiceRequestCreate} />} />
       <Route path="/requests/:id" component={() => <ProtectedRoute component={ServiceRequestDetail} />} />
       <Route path="/tickets" component={() => <ProtectedRoute component={Tickets} />} />
       <Route path="/tickets/:id" component={() => <ProtectedRoute component={TicketDetail} />} />
