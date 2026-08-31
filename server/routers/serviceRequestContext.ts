@@ -9,15 +9,25 @@ import {
   withTenantTransaction,
 } from "../db.pg";
 
+import {
+  serviceRequestWorkflowRouter,
+} from "./serviceRequestWorkflow";
+
 /**
  * Canonical lookup surfaces used by the Service Intake create UX.
  *
  * All reads execute inside the PostgreSQL tenant transaction and also
  * constrain tenant_id explicitly. Optional technical context remains
  * progressive: a request may be created without branch/system/asset.
+ *
+ * Lifecycle actions are nested under `workflow` so the existing root
+ * registration remains stable while Service Intake evolves.
  */
 export const serviceRequestContextRouter =
   router({
+    workflow:
+      serviceRequestWorkflowRouter,
+
     canonicalOptions:
       pgProtectedProcedure
         .input(
