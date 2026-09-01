@@ -13,6 +13,7 @@ import {
   Loader2,
   MessageSquarePlus,
   MonitorCog,
+  PlayCircle,
   Send,
   ShieldCheck,
   User,
@@ -97,6 +98,7 @@ const eventMessageLabels: Record<string, string> = {
   "Additional information requested": "Se solicitó información adicional",
   "Service request clarity marked sufficient":
     "La solicitud cuenta con información suficiente para revisión",
+  "Service request review started": "La revisión administrativa fue iniciada",
 };
 
 function formatDate(value: Date | string | null | undefined) {
@@ -113,32 +115,55 @@ function formatMoney(value: string | null | undefined) {
   if (!value) return "No estimado";
   const amount = Number(value);
   if (Number.isNaN(amount)) return value;
+
   return new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: "MXN",
   }).format(amount);
 }
 
-function formatMissingInformation(value: unknown): string {
+function normalizeMissingInformationItems(value: unknown): string[] {
   if (value === null || value === undefined) {
-    return "Sin información faltante";
+    return [];
   }
 
   if (Array.isArray(value)) {
-    const items = value
+    return value
       .filter((item): item is string => typeof item === "string")
       .map(item => item.trim())
       .filter(Boolean);
-    return items.length > 0
-      ? items.join("\n")
-      : "Sin información faltante";
   }
 
-  if (typeof value === "string") {
-    return value.trim() || "Sin información faltante";
+  if (typeof value !== "string") {
+    return [];
   }
 
-  return "Información registrada";
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  if (
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    || (trimmed.startsWith("\"") && trimmed.endsWith("\""))
+  ) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      return normalizeMissingInformationItems(parsed);
+    } catch {
+      // Fall through to plain-text presentation.
+    }
+  }
+
+  return trimmed
+    .split("\n")
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function formatMissingInformation(value: unknown): string {
+  const items = normalizeMissingInformationItems(value);
+  return items.length > 0
+    ? items.join("\n")
+    : "Sin información faltante";
 }
 
 function DataRow({
@@ -160,9 +185,18 @@ function DataRow({
   );
 }
 
+function eventTitle(eventType: string, message: string | null) {
+  if (message === "Service request review started") {
+    return "Revisión iniciada";
+  }
+
+  return eventLabels[eventType] ?? eventType;
+}
+
 export default function ServiceRequestDetail() {
   const [, params] = useRoute("/requests/:id");
   const [, navigate] = useLocation();
+
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [requestInformationDialogOpen, setRequestInformationDialogOpen] =
     useState(false);
@@ -250,6 +284,15 @@ export default function ServiceRequestDetail() {
       onError: mutationError => toast.error(mutationError.message),
     });
 
+  const startReview =
+    trpc.serviceRequestContext.review.canonicalStartReview.useMutation({
+      onSuccess: async () => {
+        await refreshRequest();
+        toast.success("Revisión iniciada");
+      },
+      onError: mutationError => toast.error(mutationError.message),
+    });
+
   if (isLoading) {
     return (
       <div className="animate-fade-up space-y-4">
@@ -270,6 +313,7 @@ export default function ServiceRequestDetail() {
           <ArrowLeft className="w-4 h-4" />
           Solicitudes
         </Button>
+
         <Card className="border-border/50">
           <CardContent className="py-16 text-center">
             <FileQuestion className="w-10 h-10 mx-auto mb-3 text-muted-foreground/30" />
@@ -298,17 +342,16 @@ export default function ServiceRequestDetail() {
   ].includes(request.status);
 
   const canProvideInformation = request.status === "needs_information";
-
-  // A request that still needs information must first be answered and return
-  // to submitted before an administrator may mark it ready for review.
   const canMarkReadyForReview = request.status === "submitted";
+  const canStartReview = request.status === "ready_for_review";
 
   const workflowPending =
     submitRequest.isPending
     || cancelRequest.isPending
     || requestInformation.isPending
     || provideInformation.isPending
-    || markReadyForReview.isPending;
+    || markReadyForReview.isPending
+    || startReview.isPending;
 
   const missingInformation = formatMissingInformation(
     request.missingInformation,
@@ -359,6 +402,21 @@ export default function ServiceRequestDetail() {
             >
               <CheckCircle2 className="w-4 h-4" />
               Lista para revisión
+            </Button>
+          )}
+
+          {canStartReview && (
+            <Button
+              className="gap-2 gradient-horos text-white"
+              disabled={workflowPending}
+              onClick={() => startReview.mutate({ id: request.id })}
+            >
+              {startReview.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <PlayCircle className="w-4 h-4" />
+              )}
+              {startReview.isPending ? "Iniciando..." : "Iniciar revisión"}
             </Button>
           )}
 
@@ -418,6 +476,22 @@ export default function ServiceRequestDetail() {
         </Card>
       )}
 
+      {request.status === "under_review" && (
+        <Card className="mb-4 border-blue-300/70 bg-blue-50/60 dark:bg-blue-950/20">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <ClipboardCheck className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">Revisión administrativa en curso</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  La solicitud ya superó el gate de claridad y está siendo evaluada para determinar su siguiente tratamiento operativo o comercial.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="border-border/50 card-elevated">
         <CardContent className="p-6">
           <div className="flex items-center gap-2 flex-wrap mb-2">
@@ -431,6 +505,7 @@ export default function ServiceRequestDetail() {
               {statusLabels[request.status] ?? request.status}
             </Badge>
           </div>
+
           <div className="flex items-start gap-3">
             <ClipboardList className="w-7 h-7 text-primary mt-0.5 shrink-0" />
             <div className="min-w-0">
@@ -586,7 +661,7 @@ export default function ServiceRequestDetail() {
                 >
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      {eventLabels[event.eventType] ?? event.eventType}
+                      {eventTitle(event.eventType, event.message)}
                     </p>
                     {event.message && (
                       <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
