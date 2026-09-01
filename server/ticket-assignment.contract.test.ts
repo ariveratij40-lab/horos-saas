@@ -31,6 +31,10 @@ describe("canonical ticket assignment contract", () => {
     ).toBeDefined();
 
     expect(
+      procedures["ticketAssignment.canonicalQueue"],
+    ).toBeDefined();
+
+    expect(
       procedures["ticketAssignment.canonicalAssign"],
     ).toBeDefined();
   });
@@ -85,6 +89,28 @@ describe("canonical ticket assignment contract", () => {
     );
   });
 
+  it("provides canonical queue filters for unassigned, mine and explicit assignee", () => {
+    const assignmentRouter = readProjectFile(
+      "./routers/ticketAssignment.ts",
+    );
+
+    expect(assignmentRouter).toContain(
+      "canonicalQueue:",
+    );
+    expect(assignmentRouter).toContain(
+      '"unassigned"',
+    );
+    expect(assignmentRouter).toContain(
+      '"mine"',
+    );
+    expect(assignmentRouter).toContain(
+      "assigneeUserId",
+    );
+    expect(assignmentRouter).toContain(
+      "resolveActorUserId",
+    );
+  });
+
   it("requires ownership before work can start", () => {
     const workflow = readProjectFile(
       "./routers/ticketWorkflow.ts",
@@ -129,6 +155,28 @@ describe("canonical ticket assignment contract", () => {
     expect(operatorChecks).toBe(2);
     expect(workflow).toContain(
       "requireTicketAdministrator(ctx.pgTenant.tenantRole);",
+    );
+  });
+
+  it("keeps the Tickets page off legacy mutations and routes new work through intake", () => {
+    const page = readProjectFile(
+      "../client/src/pages/Tickets.tsx",
+    );
+
+    expect(page).toContain(
+      "ticketAssignment.canonicalQueue.useQuery",
+    );
+    expect(page).toContain(
+      "ticketAssignment.canonicalCandidates.useQuery",
+    );
+    expect(page).toContain(
+      'navigate("/requests/new")',
+    );
+    expect(page).not.toContain(
+      "trpc.tickets.list.useQuery",
+    );
+    expect(page).not.toContain(
+      "trpc.tickets.create.useMutation",
     );
   });
 });
