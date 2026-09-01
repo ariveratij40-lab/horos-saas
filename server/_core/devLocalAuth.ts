@@ -13,6 +13,8 @@ const DEV_EMAIL = "admin.local@horos.test";
 const DEV_NAME = "Administrador Local HOROS";
 const DEV_PG_CONTAINER = "horos_postgres_dev";
 
+let devCanonicalMigrationsChecked = false;
+
 function isLoopbackRequest(req: Request): boolean {
   const hostname = req.hostname.toLowerCase();
   const remoteAddress = req.socket.remoteAddress ?? "";
@@ -32,6 +34,77 @@ function dockerOutput(args: string[]): string {
     stdio: ["ignore", "pipe", "pipe"],
     encoding: "utf8",
   }).trim();
+}
+
+function resolveDevPgEndpoint() {
+  const portBinding = dockerOutput([
+    "port",
+    DEV_PG_CONTAINER,
+    "5432/tcp",
+  ]);
+
+  const portMatch = portBinding.match(/:(\d+)$/m);
+  if (!portMatch) {
+    throw new Error("Unable to resolve the local HOROS PostgreSQL port");
+  }
+
+  const databaseName =
+    dockerOutput([
+      "exec",
+      DEV_PG_CONTAINER,
+      "printenv",
+      "POSTGRES_DB",
+    ]) || "horos_dev";
+
+  return {
+    port: portMatch[1],
+    databaseName,
+  };
+}
+
+/**
+ * Apply pending canonical PostgreSQL migrations once per local server process
+ * using the development container's administrative role. The generated URL is
+ * passed only to the migration child process; HOROS runtime itself continues
+ * to use horos_runtime and RLS.
+ */
+function ensureDevCanonicalMigrations() {
+  if (devCanonicalMigrationsChecked) {
+    return;
+  }
+
+  const adminPassword = dockerOutput([
+    "exec",
+    DEV_PG_CONTAINER,
+    "printenv",
+    "POSTGRES_PASSWORD",
+  ]);
+
+  if (!adminPassword) {
+    throw new Error("HOROS dev PostgreSQL administrator password is unavailable");
+  }
+
+  const { port, databaseName } = resolveDevPgEndpoint();
+
+  const adminUrl =
+    `postgres://horos_dev:${encodeURIComponent(adminPassword)}`
+    + `@127.0.0.1:${port}/${encodeURIComponent(databaseName)}`;
+
+  execFileSync(
+    "pnpm",
+    ["pg:migrate"],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        HOROS_PG_DATABASE_URL: adminUrl,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+      encoding: "utf8",
+    },
+  );
+
+  devCanonicalMigrationsChecked = true;
 }
 
 /**
@@ -59,30 +132,13 @@ function ensureCanonicalPgRuntimeConnection() {
     throw new Error("HOROS runtime password is unavailable in the dev container");
   }
 
-  const portBinding = dockerOutput([
-    "port",
-    DEV_PG_CONTAINER,
-    "5432/tcp",
-  ]);
-
-  const portMatch = portBinding.match(/:(\d+)$/m);
-  if (!portMatch) {
-    throw new Error("Unable to resolve the local HOROS PostgreSQL port");
-  }
-
-  const databaseName =
-    dockerOutput([
-      "exec",
-      DEV_PG_CONTAINER,
-      "printenv",
-      "POSTGRES_DB",
-    ]) || "horos_dev";
+  const { port, databaseName } = resolveDevPgEndpoint();
 
   const password = encodeURIComponent(runtimePassword);
   const database = encodeURIComponent(databaseName);
 
   process.env.HOROS_PG_DATABASE_URL =
-    `postgres://horos_runtime:${password}@127.0.0.1:${portMatch[1]}/${database}`;
+    `postgres://horos_runtime:${password}@127.0.0.1:${port}/${database}`;
 }
 
 function bootstrapCanonicalLocalIdentity() {
@@ -239,6 +295,10 @@ export function repairDevLocalCanonicalIdentity(
   ) {
     return false;
   }
+
+  // Keep the local schema current before establishing the runtime connection.
+  // Migration credentials exist only in the child process environment.
+  ensureDevCanonicalMigrations();
 
   // Establish the same runtime connection contract the canonical resolver will
   // use before touching the bootstrap fixture. The bootstrap itself uses the
