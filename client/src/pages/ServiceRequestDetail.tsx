@@ -36,6 +36,9 @@ import {
   AuthorizeServiceRequestDialog,
 } from "@/components/service-requests/AuthorizeServiceRequestDialog";
 import {
+  AuthorizedFulfillmentActions,
+} from "@/components/service-requests/AuthorizedFulfillmentActions";
+import {
   CancelServiceRequestDialog,
 } from "@/components/service-requests/CancelServiceRequestDialog";
 import {
@@ -583,6 +586,24 @@ export default function ServiceRequestDetail() {
             </>
           )}
 
+          {request.status === "under_review"
+            && request.commercialStatus === "authorized"
+            && request.requestType !== "meeting"
+            && (
+              <AuthorizedFulfillmentActions
+                requestId={request.id}
+                requestNumber={request.requestNumber}
+                requestType={request.requestType}
+                branchId={request.branchId}
+                branchName={request.branchName}
+                departmentId={request.departmentId}
+                branchSystemId={request.branchSystemId}
+                assetId={request.assetId}
+                estimatedAmount={request.estimatedAmount}
+                disabled={workflowPending}
+              />
+            )}
+
           {canCancel && (
             <Button
               variant="outline"
@@ -721,7 +742,9 @@ export default function ServiceRequestDetail() {
                 <div>
                   <p className="text-sm font-semibold">Solicitud autorizada</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    La decisión comercial fue aprobada. HOROS puede continuar con la definición del tratamiento operativo correspondiente.
+                    {request.branchId
+                      ? "El contexto operativo ya tiene sucursal. Puede convertir la solicitud a ticket para iniciar la ejecución."
+                      : "Complete la sucursal de ejecución antes de convertir la solicitud autorizada en ticket."}
                   </p>
                 </div>
               </div>
