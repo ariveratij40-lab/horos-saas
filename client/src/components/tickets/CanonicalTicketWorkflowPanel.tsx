@@ -67,10 +67,17 @@ function eventAction(metadata: unknown): string | null {
 function eventTitle(
   eventType: string,
   metadata: unknown,
+  message: string | null,
 ) {
   const action = eventAction(metadata);
 
-  if (action === "work_started") {
+  if (
+    action === "work_started"
+    || (
+      eventType === "status_changed"
+      && message === "Ticket work started"
+    )
+  ) {
     return "Trabajo iniciado";
   }
 
@@ -78,7 +85,13 @@ function eventTitle(
     return "Ticket resuelto";
   }
 
-  if (action === "closed") {
+  if (
+    action === "closed"
+    || (
+      eventType === "closed"
+      && message === "Ticket closed after resolution"
+    )
+  ) {
     return "Ticket cerrado";
   }
 
@@ -311,7 +324,11 @@ export function CanonicalTicketWorkflowPanel({
                 >
                   <div>
                     <p className="text-sm font-medium">
-                      {eventTitle(event.eventType, event.metadata)}
+                      {eventTitle(
+                        event.eventType,
+                        event.metadata,
+                        event.message,
+                      )}
                     </p>
                     {event.message && (
                       <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
