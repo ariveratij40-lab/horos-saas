@@ -100,11 +100,13 @@ function TicketRow({
   ticket: QueueTicket;
   onOpen: () => void;
 }) {
+  const terminal = isTerminal(ticket.operationalStatus);
+
   const overdue =
     Boolean(ticket.resolutionDeadline)
     && new Date(ticket.resolutionDeadline!).getTime()
       < Date.now()
-    && !isTerminal(ticket.operationalStatus);
+    && !terminal;
 
   const assignee =
     ticket.assignedToName
@@ -156,16 +158,23 @@ function TicketRow({
             className={
               assignee
                 ? "text-sm truncate"
-                : "text-sm text-amber-700 dark:text-amber-300"
+                : terminal
+                  ? "text-sm text-muted-foreground"
+                  : "text-sm text-amber-700 dark:text-amber-300"
             }
           >
-            {assignee ?? "Sin asignar"}
+            {assignee
+              ?? (terminal
+                ? "Sin responsable registrado"
+                : "Sin asignar")}
           </span>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
           {ticket.assignedAt
             ? `Asignado ${new Date(ticket.assignedAt).toLocaleDateString("es-MX")}`
-            : "Requiere responsable operativo"}
+            : terminal
+              ? "El ticket terminó sin asignación canónica"
+              : "Requiere responsable operativo"}
         </p>
       </div>
 
