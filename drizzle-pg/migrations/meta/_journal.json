@@ -2,264 +2,43 @@
   "version": "7",
   "dialect": "postgresql",
   "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1787948347428,
-      "tag": "0000_nebulous_retro_girl",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1787948823980,
-      "tag": "0001_mt_rls_foundation",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1787949793216,
-      "tag": "0002_nostalgic_stingray",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1787949793728,
-      "tag": "0003_infra_rls",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1787950102791,
-      "tag": "0004_abnormal_the_twelve",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1787950103436,
-      "tag": "0005_core_catalog_seed",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1787950156201,
-      "tag": "0006_free_black_bolt",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1787950156723,
-      "tag": "0007_subscription_plan_seed",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1787950157245,
-      "tag": "0008_subscription_rls",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1787950213398,
-      "tag": "0009_entitlement_limits",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1787950336289,
-      "tag": "0010_runtime_catalog_grants",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1787950416730,
-      "tag": "0011_flimsy_northstar",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1787950417229,
-      "tag": "0012_branch_system_entitlement_guard",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1787950417728,
-      "tag": "0013_branch_system_rls",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "7",
-      "when": 1787950687999,
-      "tag": "0014_perfect_strong_guy",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "7",
-      "when": 1787950688545,
-      "tag": "0015_asset_integrity_guards",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1787950689139,
-      "tag": "0016_asset_rls",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "7",
-      "when": 1787951596790,
-      "tag": "0017_dry_dragon_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "7",
-      "when": 1787951653526,
-      "tag": "0018_onboarding_controls",
-      "breakpoints": true
-    },
-    {
-      "idx": 19,
-      "version": "7",
-      "when": 1787951654086,
-      "tag": "0019_onboarding_rls",
-      "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "7",
-      "when": 1787951841800,
-      "tag": "0020_onboarding_commit_readiness",
-      "breakpoints": true
-    },
-    {
-      "idx": 21,
-      "version": "7",
-      "when": 1787952173804,
-      "tag": "0021_majestic_spyke",
-      "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "7",
-      "when": 1787952359478,
-      "tag": "0022_provisioning_run_controls",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "7",
-      "when": 1787952360035,
-      "tag": "0023_provisioning_run_rls",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "7",
-      "when": 1787964042510,
-      "tag": "0024_provisioning_internal_guard",
-      "breakpoints": true
-    },
-    {
-      "idx": 25,
-      "version": "7",
-      "when": 1787964043040,
-      "tag": "0025_physical_canonical_provisioner",
-      "breakpoints": true
-    },
-    {
-      "idx": 26,
-      "version": "7",
-      "when": 1787964960278,
-      "tag": "0026_asset_onboarding_contract",
-      "breakpoints": true
-    },
-    {
-      "idx": 27,
-      "version": "7",
-      "when": 1787965246533,
-      "tag": "0027_asset_canonical_provisioner",
-      "breakpoints": true
-    },
-    {
-      "idx": 28,
-      "version": "7",
-      "when": 1787966111419,
-      "tag": "0028_unified_onboarding_orchestrator",
-      "breakpoints": true
-    },
-    {
-      "idx": 29,
-      "version": "7",
-      "when": 1787967228855,
-      "tag": "0029_unified_provisioning_workers",
-      "breakpoints": true
-    },
-    {
-      "idx": 30,
-      "version": "7",
-      "when": 1787978605094,
-      "tag": "0030_security_definer_owner_hardening",
-      "breakpoints": true
-    },
-    {
-      "idx": 31,
-      "version": "7",
-      "when": 1787982234555,
-      "tag": "0031_legacy_tenant_identity_bridge",
-      "breakpoints": true
-    },
-    {
-      "idx": 32,
-      "version": "7",
-      "when": 1787982623199,
-      "tag": "0032_identity_bootstrap_resolver",
-      "breakpoints": true
-    },
-    {
-      "idx": 33,
-      "version": "7",
-      "when": 1788016650772,
-      "tag": "0033_asset_lifecycle_financial_profiles",
-      "breakpoints": true
-    },
-    {
-      "idx": 34,
-      "version": "7",
-      "when": 1788094824522,
-      "tag": "0034_service_tickets",
-      "breakpoints": true
-    },
-    {
-      "idx": 35,
-      "version": "7",
-      "when": 1788102551399,
-      "tag": "0035_system_governance",
-      "breakpoints": true
-    },
-    {
-      "idx": 36,
-      "version": "7",
-      "when": 1788209516732,
-      "tag": "0036_service_intake",
-      "breakpoints": true
-    }
+    { "idx": 0, "version": "7", "when": 1787948347428, "tag": "0000_nebulous_retro_girl", "breakpoints": true },
+    { "idx": 1, "version": "7", "when": 1787948823980, "tag": "0001_mt_rls_foundation", "breakpoints": true },
+    { "idx": 2, "version": "7", "when": 1787949793216, "tag": "0002_nostalgic_stingray", "breakpoints": true },
+    { "idx": 3, "version": "7", "when": 1787949793728, "tag": "0003_infra_rls", "breakpoints": true },
+    { "idx": 4, "version": "7", "when": 1787950102791, "tag": "0004_abnormal_the_twelve", "breakpoints": true },
+    { "idx": 5, "version": "7", "when": 1787950103436, "tag": "0005_core_catalog_seed", "breakpoints": true },
+    { "idx": 6, "version": "7", "when": 1787950156201, "tag": "0006_free_black_bolt", "breakpoints": true },
+    { "idx": 7, "version": "7", "when": 1787950156723, "tag": "0007_subscription_plan_seed", "breakpoints": true },
+    { "idx": 8, "version": "7", "when": 1787950157245, "tag": "0008_subscription_rls", "breakpoints": true },
+    { "idx": 9, "version": "7", "when": 1787950213398, "tag": "0009_entitlement_limits", "breakpoints": true },
+    { "idx": 10, "version": "7", "when": 1787950336289, "tag": "0010_runtime_catalog_grants", "breakpoints": true },
+    { "idx": 11, "version": "7", "when": 1787950416730, "tag": "0011_flimsy_northstar", "breakpoints": true },
+    { "idx": 12, "version": "7", "when": 1787950417229, "tag": "0012_branch_system_entitlement_guard", "breakpoints": true },
+    { "idx": 13, "version": "7", "when": 1787950417728, "tag": "0013_branch_system_rls", "breakpoints": true },
+    { "idx": 14, "version": "7", "when": 1787950687999, "tag": "0014_perfect_strong_guy", "breakpoints": true },
+    { "idx": 15, "version": "7", "when": 1787950688545, "tag": "0015_asset_integrity_guards", "breakpoints": true },
+    { "idx": 16, "version": "7", "when": 1787950689139, "tag": "0016_asset_rls", "breakpoints": true },
+    { "idx": 17, "version": "7", "when": 1787951596790, "tag": "0017_dry_dragon_man", "breakpoints": true },
+    { "idx": 18, "version": "7", "when": 1787951653526, "tag": "0018_onboarding_controls", "breakpoints": true },
+    { "idx": 19, "version": "7", "when": 1787951654086, "tag": "0019_onboarding_rls", "breakpoints": true },
+    { "idx": 20, "version": "7", "when": 1787951841800, "tag": "0020_onboarding_commit_readiness", "breakpoints": true },
+    { "idx": 21, "version": "7", "when": 1787952173804, "tag": "0021_majestic_spyke", "breakpoints": true },
+    { "idx": 22, "version": "7", "when": 1787952359478, "tag": "0022_provisioning_run_controls", "breakpoints": true },
+    { "idx": 23, "version": "7", "when": 1787952360035, "tag": "0023_provisioning_run_rls", "breakpoints": true },
+    { "idx": 24, "version": "7", "when": 1787964042510, "tag": "0024_provisioning_internal_guard", "breakpoints": true },
+    { "idx": 25, "version": "7", "when": 1787964043040, "tag": "0025_physical_canonical_provisioner", "breakpoints": true },
+    { "idx": 26, "version": "7", "when": 1787964960278, "tag": "0026_asset_onboarding_contract", "breakpoints": true },
+    { "idx": 27, "version": "7", "when": 1787965246533, "tag": "0027_asset_canonical_provisioner", "breakpoints": true },
+    { "idx": 28, "version": "7", "when": 1787966111419, "tag": "0028_unified_onboarding_orchestrator", "breakpoints": true },
+    { "idx": 29, "version": "7", "when": 1787967228855, "tag": "0029_unified_provisioning_workers", "breakpoints": true },
+    { "idx": 30, "version": "7", "when": 1787978605094, "tag": "0030_security_definer_owner_hardening", "breakpoints": true },
+    { "idx": 31, "version": "7", "when": 1787982234555, "tag": "0031_legacy_tenant_identity_bridge", "breakpoints": true },
+    { "idx": 32, "version": "7", "when": 1787982623199, "tag": "0032_identity_bootstrap_resolver", "breakpoints": true },
+    { "idx": 33, "version": "7", "when": 1788016650772, "tag": "0033_asset_lifecycle_financial_profiles", "breakpoints": true },
+    { "idx": 34, "version": "7", "when": 1788094824522, "tag": "0034_service_tickets", "breakpoints": true },
+    { "idx": 35, "version": "7", "when": 1788102551399, "tag": "0035_system_governance", "breakpoints": true },
+    { "idx": 36, "version": "7", "when": 1788209516732, "tag": "0036_service_intake", "breakpoints": true },
+    { "idx": 37, "version": "7", "when": 1788240000000, "tag": "0037_service_ticket_events", "breakpoints": true }
   ]
 }
