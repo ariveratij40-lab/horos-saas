@@ -28,7 +28,7 @@ import ServiceRequests from "./pages/ServiceRequests";
 import ServiceRequestCreate from "./pages/ServiceRequestCreate";
 import ServiceRequestDetail from "./pages/ServiceRequestDetail";
 import Assets from "./pages/Assets";
-import SLA from "./pages/SLA";
+import SLA from "./pages/CanonicalSLA";
 import Branches from "./pages/Branches";
 import Maintenance from "./pages/Maintenance";
 import Audit from "./pages/Audit";
