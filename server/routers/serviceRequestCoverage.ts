@@ -245,6 +245,70 @@ export const serviceRequestCoverageRouter = router({
               });
             }
 
+            const ruleRows = await tx<{
+              slaRuleId: string;
+              ruleName: string;
+              priority: string;
+              responseTargetMinutes: number;
+              resolutionTargetMinutes: number;
+              escalationTargetMinutes: number | null;
+            }[]>`
+              SELECT
+                id::text AS "slaRuleId",
+                name AS "ruleName",
+                priority AS "priority",
+                response_target_minutes AS "responseTargetMinutes",
+                resolution_target_minutes AS "resolutionTargetMinutes",
+                escalation_target_minutes AS "escalationTargetMinutes"
+              FROM service_policy_sla_rules
+              WHERE policy_id = ${coverage.policyId}::uuid
+                AND is_active = true
+              ORDER BY
+                CASE priority
+                  WHEN 'critical' THEN 1
+                  WHEN 'high' THEN 2
+                  WHEN 'medium' THEN 3
+                  ELSE 4
+                END,
+                id
+            `;
+
+            const requiredPriorities = new Set([
+              "critical",
+              "high",
+              "medium",
+              "low",
+            ]);
+
+            if (
+              ruleRows.length !== 4
+              || ruleRows.some(rule =>
+                !requiredPriorities.has(rule.priority),
+              )
+            ) {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message:
+                  "Active policy does not have a complete four-priority SLA matrix",
+              });
+            }
+
+            const slaRules = Object.fromEntries(
+              ruleRows.map(rule => [
+                rule.priority,
+                {
+                  slaRuleId: rule.slaRuleId,
+                  ruleName: rule.ruleName,
+                  responseTargetMinutes:
+                    rule.responseTargetMinutes,
+                  resolutionTargetMinutes:
+                    rule.resolutionTargetMinutes,
+                  escalationTargetMinutes:
+                    rule.escalationTargetMinutes,
+                },
+              ]),
+            );
+
             const rows = await tx<{
               id: string;
               requestNumber: string;
@@ -307,6 +371,7 @@ export const serviceRequestCoverageRouter = router({
                   policyServiceId: coverage.policyServiceId,
                   serviceCode: coverage.serviceCode,
                   serviceName: coverage.serviceName,
+                  slaRules,
                   status: "under_review",
                   commercialStatus: "authorized",
                 })}::jsonb
@@ -316,6 +381,7 @@ export const serviceRequestCoverageRouter = router({
             return {
               ...rows[0]!,
               coverage,
+              slaRules,
             } as const;
           },
         );
