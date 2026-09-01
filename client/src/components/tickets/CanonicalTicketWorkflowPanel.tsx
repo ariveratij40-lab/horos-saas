@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 const eventLabels: Record<string, string> = {
   created: "Ticket creado",
   status_changed: "Estado actualizado",
+  assignment_changed: "Responsable actualizado",
   comment_added: "Comentario",
   resolution_added: "Ticket resuelto",
   closed: "Ticket cerrado",
@@ -70,6 +71,14 @@ function eventTitle(
   message: string | null,
 ) {
   const action = eventAction(metadata);
+
+  if (action === "assigned") {
+    return "Responsable asignado";
+  }
+
+  if (action === "reassigned") {
+    return "Responsable reasignado";
+  }
 
   if (
     action === "work_started"
@@ -200,7 +209,7 @@ export function CanonicalTicketWorkflowPanel({
     });
 
   const canStartWork =
-    ["open", "assigned", "pending"].includes(operationalStatus)
+    ["assigned", "pending"].includes(operationalStatus)
     && ["approved", "not_required"].includes(contractualStatus);
 
   const canComment =
