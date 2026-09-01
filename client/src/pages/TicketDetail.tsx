@@ -11,6 +11,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  CanonicalTicketWorkflowPanel,
+} from "@/components/tickets/CanonicalTicketWorkflowPanel";
+import {
   ArrowLeft,
   Building2,
   Calendar,
@@ -199,16 +202,15 @@ export default function TicketDetail() {
         </div>
       </div>
 
-      <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3 dark:border-blue-900 dark:bg-blue-950/20">
-        <p className="text-xs font-medium text-blue-800 dark:text-blue-300">
-          Vista canónica de solo lectura
-        </p>
-        <p className="text-xs text-blue-700/80 dark:text-blue-400 mt-0.5">
-          Cambios de estado, comentarios y resolución permanecen temporalmente deshabilitados durante la migración a PostgreSQL.
-        </p>
-      </div>
+      <CanonicalTicketWorkflowPanel
+        ticketId={ticket.id}
+        ticketNumber={ticket.ticketNumber}
+        operationalStatus={ticket.operationalStatus}
+        contractualStatus={ticket.contractualStatus}
+        actualCost={ticket.actualCost}
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-5">
         <div className="lg:col-span-2 space-y-5">
           <Card className="border-border/50 card-elevated">
             <CardHeader className="pb-2">
