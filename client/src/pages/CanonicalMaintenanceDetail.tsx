@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import {
   AlertTriangle,
@@ -26,7 +26,6 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -173,634 +172,6 @@ function InfoItem({
   );
 }
 
-function PlanDialog({
-  open,
-  onClose,
-  orderId,
-  currentStart,
-  currentEnd,
-  currentAssigneeId,
-  onSaved,
-}: {
-  open: boolean;
-  onClose: () => void;
-  orderId: string;
-  currentStart: Date | string | null;
-  currentEnd: Date | string | null;
-  currentAssigneeId: string | null;
-  onSaved: () => Promise<void>;
-}) {
-  const [start, setStart] = useState(toInputDateTime(currentStart));
-  const [end, setEnd] = useState(toInputDateTime(currentEnd));
-  const [assigneeId, setAssigneeId] = useState(currentAssigneeId ?? "none");
-
-  const candidatesQuery = trpc.ticketAssignment.canonicalCandidates.useQuery();
-  const mutation = trpc.canonicalMaintenance.canonicalPlan.useMutation({
-    onSuccess: async () => {
-      await onSaved();
-      toast.success("Orden planeada");
-      onClose();
-    },
-    onError: error => toast.error(error.message),
-  });
-
-  const selectedAssignee = assigneeId === "none" ? undefined : assigneeId;
-  const needsAssignee = !currentAssigneeId && !selectedAssignee;
-  const canSave = Boolean(start) && !needsAssignee && !mutation.isPending;
-
-  return (
-    <Dialog open={open} onOpenChange={value => !value && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Planear mantenimiento</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Defina la ventana de ejecución y asegure un responsable operativo.
-          </p>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label>Inicio programado *</Label>
-            <Input type="datetime-local" value={start} onChange={event => setStart(event.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Fin programado</Label>
-            <Input type="datetime-local" value={end} onChange={event => setEnd(event.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Técnico responsable *</Label>
-            <Select value={assigneeId} onValueChange={setAssigneeId}>
-              <SelectTrigger><SelectValue placeholder="Seleccione responsable" /></SelectTrigger>
-              <SelectContent>
-                {currentAssigneeId ? <SelectItem value="none">Conservar responsable actual</SelectItem> : null}
-                {(candidatesQuery.data ?? []).map(candidate => (
-                  <SelectItem key={candidate.userId} value={candidate.userId}>
-                    {candidate.name ?? candidate.email ?? candidate.userId}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {needsAssignee ? (
-              <p className="text-xs text-amber-700">Se requiere responsable antes de iniciar la ejecución.</p>
-            ) : null}
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button
-            disabled={!canSave}
-            onClick={() => mutation.mutate({
-              id: orderId,
-              scheduledStart: new Date(start),
-              scheduledEnd: end ? new Date(end) : undefined,
-              assignedToUserId: selectedAssignee,
-            })}
-          >
-            {mutation.isPending ? "Guardando..." : "Planear orden"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function AssetExecutionDialog({
-  open,
-  onClose,
-  orderId,
-  asset,
-  onSaved,
-}: {
-  open: boolean;
-  onClose: () => void;
-  orderId: string;
-  asset: {
-    id: string;
-    assetCode: string;
-    status: string;
-    conditionBefore: string | null;
-    conditionAfter: string | null;
-    workPerformed: string | null;
-    technicianNotes: string | null;
-  } | null;
-  onSaved: () => Promise<void>;
-}) {
-  const [status, setStatus] = useState(asset?.status ?? "pending");
-  const [conditionBefore, setConditionBefore] = useState(asset?.conditionBefore ?? "");
-  const [conditionAfter, setConditionAfter] = useState(asset?.conditionAfter ?? "");
-  const [workPerformed, setWorkPerformed] = useState(asset?.workPerformed ?? "");
-  const [notes, setNotes] = useState(asset?.technicianNotes ?? "");
-
-  const mutation = trpc.canonicalMaintenance.canonicalUpdateAsset.useMutation({
-    onSuccess: async () => {
-      await onSaved();
-      toast.success("Activo actualizado");
-      onClose();
-    },
-    onError: error => toast.error(error.message),
-  });
-
-  if (!asset) return null;
-
-  return (
-    <Dialog open={open} onOpenChange={value => !value && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Ejecutar activo · {asset.assetCode}</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Registre condición inicial, trabajo realizado y condición final.
-          </p>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label>Estado *</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pendiente</SelectItem>
-                <SelectItem value="inspected">Inspeccionado</SelectItem>
-                <SelectItem value="serviced">Atendido</SelectItem>
-                <SelectItem value="follow_up_required">Requiere seguimiento</SelectItem>
-                <SelectItem value="skipped">Omitido</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Condición antes</Label>
-              <Textarea rows={4} value={conditionBefore} onChange={event => setConditionBefore(event.target.value)} placeholder="Estado observado al iniciar..." />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Condición después</Label>
-              <Textarea rows={4} value={conditionAfter} onChange={event => setConditionAfter(event.target.value)} placeholder="Estado final del activo..." />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Trabajo realizado</Label>
-            <Textarea rows={4} value={workPerformed} onChange={event => setWorkPerformed(event.target.value)} placeholder="Inspección, limpieza, ajuste, reparación, pruebas..." />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Notas del técnico</Label>
-            <Textarea rows={3} value={notes} onChange={event => setNotes(event.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button
-            disabled={mutation.isPending}
-            onClick={() => mutation.mutate({
-              workOrderId: orderId,
-              workOrderAssetId: asset.id,
-              status: status as "pending" | "inspected" | "serviced" | "skipped" | "follow_up_required",
-              conditionBefore: conditionBefore.trim() || undefined,
-              conditionAfter: conditionAfter.trim() || undefined,
-              workPerformed: workPerformed.trim() || undefined,
-              technicianNotes: notes.trim() || undefined,
-            })}
-          >
-            {mutation.isPending ? "Guardando..." : "Guardar ejecución"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function FindingDialog({
-  open,
-  onClose,
-  orderId,
-  assets,
-  defaultAssetId,
-  onSaved,
-}: {
-  open: boolean;
-  onClose: () => void;
-  orderId: string;
-  assets: Array<{ id: string; assetCode: string }>;
-  defaultAssetId?: string;
-  onSaved: () => Promise<void>;
-}) {
-  const [assetId, setAssetId] = useState(defaultAssetId ?? "general");
-  const [findingType, setFindingType] = useState("anomaly");
-  const [severity, setSeverity] = useState("medium");
-  const [status, setStatus] = useState("open");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [diagnosis, setDiagnosis] = useState("");
-  const [actionTaken, setActionTaken] = useState("");
-  const [recommendation, setRecommendation] = useState("");
-  const [requiresFollowUp, setRequiresFollowUp] = useState(false);
-  const [capexRecommended, setCapexRecommended] = useState(false);
-
-  const mutation = trpc.canonicalMaintenance.canonicalAddFinding.useMutation({
-    onSuccess: async () => {
-      await onSaved();
-      toast.success("Hallazgo registrado");
-      onClose();
-    },
-    onError: error => toast.error(error.message),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={value => !value && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Registrar hallazgo</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Capture diagnóstico, corrección y recomendación como datos estructurados.
-          </p>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label>Activo</Label>
-            <Select value={assetId} onValueChange={setAssetId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="general">Hallazgo general de la orden</SelectItem>
-                {assets.map(asset => (
-                  <SelectItem key={asset.id} value={asset.id}>{asset.assetCode}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label>Tipo</Label>
-              <Select value={findingType} onValueChange={setFindingType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="anomaly">Anomalía</SelectItem>
-                  <SelectItem value="damage">Daño</SelectItem>
-                  <SelectItem value="degradation">Degradación</SelectItem>
-                  <SelectItem value="configuration">Configuración</SelectItem>
-                  <SelectItem value="recommendation">Recomendación</SelectItem>
-                  <SelectItem value="other">Otro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Severidad</Label>
-              <Select value={severity} onValueChange={setSeverity}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="info">Informativo</SelectItem>
-                  <SelectItem value="low">Bajo</SelectItem>
-                  <SelectItem value="medium">Medio</SelectItem>
-                  <SelectItem value="high">Alto</SelectItem>
-                  <SelectItem value="critical">Crítico</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Estado</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="open">Abierto</SelectItem>
-                  <SelectItem value="resolved">Resuelto</SelectItem>
-                  <SelectItem value="monitor">Monitorear</SelectItem>
-                  <SelectItem value="recommended">Recomendado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Título *</Label>
-            <Input value={title} onChange={event => setTitle(event.target.value)} placeholder="Ej. Palanca de emergencia dañada" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Descripción</Label>
-            <Textarea rows={3} value={description} onChange={event => setDescription(event.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Diagnóstico / causa</Label>
-            <Textarea rows={3} value={diagnosis} onChange={event => setDiagnosis(event.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Acción realizada</Label>
-            <Textarea rows={3} value={actionTaken} onChange={event => setActionTaken(event.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Recomendación</Label>
-            <Textarea rows={3} value={recommendation} onChange={event => setRecommendation(event.target.value)} />
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="flex items-center gap-2 rounded-lg border p-3 cursor-pointer">
-              <Checkbox checked={requiresFollowUp} onCheckedChange={value => setRequiresFollowUp(value === true)} />
-              <span className="text-sm">Requiere seguimiento</span>
-            </label>
-            <label className="flex items-center gap-2 rounded-lg border p-3 cursor-pointer">
-              <Checkbox checked={capexRecommended} onCheckedChange={value => setCapexRecommended(value === true)} />
-              <span className="text-sm">Recomendar CAPEX / reemplazo</span>
-            </label>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button
-            disabled={!title.trim() || mutation.isPending}
-            onClick={() => mutation.mutate({
-              workOrderId: orderId,
-              workOrderAssetId: assetId === "general" ? undefined : assetId,
-              findingType: findingType as "anomaly" | "damage" | "degradation" | "configuration" | "recommendation" | "other",
-              severity: severity as "info" | "low" | "medium" | "high" | "critical",
-              status: status as "open" | "resolved" | "monitor" | "recommended",
-              title: title.trim(),
-              description: description.trim() || undefined,
-              diagnosis: diagnosis.trim() || undefined,
-              actionTaken: actionTaken.trim() || undefined,
-              recommendation: recommendation.trim() || undefined,
-              requiresFollowUp,
-              capexRecommended,
-            })}
-          >
-            {mutation.isPending ? "Guardando..." : "Registrar hallazgo"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function EvidenceDialog({
-  open,
-  onClose,
-  orderId,
-  assets,
-  findings,
-  defaultAssetId,
-  onSaved,
-}: {
-  open: boolean;
-  onClose: () => void;
-  orderId: string;
-  assets: Array<{ id: string; assetCode: string }>;
-  findings: Array<{ id: string; title: string; workOrderAssetId: string | null }>;
-  defaultAssetId?: string;
-  onSaved: () => Promise<void>;
-}) {
-  const [assetId, setAssetId] = useState(defaultAssetId ?? "general");
-  const [findingId, setFindingId] = useState("none");
-  const [phase, setPhase] = useState("before");
-  const [caption, setCaption] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [preparing, setPreparing] = useState(false);
-
-  const mutation = trpc.canonicalMaintenanceEvidence.upload.useMutation({
-    onSuccess: async () => {
-      await onSaved();
-      toast.success("Evidencia cargada");
-      onClose();
-    },
-    onError: error => toast.error(error.message),
-  });
-
-  const compatibleFindings = findings.filter(finding =>
-    assetId === "general"
-      ? finding.workOrderAssetId === null
-      : finding.workOrderAssetId === assetId,
-  );
-
-  async function upload() {
-    if (!file) return;
-    if (file.size > 20 * 1024 * 1024) {
-      toast.error("El archivo excede 20 MB");
-      return;
-    }
-    if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(file.type)) {
-      toast.error("Use JPEG, PNG, WEBP o PDF");
-      return;
-    }
-
-    setPreparing(true);
-    try {
-      const fileBase64 = await fileToBase64(file);
-      mutation.mutate({
-        workOrderId: orderId,
-        workOrderAssetId: assetId === "general" ? undefined : assetId,
-        findingId: findingId === "none" ? undefined : findingId,
-        evidencePhase: phase as "before" | "during" | "after" | "general",
-        fileName: file.name,
-        mimeType: file.type,
-        fileBase64,
-        caption: caption.trim() || undefined,
-      });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No fue posible preparar el archivo");
-    } finally {
-      setPreparing(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={value => !value && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Agregar evidencia</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            La evidencia queda vinculada a la orden y, cuando corresponda, al activo y hallazgo.
-          </p>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Activo</Label>
-              <Select
-                value={assetId}
-                onValueChange={value => {
-                  setAssetId(value);
-                  setFindingId("none");
-                }}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="general">Evidencia general</SelectItem>
-                  {assets.map(asset => (
-                    <SelectItem key={asset.id} value={asset.id}>{asset.assetCode}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Etapa</Label>
-              <Select value={phase} onValueChange={setPhase}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="before">Antes</SelectItem>
-                  <SelectItem value="during">Durante</SelectItem>
-                  <SelectItem value="after">Después</SelectItem>
-                  <SelectItem value="general">General</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Hallazgo relacionado</Label>
-            <Select value={findingId} onValueChange={setFindingId}>
-              <SelectTrigger><SelectValue placeholder="Sin hallazgo específico" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sin hallazgo específico</SelectItem>
-                {compatibleFindings.map(finding => (
-                  <SelectItem key={finding.id} value={finding.id}>{finding.title}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Archivo *</Label>
-            <Input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,application/pdf"
-              onChange={event => setFile(event.target.files?.[0] ?? null)}
-            />
-            <p className="text-xs text-muted-foreground">Máximo 20 MB. No incluya contraseñas ni credenciales de dispositivos.</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Descripción</Label>
-            <Textarea rows={3} value={caption} onChange={event => setCaption(event.target.value)} placeholder="Qué demuestra esta evidencia..." />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button disabled={!file || preparing || mutation.isPending} onClick={upload}>
-            <Upload className="mr-2 h-4 w-4" />
-            {preparing || mutation.isPending ? "Cargando..." : "Guardar evidencia"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function CompleteDialog({
-  open,
-  onClose,
-  orderId,
-  pendingCount,
-  onSaved,
-}: {
-  open: boolean;
-  onClose: () => void;
-  orderId: string;
-  pendingCount: number;
-  onSaved: () => Promise<void>;
-}) {
-  const [summary, setSummary] = useState("");
-  const [generalFindings, setGeneralFindings] = useState("");
-  const [correctiveActions, setCorrectiveActions] = useState("");
-  const [recommendations, setRecommendations] = useState("");
-
-  const mutation = trpc.canonicalMaintenance.canonicalComplete.useMutation({
-    onSuccess: async () => {
-      await onSaved();
-      toast.success("Mantenimiento completado");
-      onClose();
-    },
-    onError: error => toast.error(error.message),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={value => !value && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Completar mantenimiento</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Estos campos alimentarán el resumen ejecutivo de la memoria técnica.
-          </p>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          {pendingCount > 0 ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              Quedan {pendingCount} activo(s) pendientes. Todos deben quedar inspeccionados, atendidos, omitidos o en seguimiento antes del cierre.
-            </div>
-          ) : null}
-          <div className="space-y-1.5">
-            <Label>Resumen técnico *</Label>
-            <Textarea rows={4} value={summary} onChange={event => setSummary(event.target.value)} placeholder="Resultado general del mantenimiento..." />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Hallazgos generales</Label>
-            <Textarea rows={4} value={generalFindings} onChange={event => setGeneralFindings(event.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Acciones correctivas</Label>
-            <Textarea rows={4} value={correctiveActions} onChange={event => setCorrectiveActions(event.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Recomendaciones</Label>
-            <Textarea rows={4} value={recommendations} onChange={event => setRecommendations(event.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button
-            disabled={!summary.trim() || pendingCount > 0 || mutation.isPending}
-            onClick={() => mutation.mutate({
-              id: orderId,
-              summary: summary.trim(),
-              generalFindings: generalFindings.trim() || undefined,
-              correctiveActions: correctiveActions.trim() || undefined,
-              recommendations: recommendations.trim() || undefined,
-            })}
-          >
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            {mutation.isPending ? "Completando..." : "Completar orden"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function AcceptanceDialog({
-  open,
-  onClose,
-  orderId,
-  onSaved,
-}: {
-  open: boolean;
-  onClose: () => void;
-  orderId: string;
-  onSaved: () => Promise<void>;
-}) {
-  const [note, setNote] = useState("");
-  const mutation = trpc.canonicalMaintenance.canonicalCustomerAccept.useMutation({
-    onSuccess: async () => {
-      await onSaved();
-      toast.success("Aceptación del cliente registrada");
-      onClose();
-    },
-    onError: error => toast.error(error.message),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={value => !value && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Registrar aceptación del cliente</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Confirme la conformidad de cierre. La firma digital completa se incorporará en una fase posterior.
-          </p>
-        </DialogHeader>
-        <div className="space-y-1.5 py-2">
-          <Label>Nota de aceptación</Label>
-          <Textarea rows={4} value={note} onChange={event => setNote(event.target.value)} placeholder="Ej. Servicio recibido de conformidad." />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button
-            disabled={mutation.isPending}
-            onClick={() => mutation.mutate({ id: orderId, note: note.trim() || undefined })}
-          >
-            <BadgeCheck className="mr-2 h-4 w-4" />
-            {mutation.isPending ? "Registrando..." : "Confirmar aceptación"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export default function CanonicalMaintenanceDetail() {
   const [, params] = useRoute("/maintenance/:id");
   const [, navigate] = useLocation();
@@ -811,15 +182,50 @@ export default function CanonicalMaintenanceDetail() {
     { id: id ?? "00000000-0000-4000-8000-000000000000" },
     { enabled: Boolean(id), retry: false },
   );
+  const candidatesQuery = trpc.ticketAssignment.canonicalCandidates.useQuery();
 
   const [showPlan, setShowPlan] = useState(false);
-  const [assetDialogId, setAssetDialogId] = useState<string | null>(null);
-  const [findingDialogAssetId, setFindingDialogAssetId] = useState<string | null>(null);
+  const [planStart, setPlanStart] = useState("");
+  const [planEnd, setPlanEnd] = useState("");
+  const [planAssignee, setPlanAssignee] = useState("");
+
+  const [showAsset, setShowAsset] = useState(false);
+  const [assetId, setAssetId] = useState("");
+  const [assetStatus, setAssetStatus] = useState("pending");
+  const [conditionBefore, setConditionBefore] = useState("");
+  const [conditionAfter, setConditionAfter] = useState("");
+  const [workPerformed, setWorkPerformed] = useState("");
+  const [technicianNotes, setTechnicianNotes] = useState("");
+
   const [showFinding, setShowFinding] = useState(false);
-  const [evidenceDialogAssetId, setEvidenceDialogAssetId] = useState<string | null>(null);
+  const [findingAssetId, setFindingAssetId] = useState("general");
+  const [findingType, setFindingType] = useState("anomaly");
+  const [findingSeverity, setFindingSeverity] = useState("medium");
+  const [findingStatus, setFindingStatus] = useState("open");
+  const [findingTitle, setFindingTitle] = useState("");
+  const [findingDescription, setFindingDescription] = useState("");
+  const [findingDiagnosis, setFindingDiagnosis] = useState("");
+  const [findingAction, setFindingAction] = useState("");
+  const [findingRecommendation, setFindingRecommendation] = useState("");
+  const [findingFollowUp, setFindingFollowUp] = useState(false);
+  const [findingCapex, setFindingCapex] = useState(false);
+
   const [showEvidence, setShowEvidence] = useState(false);
+  const [evidenceAssetId, setEvidenceAssetId] = useState("general");
+  const [evidenceFindingId, setEvidenceFindingId] = useState("none");
+  const [evidencePhase, setEvidencePhase] = useState("before");
+  const [evidenceCaption, setEvidenceCaption] = useState("");
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [preparingEvidence, setPreparingEvidence] = useState(false);
+
   const [showComplete, setShowComplete] = useState(false);
+  const [summary, setSummary] = useState("");
+  const [generalFindings, setGeneralFindings] = useState("");
+  const [correctiveActions, setCorrectiveActions] = useState("");
+  const [recommendations, setRecommendations] = useState("");
+
   const [showAcceptance, setShowAcceptance] = useState(false);
+  const [acceptanceNote, setAcceptanceNote] = useState("");
 
   async function refresh() {
     if (!id) return;
@@ -829,6 +235,15 @@ export default function CanonicalMaintenanceDetail() {
     ]);
   }
 
+  const planMutation = trpc.canonicalMaintenance.canonicalPlan.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowPlan(false);
+      toast.success("Orden planeada");
+    },
+    onError: error => toast.error(error.message),
+  });
+
   const startMutation = trpc.canonicalMaintenance.canonicalStart.useMutation({
     onSuccess: async () => {
       await refresh();
@@ -837,23 +252,51 @@ export default function CanonicalMaintenanceDetail() {
     onError: error => toast.error(error.message),
   });
 
-  const order = query.data;
-  const selectedAsset = order?.assets.find(asset => asset.id === assetDialogId) ?? null;
-  const pendingCount = order?.assets.filter(asset => asset.status === "pending").length ?? 0;
-  const finishedCount = (order?.assets.length ?? 0) - pendingCount;
+  const assetMutation = trpc.canonicalMaintenance.canonicalUpdateAsset.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowAsset(false);
+      toast.success("Activo actualizado");
+    },
+    onError: error => toast.error(error.message),
+  });
 
-  const evidenceByAsset = useMemo(() => {
-    const map = new Map<string, typeof order extends undefined ? never[] : NonNullable<typeof order>["evidence"]>();
-    if (!order) return map;
-    for (const asset of order.assets) map.set(asset.id, []);
-    for (const item of order.evidence) {
-      if (!item.workOrderAssetId) continue;
-      const current = map.get(item.workOrderAssetId) ?? [];
-      current.push(item);
-      map.set(item.workOrderAssetId, current);
-    }
-    return map;
-  }, [order]);
+  const findingMutation = trpc.canonicalMaintenance.canonicalAddFinding.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowFinding(false);
+      toast.success("Hallazgo registrado");
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  const evidenceMutation = trpc.canonicalMaintenanceEvidence.upload.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowEvidence(false);
+      setEvidenceFile(null);
+      toast.success("Evidencia cargada");
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  const completeMutation = trpc.canonicalMaintenance.canonicalComplete.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowComplete(false);
+      toast.success("Mantenimiento completado");
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  const acceptanceMutation = trpc.canonicalMaintenance.canonicalCustomerAccept.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowAcceptance(false);
+      toast.success("Aceptación del cliente registrada");
+    },
+    onError: error => toast.error(error.message),
+  });
 
   if (query.isLoading) {
     return (
@@ -865,10 +308,11 @@ export default function CanonicalMaintenanceDetail() {
     );
   }
 
+  const order = query.data;
   if (query.error || !order || !id) {
     return (
       <Card>
-        <CardContent className="p-6 space-y-3">
+        <CardContent className="space-y-3 p-6">
           <p className="font-semibold">No fue posible abrir la orden de mantenimiento.</p>
           <p className="text-sm text-muted-foreground">{query.error?.message ?? "Orden no encontrada."}</p>
           <Button variant="outline" onClick={() => navigate("/maintenance")}>Volver a mantenimiento</Button>
@@ -877,9 +321,91 @@ export default function CanonicalMaintenanceDetail() {
     );
   }
 
+  const pendingCount = order.assets.filter(asset => asset.status === "pending").length;
+  const processedCount = order.assets.length - pendingCount;
   const progress = order.assets.length > 0
-    ? Math.round((finishedCount / order.assets.length) * 100)
+    ? Math.round((processedCount / order.assets.length) * 100)
     : 0;
+
+  function openPlanDialog() {
+    setPlanStart(toInputDateTime(order.scheduledStart));
+    setPlanEnd(toInputDateTime(order.scheduledEnd));
+    setPlanAssignee(order.assignedToUserId ?? "");
+    setShowPlan(true);
+  }
+
+  function openAssetDialog(selectedId: string) {
+    const asset = order.assets.find(item => item.id === selectedId);
+    if (!asset) return;
+    setAssetId(asset.id);
+    setAssetStatus(asset.status);
+    setConditionBefore(asset.conditionBefore ?? "");
+    setConditionAfter(asset.conditionAfter ?? "");
+    setWorkPerformed(asset.workPerformed ?? "");
+    setTechnicianNotes(asset.technicianNotes ?? "");
+    setShowAsset(true);
+  }
+
+  function openFindingDialog(selectedId?: string) {
+    setFindingAssetId(selectedId ?? "general");
+    setFindingType("anomaly");
+    setFindingSeverity("medium");
+    setFindingStatus("open");
+    setFindingTitle("");
+    setFindingDescription("");
+    setFindingDiagnosis("");
+    setFindingAction("");
+    setFindingRecommendation("");
+    setFindingFollowUp(false);
+    setFindingCapex(false);
+    setShowFinding(true);
+  }
+
+  function openEvidenceDialog(selectedId?: string) {
+    setEvidenceAssetId(selectedId ?? "general");
+    setEvidenceFindingId("none");
+    setEvidencePhase("before");
+    setEvidenceCaption("");
+    setEvidenceFile(null);
+    setShowEvidence(true);
+  }
+
+  async function uploadEvidence() {
+    if (!evidenceFile) return;
+    if (evidenceFile.size > 20 * 1024 * 1024) {
+      toast.error("El archivo excede 20 MB");
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(evidenceFile.type)) {
+      toast.error("Use JPEG, PNG, WEBP o PDF");
+      return;
+    }
+
+    setPreparingEvidence(true);
+    try {
+      const fileBase64 = await fileToBase64(evidenceFile);
+      evidenceMutation.mutate({
+        workOrderId: id,
+        workOrderAssetId: evidenceAssetId === "general" ? undefined : evidenceAssetId,
+        findingId: evidenceFindingId === "none" ? undefined : evidenceFindingId,
+        evidencePhase: evidencePhase as "before" | "during" | "after" | "general",
+        fileName: evidenceFile.name,
+        mimeType: evidenceFile.type,
+        fileBase64,
+        caption: evidenceCaption.trim() || undefined,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No fue posible preparar la evidencia");
+    } finally {
+      setPreparingEvidence(false);
+    }
+  }
+
+  const compatibleFindings = order.findings.filter(finding =>
+    evidenceAssetId === "general"
+      ? finding.workOrderAssetId === null
+      : finding.workOrderAssetId === evidenceAssetId,
+  );
 
   return (
     <div className="animate-fade-up space-y-6 pb-10">
@@ -897,13 +423,13 @@ export default function CanonicalMaintenanceDetail() {
           </div>
           <h1 className="mt-1 text-2xl font-bold tracking-tight">{order.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Orden canónica de mantenimiento · fuente estructurada para memoria técnica.
+            Orden canónica · fuente estructurada para la memoria técnica.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {order.status === "draft" ? (
-            <Button onClick={() => setShowPlan(true)}>
+            <Button onClick={openPlanDialog}>
               <CalendarDays className="mr-2 h-4 w-4" /> Planear
             </Button>
           ) : null}
@@ -915,10 +441,10 @@ export default function CanonicalMaintenanceDetail() {
           ) : null}
           {order.status === "in_progress" ? (
             <>
-              <Button variant="outline" onClick={() => { setFindingDialogAssetId(null); setShowFinding(true); }}>
+              <Button variant="outline" onClick={() => openFindingDialog()}>
                 <Plus className="mr-2 h-4 w-4" /> Hallazgo
               </Button>
-              <Button variant="outline" onClick={() => { setEvidenceDialogAssetId(null); setShowEvidence(true); }}>
+              <Button variant="outline" onClick={() => openEvidenceDialog()}>
                 <Upload className="mr-2 h-4 w-4" /> Evidencia
               </Button>
               <Button onClick={() => setShowComplete(true)}>
@@ -950,7 +476,7 @@ export default function CanonicalMaintenanceDetail() {
           {order.objective ? (
             <div className="mt-5 border-t pt-5">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Objetivo</p>
-              <p className="mt-1 text-sm leading-relaxed">{order.objective}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{order.objective}</p>
             </div>
           ) : null}
         </CardContent>
@@ -958,7 +484,7 @@ export default function CanonicalMaintenanceDetail() {
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card><CardContent className="p-4"><p className="text-2xl font-bold">{order.assets.length}</p><p className="text-xs text-muted-foreground">Activos en alcance</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{finishedCount}</p><p className="text-xs text-muted-foreground">Activos procesados</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{processedCount}</p><p className="text-xs text-muted-foreground">Activos procesados</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-2xl font-bold">{order.findings.length}</p><p className="text-xs text-muted-foreground">Hallazgos</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-2xl font-bold">{order.evidence.length}</p><p className="text-xs text-muted-foreground">Evidencias</p></CardContent></Card>
       </div>
@@ -968,13 +494,9 @@ export default function CanonicalMaintenanceDetail() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <CardTitle className="text-base">Avance de ejecución</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">{finishedCount} de {order.assets.length} activos procesados · {progress}%</p>
+              <p className="mt-1 text-sm text-muted-foreground">{processedCount} de {order.assets.length} activos · {progress}%</p>
             </div>
-            {pendingCount > 0 && order.status === "in_progress" ? (
-              <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-                {pendingCount} pendiente(s)
-              </Badge>
-            ) : null}
+            {pendingCount > 0 ? <Badge variant="outline">{pendingCount} pendiente(s)</Badge> : null}
           </div>
         </CardHeader>
         <CardContent>
@@ -985,13 +507,9 @@ export default function CanonicalMaintenanceDetail() {
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-base">Activos intervenidos</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">Cada activo conserva su condición, trabajo, hallazgos y evidencia.</p>
-            </div>
-          </div>
+        <CardHeader>
+          <CardTitle className="text-base">Activos intervenidos</CardTitle>
+          <p className="text-sm text-muted-foreground">Condición, trabajo, hallazgos y evidencia quedan ligados al activo canónico.</p>
         </CardHeader>
         <CardContent className="p-0">
           {order.assets.length === 0 ? (
@@ -999,7 +517,7 @@ export default function CanonicalMaintenanceDetail() {
           ) : (
             <div className="divide-y">
               {order.assets.map(asset => {
-                const assetEvidence = evidenceByAsset.get(asset.id) ?? [];
+                const assetEvidence = Array.from(order.evidence).filter(item => item.workOrderAssetId === asset.id);
                 const phases = new Set(assetEvidence.map(item => item.evidencePhase));
                 return (
                   <div key={asset.id} className="p-4 md:p-5">
@@ -1016,36 +534,34 @@ export default function CanonicalMaintenanceDetail() {
                           {[asset.manufacturer, asset.model, asset.locationName].filter(Boolean).join(" · ") || "Sin detalle adicional"}
                         </p>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {order.status === "in_progress" ? (
-                          <>
-                            <Button size="sm" variant="outline" onClick={() => setAssetDialogId(asset.id)}>
-                              <Wrench className="mr-1.5 h-3.5 w-3.5" /> Ejecutar
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => { setFindingDialogAssetId(asset.id); setShowFinding(true); }}>
-                              <Flag className="mr-1.5 h-3.5 w-3.5" /> Hallazgo
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => { setEvidenceDialogAssetId(asset.id); setShowEvidence(true); }}>
-                              <Camera className="mr-1.5 h-3.5 w-3.5" /> Evidencia
-                            </Button>
-                          </>
-                        ) : null}
-                      </div>
+                      {order.status === "in_progress" ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => openAssetDialog(asset.id)}>
+                            <Wrench className="mr-1.5 h-3.5 w-3.5" /> Ejecutar
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openFindingDialog(asset.id)}>
+                            <Flag className="mr-1.5 h-3.5 w-3.5" /> Hallazgo
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openEvidenceDialog(asset.id)}>
+                            <Camera className="mr-1.5 h-3.5 w-3.5" /> Evidencia
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
 
                     {(asset.conditionBefore || asset.workPerformed || asset.conditionAfter) ? (
                       <div className="mt-4 grid gap-3 md:grid-cols-3">
                         <div className="rounded-lg bg-muted/40 p-3">
                           <p className="text-[11px] font-semibold uppercase text-muted-foreground">Antes</p>
-                          <p className="mt-1 text-sm whitespace-pre-wrap">{asset.conditionBefore || "Sin registro"}</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm">{asset.conditionBefore || "Sin registro"}</p>
                         </div>
                         <div className="rounded-lg bg-muted/40 p-3">
                           <p className="text-[11px] font-semibold uppercase text-muted-foreground">Trabajo</p>
-                          <p className="mt-1 text-sm whitespace-pre-wrap">{asset.workPerformed || "Sin registro"}</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm">{asset.workPerformed || "Sin registro"}</p>
                         </div>
                         <div className="rounded-lg bg-muted/40 p-3">
                           <p className="text-[11px] font-semibold uppercase text-muted-foreground">Después</p>
-                          <p className="mt-1 text-sm whitespace-pre-wrap">{asset.conditionAfter || "Sin registro"}</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm">{asset.conditionAfter || "Sin registro"}</p>
                         </div>
                       </div>
                     ) : null}
@@ -1073,43 +589,37 @@ export default function CanonicalMaintenanceDetail() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-base">Hallazgos</CardTitle>
-                <p className="mt-1 text-sm text-muted-foreground">Diagnóstico, acción y recomendación por activo.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Diagnóstico, acción y recomendación.</p>
               </div>
               {order.status === "in_progress" ? (
-                <Button size="sm" variant="outline" onClick={() => { setFindingDialogAssetId(null); setShowFinding(true); }}>
-                  <Plus className="mr-1.5 h-3.5 w-3.5" /> Agregar
-                </Button>
+                <Button size="sm" variant="outline" onClick={() => openFindingDialog()}><Plus className="mr-1 h-3.5 w-3.5" /> Agregar</Button>
               ) : null}
             </div>
           </CardHeader>
           <CardContent>
             {order.findings.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Sin hallazgos registrados.</div>
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Sin hallazgos.</div>
             ) : (
               <div className="space-y-3">
                 {order.findings.map(finding => (
                   <div key={finding.id} className="rounded-xl border p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-medium">{finding.title}</p>
-                          <Badge variant="outline" className={cn("font-medium", SEVERITY_STYLES[finding.severity])}>
-                            {SEVERITY_LABELS[finding.severity] ?? finding.severity}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">{finding.assetCode ?? "Hallazgo general"} · {finding.status}</p>
-                      </div>
-                      {(finding.requiresFollowUp || finding.capexRecommended) ? (
-                        <div className="flex flex-wrap gap-1">
-                          {finding.requiresFollowUp ? <Badge variant="secondary">Seguimiento</Badge> : null}
-                          {finding.capexRecommended ? <Badge variant="secondary">CAPEX</Badge> : null}
-                        </div>
-                      ) : null}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{finding.title}</p>
+                      <Badge variant="outline" className={cn("font-medium", SEVERITY_STYLES[finding.severity])}>
+                        {SEVERITY_LABELS[finding.severity] ?? finding.severity}
+                      </Badge>
                     </div>
-                    {finding.description ? <p className="mt-3 text-sm whitespace-pre-wrap">{finding.description}</p> : null}
+                    <p className="mt-1 text-xs text-muted-foreground">{finding.assetCode ?? "Hallazgo general"} · {finding.status}</p>
+                    {finding.description ? <p className="mt-3 whitespace-pre-wrap text-sm">{finding.description}</p> : null}
                     {finding.diagnosis ? <p className="mt-2 text-sm"><span className="font-medium">Diagnóstico:</span> {finding.diagnosis}</p> : null}
                     {finding.actionTaken ? <p className="mt-2 text-sm"><span className="font-medium">Acción:</span> {finding.actionTaken}</p> : null}
                     {finding.recommendation ? <p className="mt-2 text-sm"><span className="font-medium">Recomendación:</span> {finding.recommendation}</p> : null}
+                    {(finding.requiresFollowUp || finding.capexRecommended) ? (
+                      <div className="mt-3 flex gap-2">
+                        {finding.requiresFollowUp ? <Badge variant="secondary">Seguimiento</Badge> : null}
+                        {finding.capexRecommended ? <Badge variant="secondary">CAPEX</Badge> : null}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -1122,22 +632,20 @@ export default function CanonicalMaintenanceDetail() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-base">Evidencia</CardTitle>
-                <p className="mt-1 text-sm text-muted-foreground">Antes, durante, después y documentos de soporte.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Antes, durante, después y soporte.</p>
               </div>
               {["in_progress", "completed"].includes(order.status) ? (
-                <Button size="sm" variant="outline" onClick={() => { setEvidenceDialogAssetId(null); setShowEvidence(true); }}>
-                  <Upload className="mr-1.5 h-3.5 w-3.5" /> Agregar
-                </Button>
+                <Button size="sm" variant="outline" onClick={() => openEvidenceDialog()}><Upload className="mr-1 h-3.5 w-3.5" /> Agregar</Button>
               ) : null}
             </div>
           </CardHeader>
           <CardContent>
             {order.evidence.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Sin evidencia registrada.</div>
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Sin evidencia.</div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 {order.evidence.map(item => (
-                  <div key={item.id} className="overflow-hidden rounded-xl border bg-card">
+                  <div key={item.id} className="overflow-hidden rounded-xl border">
                     {item.mediaType === "photo" && item.fileUrl ? (
                       <a href={item.fileUrl} target="_blank" rel="noreferrer" className="block aspect-video bg-muted">
                         <img src={item.fileUrl} alt={item.caption ?? item.fileName} className="h-full w-full object-cover" />
@@ -1150,14 +658,10 @@ export default function CanonicalMaintenanceDetail() {
                     <div className="p-3">
                       <div className="flex items-center justify-between gap-2">
                         <Badge variant="secondary">{PHASE_LABELS[item.evidencePhase] ?? item.evidencePhase}</Badge>
-                        {item.fileUrl ? (
-                          <a href={item.fileUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
-                            Abrir
-                          </a>
-                        ) : null}
+                        {item.fileUrl ? <a href={item.fileUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">Abrir</a> : null}
                       </div>
                       <p className="mt-2 truncate text-sm font-medium">{item.fileName}</p>
-                      {item.caption ? <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.caption}</p> : null}
+                      {item.caption ? <p className="mt-1 text-xs text-muted-foreground">{item.caption}</p> : null}
                     </div>
                   </div>
                 ))}
@@ -1189,26 +693,18 @@ export default function CanonicalMaintenanceDetail() {
       <Card>
         <CardHeader><CardTitle className="text-base">Historial operativo</CardTitle></CardHeader>
         <CardContent>
-          {order.events.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin eventos.</p>
-          ) : (
-            <div className="space-y-0">
-              {order.events.map((event, index) => (
-                <div key={event.id} className="relative flex gap-3 pb-5 last:pb-0">
-                  {index < order.events.length - 1 ? <div className="absolute left-[7px] top-4 bottom-0 w-px bg-border" /> : null}
-                  <div className="relative mt-1.5 h-3.5 w-3.5 shrink-0 rounded-full border-2 border-background bg-primary" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-medium">{EVENT_LABELS[event.eventType] ?? event.eventType}</p>
-                      <span className="text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</span>
-                    </div>
-                    {event.message ? <p className="mt-0.5 text-sm text-muted-foreground">{event.message}</p> : null}
-                    {event.actorName ? <p className="mt-0.5 text-xs text-muted-foreground">Por {event.actorName}</p> : null}
-                  </div>
+          <div className="space-y-4">
+            {order.events.map(event => (
+              <div key={event.id} className="border-b pb-4 last:border-0 last:pb-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium">{EVENT_LABELS[event.eventType] ?? event.eventType}</p>
+                  <span className="text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</span>
                 </div>
-              ))}
-            </div>
-          )}
+                {event.message ? <p className="mt-1 text-sm text-muted-foreground">{event.message}</p> : null}
+                {event.actorName ? <p className="mt-1 text-xs text-muted-foreground">Por {event.actorName}</p> : null}
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
@@ -1218,58 +714,211 @@ export default function CanonicalMaintenanceDetail() {
         </Button>
       ) : null}
 
-      <PlanDialog
-        key={`plan-${order.updatedAt}`}
-        open={showPlan}
-        onClose={() => setShowPlan(false)}
-        orderId={id}
-        currentStart={order.scheduledStart}
-        currentEnd={order.scheduledEnd}
-        currentAssigneeId={order.assignedToUserId}
-        onSaved={refresh}
-      />
-      <AssetExecutionDialog
-        key={`asset-${assetDialogId}-${selectedAsset?.status ?? "none"}-${selectedAsset?.completedAt ?? ""}`}
-        open={Boolean(assetDialogId)}
-        onClose={() => setAssetDialogId(null)}
-        orderId={id}
-        asset={selectedAsset}
-        onSaved={refresh}
-      />
-      <FindingDialog
-        key={`finding-${showFinding}-${findingDialogAssetId ?? "general"}`}
-        open={showFinding}
-        onClose={() => { setShowFinding(false); setFindingDialogAssetId(null); }}
-        orderId={id}
-        assets={order.assets.map(asset => ({ id: asset.id, assetCode: asset.assetCode }))}
-        defaultAssetId={findingDialogAssetId ?? undefined}
-        onSaved={refresh}
-      />
-      <EvidenceDialog
-        key={`evidence-${showEvidence}-${evidenceDialogAssetId ?? "general"}`}
-        open={showEvidence}
-        onClose={() => { setShowEvidence(false); setEvidenceDialogAssetId(null); }}
-        orderId={id}
-        assets={order.assets.map(asset => ({ id: asset.id, assetCode: asset.assetCode }))}
-        findings={order.findings.map(finding => ({ id: finding.id, title: finding.title, workOrderAssetId: finding.workOrderAssetId }))}
-        defaultAssetId={evidenceDialogAssetId ?? undefined}
-        onSaved={refresh}
-      />
-      <CompleteDialog
-        key={`complete-${showComplete}-${pendingCount}`}
-        open={showComplete}
-        onClose={() => setShowComplete(false)}
-        orderId={id}
-        pendingCount={pendingCount}
-        onSaved={refresh}
-      />
-      <AcceptanceDialog
-        key={`accept-${showAcceptance}`}
-        open={showAcceptance}
-        onClose={() => setShowAcceptance(false)}
-        orderId={id}
-        onSaved={refresh}
-      />
+      <Dialog open={showPlan} onOpenChange={setShowPlan}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Planear mantenimiento</DialogTitle>
+            <p className="text-sm text-muted-foreground">Defina ventana y responsable antes de iniciar.</p>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5"><Label>Inicio programado *</Label><Input type="datetime-local" value={planStart} onChange={event => setPlanStart(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Fin programado</Label><Input type="datetime-local" value={planEnd} onChange={event => setPlanEnd(event.target.value)} /></div>
+            <div className="space-y-1.5">
+              <Label>Técnico responsable *</Label>
+              <Select value={planAssignee} onValueChange={setPlanAssignee}>
+                <SelectTrigger><SelectValue placeholder="Seleccione responsable" /></SelectTrigger>
+                <SelectContent>
+                  {(candidatesQuery.data ?? []).map(candidate => (
+                    <SelectItem key={candidate.userId} value={candidate.userId}>{candidate.name ?? candidate.email ?? candidate.userId}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPlan(false)}>Cancelar</Button>
+            <Button
+              disabled={!planStart || !planAssignee || planMutation.isPending}
+              onClick={() => planMutation.mutate({
+                id,
+                scheduledStart: new Date(planStart),
+                scheduledEnd: planEnd ? new Date(planEnd) : undefined,
+                assignedToUserId: planAssignee,
+              })}
+            >{planMutation.isPending ? "Guardando..." : "Planear orden"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAsset} onOpenChange={setShowAsset}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Ejecutar activo</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Estado *</Label>
+              <Select value={assetStatus} onValueChange={setAssetStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="inspected">Inspeccionado</SelectItem>
+                  <SelectItem value="serviced">Atendido</SelectItem>
+                  <SelectItem value="follow_up_required">Requiere seguimiento</SelectItem>
+                  <SelectItem value="skipped">Omitido</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5"><Label>Condición antes</Label><Textarea rows={4} value={conditionBefore} onChange={event => setConditionBefore(event.target.value)} /></div>
+              <div className="space-y-1.5"><Label>Condición después</Label><Textarea rows={4} value={conditionAfter} onChange={event => setConditionAfter(event.target.value)} /></div>
+            </div>
+            <div className="space-y-1.5"><Label>Trabajo realizado</Label><Textarea rows={4} value={workPerformed} onChange={event => setWorkPerformed(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Notas del técnico</Label><Textarea rows={3} value={technicianNotes} onChange={event => setTechnicianNotes(event.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAsset(false)}>Cancelar</Button>
+            <Button
+              disabled={!assetId || assetMutation.isPending}
+              onClick={() => assetMutation.mutate({
+                workOrderId: id,
+                workOrderAssetId: assetId,
+                status: assetStatus as "pending" | "inspected" | "serviced" | "skipped" | "follow_up_required",
+                conditionBefore: conditionBefore.trim() || undefined,
+                conditionAfter: conditionAfter.trim() || undefined,
+                workPerformed: workPerformed.trim() || undefined,
+                technicianNotes: technicianNotes.trim() || undefined,
+              })}
+            >{assetMutation.isPending ? "Guardando..." : "Guardar ejecución"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showFinding} onOpenChange={setShowFinding}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Registrar hallazgo</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Activo</Label>
+              <Select value={findingAssetId} onValueChange={setFindingAssetId}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">Hallazgo general</SelectItem>
+                  {order.assets.map(asset => <SelectItem key={asset.id} value={asset.id}>{asset.assetCode}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-1.5"><Label>Tipo</Label><Select value={findingType} onValueChange={setFindingType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="anomaly">Anomalía</SelectItem><SelectItem value="damage">Daño</SelectItem><SelectItem value="degradation">Degradación</SelectItem><SelectItem value="configuration">Configuración</SelectItem><SelectItem value="recommendation">Recomendación</SelectItem><SelectItem value="other">Otro</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Severidad</Label><Select value={findingSeverity} onValueChange={setFindingSeverity}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="info">Informativo</SelectItem><SelectItem value="low">Bajo</SelectItem><SelectItem value="medium">Medio</SelectItem><SelectItem value="high">Alto</SelectItem><SelectItem value="critical">Crítico</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Estado</Label><Select value={findingStatus} onValueChange={setFindingStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="open">Abierto</SelectItem><SelectItem value="resolved">Resuelto</SelectItem><SelectItem value="monitor">Monitorear</SelectItem><SelectItem value="recommended">Recomendado</SelectItem></SelectContent></Select></div>
+            </div>
+            <div className="space-y-1.5"><Label>Título *</Label><Input value={findingTitle} onChange={event => setFindingTitle(event.target.value)} placeholder="Ej. Palanca de emergencia dañada" /></div>
+            <div className="space-y-1.5"><Label>Descripción</Label><Textarea rows={3} value={findingDescription} onChange={event => setFindingDescription(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Diagnóstico / causa</Label><Textarea rows={3} value={findingDiagnosis} onChange={event => setFindingDiagnosis(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Acción realizada</Label><Textarea rows={3} value={findingAction} onChange={event => setFindingAction(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Recomendación</Label><Textarea rows={3} value={findingRecommendation} onChange={event => setFindingRecommendation(event.target.value)} /></div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="flex items-center gap-2 rounded-lg border p-3 text-sm"><input type="checkbox" checked={findingFollowUp} onChange={event => setFindingFollowUp(event.target.checked)} /> Requiere seguimiento</label>
+              <label className="flex items-center gap-2 rounded-lg border p-3 text-sm"><input type="checkbox" checked={findingCapex} onChange={event => setFindingCapex(event.target.checked)} /> Recomendar CAPEX</label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFinding(false)}>Cancelar</Button>
+            <Button
+              disabled={!findingTitle.trim() || findingMutation.isPending}
+              onClick={() => findingMutation.mutate({
+                workOrderId: id,
+                workOrderAssetId: findingAssetId === "general" ? undefined : findingAssetId,
+                findingType: findingType as "anomaly" | "damage" | "degradation" | "configuration" | "recommendation" | "other",
+                severity: findingSeverity as "info" | "low" | "medium" | "high" | "critical",
+                status: findingStatus as "open" | "resolved" | "monitor" | "recommended",
+                title: findingTitle.trim(),
+                description: findingDescription.trim() || undefined,
+                diagnosis: findingDiagnosis.trim() || undefined,
+                actionTaken: findingAction.trim() || undefined,
+                recommendation: findingRecommendation.trim() || undefined,
+                requiresFollowUp: findingFollowUp,
+                capexRecommended: findingCapex,
+              })}
+            >{findingMutation.isPending ? "Guardando..." : "Registrar hallazgo"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEvidence} onOpenChange={setShowEvidence}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Agregar evidencia</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Activo</Label>
+                <Select value={evidenceAssetId} onValueChange={value => { setEvidenceAssetId(value); setEvidenceFindingId("none"); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="general">Evidencia general</SelectItem>{order.assets.map(asset => <SelectItem key={asset.id} value={asset.id}>{asset.assetCode}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Etapa</Label>
+                <Select value={evidencePhase} onValueChange={setEvidencePhase}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="before">Antes</SelectItem><SelectItem value="during">Durante</SelectItem><SelectItem value="after">Después</SelectItem><SelectItem value="general">General</SelectItem></SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Hallazgo relacionado</Label>
+              <Select value={evidenceFindingId} onValueChange={setEvidenceFindingId}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="none">Sin hallazgo específico</SelectItem>{compatibleFindings.map(finding => <SelectItem key={finding.id} value={finding.id}>{finding.title}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Archivo *</Label>
+              <Input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={event => setEvidenceFile(event.target.files?.[0] ?? null)} />
+              <p className="text-xs text-muted-foreground">Máximo 20 MB. No incluya contraseñas ni credenciales de dispositivos.</p>
+            </div>
+            <div className="space-y-1.5"><Label>Descripción</Label><Textarea rows={3} value={evidenceCaption} onChange={event => setEvidenceCaption(event.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEvidence(false)}>Cancelar</Button>
+            <Button disabled={!evidenceFile || preparingEvidence || evidenceMutation.isPending} onClick={uploadEvidence}>
+              <Upload className="mr-2 h-4 w-4" /> {preparingEvidence || evidenceMutation.isPending ? "Cargando..." : "Guardar evidencia"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showComplete} onOpenChange={setShowComplete}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Completar mantenimiento</DialogTitle><p className="text-sm text-muted-foreground">Estos campos alimentarán la memoria técnica.</p></DialogHeader>
+          <div className="space-y-4 py-2">
+            {pendingCount > 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Quedan {pendingCount} activo(s) pendientes.</div> : null}
+            <div className="space-y-1.5"><Label>Resumen técnico *</Label><Textarea rows={4} value={summary} onChange={event => setSummary(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Hallazgos generales</Label><Textarea rows={4} value={generalFindings} onChange={event => setGeneralFindings(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Acciones correctivas</Label><Textarea rows={4} value={correctiveActions} onChange={event => setCorrectiveActions(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Recomendaciones</Label><Textarea rows={4} value={recommendations} onChange={event => setRecommendations(event.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowComplete(false)}>Cancelar</Button>
+            <Button
+              disabled={!summary.trim() || pendingCount > 0 || completeMutation.isPending}
+              onClick={() => completeMutation.mutate({ id, summary: summary.trim(), generalFindings: generalFindings.trim() || undefined, correctiveActions: correctiveActions.trim() || undefined, recommendations: recommendations.trim() || undefined })}
+            ><CheckCircle2 className="mr-2 h-4 w-4" /> {completeMutation.isPending ? "Completando..." : "Completar orden"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAcceptance} onOpenChange={setShowAcceptance}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Registrar aceptación del cliente</DialogTitle><p className="text-sm text-muted-foreground">Confirme la conformidad del servicio.</p></DialogHeader>
+          <div className="space-y-1.5 py-2"><Label>Nota de aceptación</Label><Textarea rows={4} value={acceptanceNote} onChange={event => setAcceptanceNote(event.target.value)} /></div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAcceptance(false)}>Cancelar</Button>
+            <Button disabled={acceptanceMutation.isPending} onClick={() => acceptanceMutation.mutate({ id, note: acceptanceNote.trim() || undefined })}>
+              <BadgeCheck className="mr-2 h-4 w-4" /> {acceptanceMutation.isPending ? "Registrando..." : "Confirmar aceptación"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
