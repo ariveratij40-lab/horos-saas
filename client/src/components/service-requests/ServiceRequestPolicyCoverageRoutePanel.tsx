@@ -125,7 +125,12 @@ export function ServiceRequestPolicyCoverageRoutePanel() {
       onError: error => toast.error(error.message),
     });
 
-  if (!eligible || isLoading || options.length === 0) {
+  if (
+    !request
+    || !eligible
+    || isLoading
+    || options.length === 0
+  ) {
     return null;
   }
 
