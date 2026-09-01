@@ -10,29 +10,29 @@ function source(path: string) {
 }
 
 describe("covered ticket inherited SLA recovery", () => {
-  it("recovers from canonical Service Intake evidence without action-string coupling", () => {
+  it("recovers from canonical policy references when historical SLA JSON is incomplete", () => {
     const router = source(
-      "server/routers/serviceRequestSlaRecovery.ts",
+      "server/routers/serviceRequestSlaRecoveryRobust.ts",
     );
 
     expect(router).toMatch(/pgProtectedProcedure/);
     expect(router).toMatch(/withTenantTransaction\(/);
     expect(router).toMatch(/service_request_ticket_links/);
     expect(router).toMatch(/relation_type = 'converted'/);
-    expect(router).toMatch(/se\.event_type = 'authorized'/);
-    expect(router).toMatch(/se\.metadata \? 'policyId'/);
-    expect(router).toMatch(/se\.metadata \? 'policyServiceId'/);
+    expect(router).toMatch(/e\.event_type = 'authorized'/);
+    expect(router).toMatch(/e\.metadata \? 'policyId'/);
+    expect(router).toMatch(/e\.metadata \? 'policyServiceId'/);
     expect(router).not.toMatch(/metadata->>'action' = 'policy_coverage_authorized'/);
-    expect(router).toMatch(/asRecord\(slaRules\[priority\]\)/);
     expect(router).toMatch(/service_policy_services/);
     expect(router).toMatch(/service_policy_sla_rules/);
+    expect(router).toMatch(/sr\.priority = \$\{priority\}/);
     expect(router).toMatch(/service_ticket_sla_snapshots/);
     expect(router).toMatch(/response_deadline/);
     expect(router).toMatch(/resolution_deadline/);
     expect(router).toMatch(/estimated_cost = NULL/);
     expect(router).toMatch(/is_billable = false/);
     expect(router).toMatch(/'sla_applied'/);
-    expect(router).toMatch(/sla_recovered_from_service_request/);
+    expect(router).toMatch(/sla_recovered_from_service_request_reference/);
   });
 
   it("is exposed through Service Intake context and mounted in ticket UX", () => {
@@ -47,7 +47,7 @@ describe("covered ticket inherited SLA recovery", () => {
     );
 
     expect(context).toMatch(
-      /slaRecovery:\s*serviceRequestSlaRecoveryRouter/,
+      /slaRecovery:\s*serviceRequestSlaRecoveryRobustRouter/,
     );
     expect(panel).toMatch(
       /serviceRequestContext\.slaRecovery\.canonicalOriginCoverage/,
