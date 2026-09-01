@@ -25,8 +25,8 @@ import {
   serviceRequestCoverageRouter,
 } from "./serviceRequestCoverage";
 import {
-  serviceRequestSlaRecoveryRouter,
-} from "./serviceRequestSlaRecovery";
+  serviceRequestSlaRecoveryRobustRouter,
+} from "./serviceRequestSlaRecoveryRobust";
 
 /**
  * Canonical lookup surfaces used by the Service Intake create UX.
@@ -56,7 +56,7 @@ export const serviceRequestContextRouter =
       serviceRequestCoverageRouter,
 
     slaRecovery:
-      serviceRequestSlaRecoveryRouter,
+      serviceRequestSlaRecoveryRobustRouter,
 
     fulfillment:
       serviceRequestFulfillmentRouter,
