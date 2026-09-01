@@ -103,4 +103,32 @@ describe("canonical ticket assignment contract", () => {
       '["open", "assigned", "pending"]',
     );
   });
+
+  it("lets only the assigned canonical operator or tenant admin execute work", () => {
+    const workflow = readProjectFile(
+      "./routers/ticketWorkflow.ts",
+    );
+
+    expect(workflow).toContain(
+      "async function requireTicketOperator",
+    );
+    expect(workflow).toContain(
+      'u.external_subject = ${ctx.pgTenant.externalSubject}',
+    );
+    expect(workflow).toContain(
+      "current.assignedToUserId",
+    );
+    expect(workflow).toContain(
+      "Canonical ticket workflow requires the assigned operator or tenant administrator",
+    );
+
+    const operatorChecks =
+      workflow.match(/await requireTicketOperator\(/g)
+        ?.length ?? 0;
+
+    expect(operatorChecks).toBe(2);
+    expect(workflow).toContain(
+      "requireTicketAdministrator(ctx.pgTenant.tenantRole);",
+    );
+  });
 });
