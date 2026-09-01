@@ -93,5 +93,16 @@ describe(
         ).toBeDefined();
       },
     );
+
+    it(
+      "exposes administrative review start separately from requester actions",
+      () => {
+        expect(
+          procedures[
+            "serviceRequestContext.review.canonicalStartReview"
+          ],
+        ).toBeDefined();
+      },
+    );
   },
 );
