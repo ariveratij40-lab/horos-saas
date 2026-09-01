@@ -37,6 +37,7 @@ const eventLabels: Record<string, string> = {
   closed: "Ticket cerrado",
   cancelled: "Ticket cancelado",
   contractual_changed: "Estado contractual actualizado",
+  sla_applied: "SLA aplicado",
 };
 
 const systemMessageLabels: Record<string, string> = {
@@ -78,6 +79,10 @@ function eventTitle(
 
   if (action === "reassigned") {
     return "Responsable reasignado";
+  }
+
+  if (action === "sla_applied") {
+    return "SLA aplicado";
   }
 
   if (
