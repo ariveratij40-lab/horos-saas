@@ -8,7 +8,7 @@ import { resolveCanonicalTenantForSubject } from "../db.pg";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 
-const DEV_OPEN_ID = "dev_local_horos_admin";
+export const DEV_LOCAL_OPEN_ID = "dev_local_horos_admin";
 const DEV_EMAIL = "admin.local@horos.test";
 const DEV_NAME = "Administrador Local HOROS";
 const DEV_PG_CONTAINER = "horos_postgres_dev";
@@ -40,7 +40,7 @@ function dockerOutput(args: string[]): string {
  * given those credentials by Docker Compose, so derive the runtime-only URL
  * from the local container when HOROS_PG_DATABASE_URL was not explicitly set.
  *
- * This path is only reachable from the development-only loopback login route.
+ * This path is only reachable from development-only local identity handling.
  * The password is never logged or persisted by HOROS.
  */
 function ensureCanonicalPgRuntimeConnection() {
@@ -116,7 +116,7 @@ INSERT INTO users (
   is_active
 )
 VALUES (
-  '${DEV_OPEN_ID}',
+  '${DEV_LOCAL_OPEN_ID}',
   '${DEV_EMAIL}',
   '${DEV_NAME}',
   'admin',
@@ -143,7 +143,7 @@ SELECT
   true
 FROM tenants t
 JOIN users u
-  ON u.external_subject = '${DEV_OPEN_ID}'
+  ON u.external_subject = '${DEV_LOCAL_OPEN_ID}'
 WHERE t.code = 'HOROS_LOCAL'
 ON CONFLICT (tenant_id, user_id)
 DO UPDATE SET
@@ -225,6 +225,30 @@ COMMIT;
   );
 }
 
+/**
+ * Repairs the canonical PostgreSQL identity used by the dedicated localhost
+ * development session. This is deliberately fail-closed for every other
+ * subject and is never available outside NODE_ENV=development.
+ */
+export function repairDevLocalCanonicalIdentity(
+  externalSubject: string,
+): boolean {
+  if (
+    process.env.NODE_ENV !== "development" ||
+    externalSubject !== DEV_LOCAL_OPEN_ID
+  ) {
+    return false;
+  }
+
+  // Establish the same runtime connection contract the canonical resolver will
+  // use before touching the bootstrap fixture. The bootstrap itself uses the
+  // local PostgreSQL container's administrative development role.
+  ensureCanonicalPgRuntimeConnection();
+  bootstrapCanonicalLocalIdentity();
+
+  return true;
+}
+
 export function registerDevLocalAuthRoutes(app: Express) {
   app.get("/api/dev/login", async (req: Request, res: Response) => {
     if (process.env.NODE_ENV !== "development" || !isLoopbackRequest(req)) {
@@ -233,11 +257,13 @@ export function registerDevLocalAuthRoutes(app: Express) {
     }
 
     try {
-      bootstrapCanonicalLocalIdentity();
-      ensureCanonicalPgRuntimeConnection();
+      // Keep local development identity bootstrapping idempotent and use the
+      // same repair path that pgProtectedProcedure can invoke if a long-lived
+      // local session outlives a database/container reset.
+      repairDevLocalCanonicalIdentity(DEV_LOCAL_OPEN_ID);
 
       await db.upsertUser({
-        openId: DEV_OPEN_ID,
+        openId: DEV_LOCAL_OPEN_ID,
         name: DEV_NAME,
         email: DEV_EMAIL,
         loginMethod: "local-dev",
@@ -246,14 +272,14 @@ export function registerDevLocalAuthRoutes(app: Express) {
       });
 
       const canonicalIdentity =
-        await resolveCanonicalTenantForSubject(DEV_OPEN_ID);
+        await resolveCanonicalTenantForSubject(DEV_LOCAL_OPEN_ID);
 
       if (canonicalIdentity.tenantCode !== "HOROS_LOCAL") {
         throw new Error("Unexpected local canonical tenant");
       }
 
       const sessionToken = await sdk.signSession({
-        openId: DEV_OPEN_ID,
+        openId: DEV_LOCAL_OPEN_ID,
         appId: "horos-local-dev",
         name: DEV_NAME,
       });
