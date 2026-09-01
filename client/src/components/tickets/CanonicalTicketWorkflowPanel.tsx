@@ -50,16 +50,26 @@ const systemMessageLabels: Record<string, string> = {
 };
 
 function eventAction(metadata: unknown): string | null {
+  let normalized = metadata;
+
+  if (typeof normalized === "string") {
+    try {
+      normalized = JSON.parse(normalized) as unknown;
+    } catch {
+      return null;
+    }
+  }
+
   if (
-    !metadata
-    || typeof metadata !== "object"
-    || Array.isArray(metadata)
+    !normalized
+    || typeof normalized !== "object"
+    || Array.isArray(normalized)
   ) {
     return null;
   }
 
   const action =
-    (metadata as Record<string, unknown>).action;
+    (normalized as Record<string, unknown>).action;
 
   return typeof action === "string"
     ? action
