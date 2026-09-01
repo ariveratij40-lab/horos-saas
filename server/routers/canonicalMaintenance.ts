@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import type { TransactionSql } from "postgres";
 import { z } from "zod";
@@ -311,7 +312,7 @@ async function validateAssetIds(
 ) {
   if (assetIds.length === 0) return [];
 
-  const uniqueIds = [...new Set(assetIds)];
+  const uniqueIds = Array.from(new Set(assetIds));
   const rows = await tx<{
     id: string;
     assetCode: string;
@@ -363,7 +364,7 @@ async function validatePolicyCoverageIfMapped(
     return "unmapped" as const;
   }
 
-  const uniqueIds = [...new Set(assetIds)];
+  const uniqueIds = Array.from(new Set(assetIds));
   const coveredRows = await tx<{ id: string }[]>`
     SELECT asset_id::text AS "id"
     FROM service_policy_assets
@@ -906,7 +907,7 @@ export const canonicalMaintenanceRouter = router({
               });
             }
 
-            const uniqueIds = [...new Set(input.assetIds)];
+            const uniqueIds = Array.from(new Set(input.assetIds));
             if (uniqueIds.length > 0) {
               const assetRows = await tx<{
                 id: string;
