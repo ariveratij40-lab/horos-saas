@@ -21,6 +21,9 @@ import {
 import {
   serviceRequestFulfillmentRouter,
 } from "./serviceRequestFulfillment";
+import {
+  serviceRequestCoverageRouter,
+} from "./serviceRequestCoverage";
 
 /**
  * Canonical lookup surfaces used by the Service Intake create UX.
@@ -30,8 +33,9 @@ import {
  * progressive: a request may be created without branch/system/asset.
  *
  * Lifecycle actions are nested under `workflow`; requester-side actions are
- * separated under `requester`; review-only actions under `review`; authorized
- * execution handoff under `fulfillment` so authorities remain explicit.
+ * separated under `requester`; review-only actions under `review`; policy
+ * coverage under `coverage`; authorized execution handoff under `fulfillment`
+ * so authorities remain explicit.
  */
 export const serviceRequestContextRouter =
   router({
@@ -43,6 +47,9 @@ export const serviceRequestContextRouter =
 
     review:
       serviceRequestReviewRouter,
+
+    coverage:
+      serviceRequestCoverageRouter,
 
     fulfillment:
       serviceRequestFulfillmentRouter,
