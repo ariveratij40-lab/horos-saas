@@ -66,6 +66,11 @@ function ticketCategoryForRequestType(requestType: string) {
  * mandatory. Context enrichment and conversion are intentionally separate
  * procedures so an authorized request can be completed safely before the
  * execution record is created.
+ *
+ * If the request was authorized through canonical policy coverage, conversion
+ * also inherits the SLA snapshot captured at authorization. Ticket creation,
+ * SLA deadlines, ticket/request linkage, ledgers, and intake completion remain
+ * in the same tenant transaction.
  */
 export const serviceRequestFulfillmentRouter =
   router({
@@ -399,11 +404,83 @@ export const serviceRequestFulfillmentRouter =
                 });
               }
 
+              const coverageRows = await tx<{
+                policyId: string | null;
+                policyNumber: string | null;
+                policyName: string | null;
+                policyServiceId: string | null;
+                serviceName: string | null;
+                slaRuleId: string | null;
+                ruleName: string | null;
+                responseTargetMinutes: number | null;
+                resolutionTargetMinutes: number | null;
+                escalationTargetMinutes: number | null;
+              }[]>`
+                SELECT
+                  metadata->>'policyId' AS "policyId",
+                  metadata->>'policyNumber' AS "policyNumber",
+                  metadata->>'policyName' AS "policyName",
+                  metadata->>'policyServiceId' AS "policyServiceId",
+                  metadata->>'serviceName' AS "serviceName",
+                  metadata->'slaRules'->${input.priority}->>'slaRuleId'
+                    AS "slaRuleId",
+                  metadata->'slaRules'->${input.priority}->>'ruleName'
+                    AS "ruleName",
+                  (
+                    metadata->'slaRules'->${input.priority}->>'responseTargetMinutes'
+                  )::int AS "responseTargetMinutes",
+                  (
+                    metadata->'slaRules'->${input.priority}->>'resolutionTargetMinutes'
+                  )::int AS "resolutionTargetMinutes",
+                  (
+                    metadata->'slaRules'->${input.priority}->>'escalationTargetMinutes'
+                  )::int AS "escalationTargetMinutes"
+                FROM service_request_events
+                WHERE service_request_id = ${request.id}::uuid
+                  AND event_type = 'authorized'
+                  AND metadata->>'action' = 'policy_coverage_authorized'
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+              `;
+
+              const coverage = coverageRows[0] ?? null;
+
+              if (
+                coverage
+                && (
+                  !coverage.policyId
+                  || !coverage.policyNumber
+                  || !coverage.policyName
+                  || !coverage.policyServiceId
+                  || !coverage.serviceName
+                  || !coverage.slaRuleId
+                  || !coverage.ruleName
+                  || !coverage.responseTargetMinutes
+                  || !coverage.resolutionTargetMinutes
+                )
+              ) {
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    "Policy-covered request has an incomplete SLA authorization snapshot",
+                });
+              }
+
+              const coveredByPolicy = Boolean(coverage);
+              const ticketNotes = coveredByPolicy
+                ? input.note
+                  ? `Converted from ${request.requestNumber} under ${coverage!.policyNumber}: ${input.note}`
+                  : `Converted from ${request.requestNumber} under ${coverage!.policyNumber} · ${coverage!.serviceName}`
+                : input.note
+                  ? `Converted from ${request.requestNumber}: ${input.note}`
+                  : `Converted from ${request.requestNumber}`;
+
               const ticketRows = await tx<{
                 id: string;
                 ticketNumber: string;
                 operationalStatus: string;
                 contractualStatus: string;
+                createdAt: Date;
               }[]>`
                 INSERT INTO service_tickets (
                   tenant_id,
@@ -441,17 +518,16 @@ export const serviceRequestFulfillmentRouter =
                   'approved',
                   ${input.priority},
                   ${category},
-                  ${request.estimatedAmount}::numeric,
-                  true,
-                  ${input.note
-                    ? `Converted from ${request.requestNumber}: ${input.note}`
-                    : `Converted from ${request.requestNumber}`}
+                  ${coveredByPolicy ? null : request.estimatedAmount}::numeric,
+                  ${!coveredByPolicy},
+                  ${ticketNotes}
                 )
                 RETURNING
                   id::text AS "id",
                   ticket_number AS "ticketNumber",
                   operational_status AS "operationalStatus",
-                  contractual_status AS "contractualStatus"
+                  contractual_status AS "contractualStatus",
+                  created_at AS "createdAt"
               `;
 
               if (ticketRows.length !== 1) {
@@ -463,6 +539,146 @@ export const serviceRequestFulfillmentRouter =
               }
 
               const ticket = ticketRows[0]!;
+
+              let inheritedSla: {
+                policyId: string;
+                policyNumber: string;
+                policyName: string;
+                policyServiceId: string;
+                serviceName: string;
+                slaRuleId: string;
+                ruleName: string;
+                responseTargetMinutes: number;
+                resolutionTargetMinutes: number;
+                escalationTargetMinutes: number | null;
+                responseDeadline: Date;
+                resolutionDeadline: Date;
+              } | null = null;
+
+              if (coverage) {
+                const responseDeadline = new Date(
+                  ticket.createdAt.getTime()
+                  + coverage.responseTargetMinutes! * 60_000,
+                );
+                const resolutionDeadline = new Date(
+                  ticket.createdAt.getTime()
+                  + coverage.resolutionTargetMinutes! * 60_000,
+                );
+
+                await tx`
+                  UPDATE service_tickets
+                  SET
+                    response_deadline = ${responseDeadline},
+                    resolution_deadline = ${resolutionDeadline},
+                    updated_at = now()
+                  WHERE id = ${ticket.id}::uuid
+                `;
+
+                await tx`
+                  INSERT INTO service_ticket_sla_snapshots (
+                    tenant_id,
+                    service_ticket_id,
+                    policy_id,
+                    sla_rule_id,
+                    policy_number_snapshot,
+                    policy_name_snapshot,
+                    rule_name_snapshot,
+                    priority_snapshot,
+                    response_target_minutes,
+                    resolution_target_minutes,
+                    escalation_target_minutes,
+                    sla_started_at,
+                    response_deadline,
+                    resolution_deadline,
+                    source,
+                    actor_name,
+                    metadata
+                  )
+                  VALUES (
+                    ${ctx.pgTenant.tenantId}::uuid,
+                    ${ticket.id}::uuid,
+                    ${coverage.policyId}::uuid,
+                    ${coverage.slaRuleId}::uuid,
+                    ${coverage.policyNumber},
+                    ${coverage.policyName},
+                    ${coverage.ruleName},
+                    ${input.priority},
+                    ${coverage.responseTargetMinutes},
+                    ${coverage.resolutionTargetMinutes},
+                    ${coverage.escalationTargetMinutes},
+                    ${ticket.createdAt},
+                    ${responseDeadline},
+                    ${resolutionDeadline},
+                    'policy',
+                    ${actorName(ctx)},
+                    ${JSON.stringify({
+                      source:
+                        "service_request_policy_coverage",
+                      requestId: request.id,
+                      requestNumber: request.requestNumber,
+                      policyServiceId:
+                        coverage.policyServiceId,
+                      serviceName: coverage.serviceName,
+                    })}::jsonb
+                  )
+                `;
+
+                await tx`
+                  INSERT INTO service_ticket_events (
+                    tenant_id,
+                    service_ticket_id,
+                    event_type,
+                    actor_name,
+                    message,
+                    metadata
+                  )
+                  VALUES (
+                    ${ctx.pgTenant.tenantId}::uuid,
+                    ${ticket.id}::uuid,
+                    'sla_applied',
+                    ${actorName(ctx)},
+                    ${`SLA heredado de ${coverage.policyNumber} · ${coverage.serviceName}`},
+                    ${JSON.stringify({
+                      action: "sla_inherited_from_service_request",
+                      requestId: request.id,
+                      requestNumber: request.requestNumber,
+                      policyId: coverage.policyId,
+                      policyNumber: coverage.policyNumber,
+                      policyServiceId:
+                        coverage.policyServiceId,
+                      serviceName: coverage.serviceName,
+                      priority: input.priority,
+                      responseTargetMinutes:
+                        coverage.responseTargetMinutes,
+                      resolutionTargetMinutes:
+                        coverage.resolutionTargetMinutes,
+                      responseDeadline:
+                        responseDeadline.toISOString(),
+                      resolutionDeadline:
+                        resolutionDeadline.toISOString(),
+                    })}::jsonb
+                  )
+                `;
+
+                inheritedSla = {
+                  policyId: coverage.policyId!,
+                  policyNumber: coverage.policyNumber!,
+                  policyName: coverage.policyName!,
+                  policyServiceId:
+                    coverage.policyServiceId!,
+                  serviceName: coverage.serviceName!,
+                  slaRuleId: coverage.slaRuleId!,
+                  ruleName: coverage.ruleName!,
+                  responseTargetMinutes:
+                    coverage.responseTargetMinutes!,
+                  resolutionTargetMinutes:
+                    coverage.resolutionTargetMinutes!,
+                  escalationTargetMinutes:
+                    coverage.escalationTargetMinutes,
+                  responseDeadline,
+                  resolutionDeadline,
+                };
+              }
 
               await tx`
                 INSERT INTO service_request_ticket_links (
@@ -498,6 +714,8 @@ export const serviceRequestFulfillmentRouter =
                     action: "converted_to_ticket",
                     ticketId: ticket.id,
                     ticketNumber: ticket.ticketNumber,
+                    inheritedPolicyNumber:
+                      inheritedSla?.policyNumber ?? null,
                   })}::jsonb
                 )
               `;
@@ -549,6 +767,8 @@ export const serviceRequestFulfillmentRouter =
                       "intake_completed_after_ticket_conversion",
                     ticketId: ticket.id,
                     ticketNumber: ticket.ticketNumber,
+                    inheritedPolicyNumber:
+                      inheritedSla?.policyNumber ?? null,
                   })}::jsonb
                 )
               `;
@@ -560,6 +780,7 @@ export const serviceRequestFulfillmentRouter =
                 completedAt:
                   completedRows[0]!.completedAt,
                 ticket,
+                inheritedSla,
               };
             },
           );
