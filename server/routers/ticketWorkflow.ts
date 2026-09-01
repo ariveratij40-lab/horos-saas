@@ -42,12 +42,14 @@ async function lockTicket(
     ticketNumber: string;
     operationalStatus: string;
     contractualStatus: string;
+    assignedToUserId: string | null;
   }[]>`
     SELECT
       id::text AS "id",
       ticket_number AS "ticketNumber",
       operational_status AS "operationalStatus",
-      contractual_status AS "contractualStatus"
+      contractual_status AS "contractualStatus",
+      assigned_to_user_id::text AS "assignedToUserId"
     FROM service_tickets
     WHERE id = ${id}::uuid
     FOR UPDATE
@@ -163,8 +165,16 @@ export const ticketWorkflowRouter = router({
           async tx => {
             const current = await lockTicket(tx, input.id);
 
+            if (!current.assignedToUserId) {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message:
+                  "Ticket must have a canonical assignee before work can start",
+              });
+            }
+
             if (
-              !["open", "assigned", "pending"].includes(
+              !["assigned", "pending"].includes(
                 current.operationalStatus,
               )
             ) {
@@ -218,6 +228,8 @@ export const ticketWorkflowRouter = router({
                 action: "work_started",
                 fromStatus: current.operationalStatus,
                 toStatus: "in_progress",
+                assignedToUserId:
+                  current.assignedToUserId,
               },
             });
 
