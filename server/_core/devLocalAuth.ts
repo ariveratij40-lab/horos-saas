@@ -11,6 +11,7 @@ import { sdk } from "./sdk";
 const DEV_OPEN_ID = "dev_local_horos_admin";
 const DEV_EMAIL = "admin.local@horos.test";
 const DEV_NAME = "Administrador Local HOROS";
+const DEV_PG_CONTAINER = "horos_postgres_dev";
 
 function isLoopbackRequest(req: Request): boolean {
   const hostname = req.hostname.toLowerCase();
@@ -24,6 +25,64 @@ function isLoopbackRequest(req: Request): boolean {
     remoteAddress === "::1" ||
     remoteAddress === "::ffff:127.0.0.1"
   );
+}
+
+function dockerOutput(args: string[]): string {
+  return execFileSync("docker", args, {
+    stdio: ["ignore", "pipe", "pipe"],
+    encoding: "utf8",
+  }).trim();
+}
+
+/**
+ * Local development normally starts the canonical PostgreSQL database through
+ * infra/dev/docker-compose.yml. The application process is intentionally not
+ * given those credentials by Docker Compose, so derive the runtime-only URL
+ * from the local container when HOROS_PG_DATABASE_URL was not explicitly set.
+ *
+ * This path is only reachable from the development-only loopback login route.
+ * The password is never logged or persisted by HOROS.
+ */
+function ensureCanonicalPgRuntimeConnection() {
+  if (process.env.HOROS_PG_DATABASE_URL) {
+    return;
+  }
+
+  const runtimePassword = dockerOutput([
+    "exec",
+    DEV_PG_CONTAINER,
+    "printenv",
+    "HOROS_RUNTIME_PASSWORD",
+  ]);
+
+  if (!runtimePassword) {
+    throw new Error("HOROS runtime password is unavailable in the dev container");
+  }
+
+  const portBinding = dockerOutput([
+    "port",
+    DEV_PG_CONTAINER,
+    "5432/tcp",
+  ]);
+
+  const portMatch = portBinding.match(/:(\d+)$/m);
+  if (!portMatch) {
+    throw new Error("Unable to resolve the local HOROS PostgreSQL port");
+  }
+
+  const databaseName =
+    dockerOutput([
+      "exec",
+      DEV_PG_CONTAINER,
+      "printenv",
+      "POSTGRES_DB",
+    ]) || "horos_dev";
+
+  const password = encodeURIComponent(runtimePassword);
+  const database = encodeURIComponent(databaseName);
+
+  process.env.HOROS_PG_DATABASE_URL =
+    `postgres://horos_runtime:${password}@127.0.0.1:${portMatch[1]}/${database}`;
 }
 
 function bootstrapCanonicalLocalIdentity() {
@@ -149,7 +208,7 @@ COMMIT;
     [
       "exec",
       "-i",
-      "horos_postgres_dev",
+      DEV_PG_CONTAINER,
       "psql",
       "-v",
       "ON_ERROR_STOP=1",
@@ -175,6 +234,7 @@ export function registerDevLocalAuthRoutes(app: Express) {
 
     try {
       bootstrapCanonicalLocalIdentity();
+      ensureCanonicalPgRuntimeConnection();
 
       await db.upsertUser({
         openId: DEV_OPEN_ID,
