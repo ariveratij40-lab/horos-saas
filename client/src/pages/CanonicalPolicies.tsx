@@ -174,7 +174,7 @@ export default function CanonicalPolicies() {
   }
 
   const validServices = services.filter(service =>
-    service.serviceName.trim(),
+    Boolean(service.serviceName.trim()),
   );
 
   const normalizedRules = rules.map(rule => ({
@@ -189,20 +189,76 @@ export default function CanonicalPolicies() {
     && rule.resolutionMinutes >= rule.responseMinutes,
   );
 
-  const formValid =
-    Boolean(policyNumber.trim())
-    && Boolean(name.trim())
-    && Boolean(startDate)
-    && Boolean(endDate)
-    && endDate >= startDate
-    && validServices.length > 0
-    && rulesValid;
+  const validationIssues = useMemo(() => {
+    const issues: string[] = [];
+
+    if (!policyNumber.trim()) {
+      issues.push("Capture el número de póliza.");
+    }
+
+    if (!name.trim()) {
+      issues.push("Capture el nombre de la póliza.");
+    }
+
+    if (!startDate) {
+      issues.push("Capture la fecha de inicio.");
+    }
+
+    if (!endDate) {
+      issues.push("Capture la fecha de fin.");
+    }
+
+    if (startDate && endDate && endDate < startDate) {
+      issues.push("La fecha de fin no puede ser anterior al inicio.");
+    }
+
+    if (validServices.length < 1) {
+      issues.push("Incluya al menos un servicio con nombre.");
+    }
+
+    normalizedRules.forEach(rule => {
+      const label =
+        PRIORITIES.find(item => item.value === rule.priority)?.label
+        ?? rule.priority;
+
+      if (rule.responseMinutes === null) {
+        issues.push(`${label}: capture un tiempo de respuesta mayor a cero.`);
+        return;
+      }
+
+      if (rule.resolutionMinutes === null) {
+        issues.push(`${label}: capture un tiempo de resolución mayor a cero.`);
+        return;
+      }
+
+      if (rule.resolutionMinutes < rule.responseMinutes) {
+        issues.push(`${label}: la resolución no puede ser menor que la respuesta.`);
+      }
+    });
+
+    if (annualValue.trim()) {
+      const parsed = Number(annualValue);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        issues.push("El valor anual debe ser un importe válido mayor o igual a cero.");
+      }
+    }
+
+    return issues;
+  }, [
+    annualValue,
+    endDate,
+    name,
+    normalizedRules,
+    policyNumber,
+    startDate,
+    validServices.length,
+  ]);
+
+  const formValid = validationIssues.length === 0;
 
   function submit() {
     if (!formValid) {
-      toast.error(
-        "Complete los datos generales, al menos un servicio y los cuatro tiempos SLA",
-      );
+      toast.error(validationIssues[0] ?? "Revise los datos de la póliza");
       return;
     }
 
@@ -556,13 +612,47 @@ export default function CanonicalPolicies() {
               <Label>Notas internas</Label>
               <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
             </div>
+
+            <div
+              className={
+                formValid
+                  ? "rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-300"
+                  : "rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-300"
+              }
+            >
+              <div className="flex items-start gap-2">
+                {formValid ? (
+                  <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                )}
+                <div>
+                  <p className="text-sm font-semibold">
+                    {formValid
+                      ? "Formulario listo para crear borrador"
+                      : "Falta completar información"}
+                  </p>
+                  {formValid ? (
+                    <p className="text-xs mt-1">
+                      HOROS enviará el contrato al backend canónico para su validación final.
+                    </p>
+                  ) : (
+                    <ul className="text-xs mt-1 space-y-1 list-disc pl-4">
+                      {validationIssues.map(issue => (
+                        <li key={issue}>{issue}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" disabled={create.isPending} onClick={() => setCreateOpen(false)}>
               Cancelar
             </Button>
-            <Button disabled={create.isPending || !formValid} onClick={submit}>
+            <Button disabled={create.isPending} onClick={submit}>
               {create.isPending ? "Guardando..." : "Crear borrador"}
             </Button>
           </DialogFooter>
