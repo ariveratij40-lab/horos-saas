@@ -70,6 +70,60 @@ async function lockTicket(
 }
 
 export const ticketAssignmentRouter = router({
+  canonicalCurrent:
+    pgProtectedProcedure
+      .input(
+        z.object({
+          id: z.string().uuid(),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        return withTenantTransaction(
+          ctx.pgTenant.tenantId,
+          async tx => {
+            const rows = await tx<{
+              id: string;
+              ticketNumber: string;
+              operationalStatus: string;
+              assignedToUserId: string | null;
+              assignedToName: string | null;
+              assignedToEmail: string | null;
+              assignedToTenantRole: string | null;
+              assignedAt: Date | null;
+            }[]>`
+              SELECT
+                st.id::text AS "id",
+                st.ticket_number AS "ticketNumber",
+                st.operational_status AS "operationalStatus",
+                st.assigned_to_user_id::text AS "assignedToUserId",
+                assigned_user.name AS "assignedToName",
+                assigned_user.email AS "assignedToEmail",
+                assigned_membership.role AS "assignedToTenantRole",
+                st.assigned_at AS "assignedAt"
+              FROM service_tickets st
+              LEFT JOIN tenant_users assigned_membership
+                ON assigned_membership.tenant_id = st.tenant_id
+                AND assigned_membership.user_id = st.assigned_to_user_id
+              LEFT JOIN users assigned_user
+                ON assigned_user.id = st.assigned_to_user_id
+              WHERE st.id = ${input.id}::uuid
+              LIMIT 1
+            `;
+
+            const current = rows[0];
+
+            if (!current) {
+              throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Canonical ticket was not found",
+              });
+            }
+
+            return current;
+          },
+        );
+      }),
+
   canonicalCandidates:
     pgProtectedProcedure
       .query(async ({ ctx }) => {
