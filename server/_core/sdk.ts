@@ -266,6 +266,36 @@ class SDKServer {
       throw ForbiddenError("Invalid session cookie");
     }
 
+    // Local development sessions are intentionally independent from the
+    // legacy MySQL/Manus identity store. The canonical PostgreSQL tenant
+    // membership is resolved later by pgProtectedProcedure using openId.
+    // This branch is only accepted in NODE_ENV=development and only for the
+    // dedicated appId minted by /api/dev/login.
+    if (
+      process.env.NODE_ENV === "development" &&
+      session.appId === "horos-local-dev" &&
+      session.openId === "dev_local_horos_admin"
+    ) {
+      const now = new Date();
+      return {
+        id: 0,
+        openId: session.openId,
+        name: session.name,
+        email: "admin.local@horos.test",
+        loginMethod: "local-dev",
+        passwordHash: null,
+        authProvider: "local",
+        role: "admin",
+        tenantId: null,
+        phone: null,
+        avatarUrl: null,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+        lastSignedIn: now,
+      };
+    }
+
     if (session.openId.startsWith(CRON_OPEN_ID_PREFIX)) {
       const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
       const taskUid = userInfo.taskUid ?? null;
@@ -328,13 +358,19 @@ function buildCronUser(
     name: userInfo.name || "Manus Scheduled Task",
     email: null,
     loginMethod: null,
+    passwordHash: null,
+    authProvider: "manus",
     role: "user",
+    tenantId: null,
+    phone: null,
+    avatarUrl: null,
+    isActive: true,
     createdAt: now,
     updatedAt: now,
     lastSignedIn: now,
     taskUid: userInfo.taskUid ?? undefined,
     isCron: true,
-  } as AuthenticatedUser;
+  };
 }
 
 export const sdk = new SDKServer();
