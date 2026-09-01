@@ -24,6 +24,9 @@ import {
 import {
   serviceRequestCoverageRouter,
 } from "./serviceRequestCoverage";
+import {
+  serviceRequestSlaRecoveryRouter,
+} from "./serviceRequestSlaRecovery";
 
 /**
  * Canonical lookup surfaces used by the Service Intake create UX.
@@ -34,8 +37,9 @@ import {
  *
  * Lifecycle actions are nested under `workflow`; requester-side actions are
  * separated under `requester`; review-only actions under `review`; policy
- * coverage under `coverage`; authorized execution handoff under `fulfillment`
- * so authorities remain explicit.
+ * coverage under `coverage`; SLA continuity repair under `slaRecovery`;
+ * authorized execution handoff under `fulfillment` so authorities remain
+ * explicit.
  */
 export const serviceRequestContextRouter =
   router({
@@ -50,6 +54,9 @@ export const serviceRequestContextRouter =
 
     coverage:
       serviceRequestCoverageRouter,
+
+    slaRecovery:
+      serviceRequestSlaRecoveryRouter,
 
     fulfillment:
       serviceRequestFulfillmentRouter,
