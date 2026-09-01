@@ -1,0 +1,133 @@
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+
+import {
+  pgProtectedProcedure,
+  router,
+} from "../_core/trpc";
+import {
+  withTenantTransaction,
+} from "../db.pg";
+
+function requireReviewerRole(tenantRole: string) {
+  if (tenantRole !== "admin") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        "Service request review requires tenant administrator access",
+    });
+  }
+}
+
+/**
+ * Administrative review actions that occur after Service Intake clarity
+ * evaluation. This router is deliberately separate from requester actions.
+ *
+ * The existing 0036 event taxonomy has no dedicated review_started value.
+ * Until a future taxonomy migration is introduced, review start is recorded
+ * as clarity_evaluated with metadata.action = review_started. This preserves
+ * an atomic audit ledger without rewriting the applied 0036 migration.
+ */
+export const serviceRequestReviewRouter =
+  router({
+    canonicalStartReview:
+      pgProtectedProcedure
+        .input(
+          z.object({
+            id: z.string().uuid(),
+          }),
+        )
+        .mutation(async ({ ctx, input }) => {
+          requireReviewerRole(
+            ctx.pgTenant.tenantRole,
+          );
+
+          return withTenantTransaction(
+            ctx.pgTenant.tenantId,
+            async tx => {
+              const rows = await tx<{
+                id: string;
+                requestNumber: string;
+                status: string;
+                updatedAt: Date;
+              }[]>`
+                UPDATE service_requests
+                SET
+                  status = 'under_review',
+                  updated_at = now()
+                WHERE id = ${input.id}::uuid
+                  AND status = 'ready_for_review'
+                  AND clarity_status IN (
+                    'sufficient',
+                    'confirmed'
+                  )
+                RETURNING
+                  id::text AS "id",
+                  request_number AS "requestNumber",
+                  status AS "status",
+                  updated_at AS "updatedAt"
+              `;
+
+              if (rows.length !== 1) {
+                const current = await tx<{
+                  status: string;
+                  clarityStatus: string;
+                }[]>`
+                  SELECT
+                    status AS "status",
+                    clarity_status AS "clarityStatus"
+                  FROM service_requests
+                  WHERE id = ${input.id}::uuid
+                  LIMIT 1
+                `;
+
+                if (current.length !== 1) {
+                  throw new TRPCError({
+                    code: "NOT_FOUND",
+                    message:
+                      "Service request was not found",
+                  });
+                }
+
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    `Service request cannot start review from status ${current[0]!.status} with clarity ${current[0]!.clarityStatus}`,
+                });
+              }
+
+              const actorName =
+                ctx.user.name
+                ?? ctx.user.email
+                ?? "Tenant administrator";
+
+              await tx`
+                INSERT INTO service_request_events (
+                  tenant_id,
+                  service_request_id,
+                  event_type,
+                  actor_name,
+                  message,
+                  metadata
+                )
+                VALUES (
+                  ${ctx.pgTenant.tenantId}::uuid,
+                  ${rows[0]!.id}::uuid,
+                  'clarity_evaluated',
+                  ${actorName},
+                  'Service request review started',
+                  ${JSON.stringify({
+                    action: "review_started",
+                    fromStatus:
+                      "ready_for_review",
+                    toStatus:
+                      "under_review",
+                  })}::jsonb
+                )
+              `;
+
+              return rows[0]!;
+            },
+          );
+        }),
+  });
