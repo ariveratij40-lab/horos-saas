@@ -31,3 +31,13 @@ evidence containing values to this repository.
 - CI scans the checked-out repository for secrets and redacts findings.
 - Historical exposure remains an incident-response concern even when the
   current-tree scan passes.
+
+## SEC-ROT-001 execution status
+
+| Category | Provider identified | Date UTC | Status | Test executed | Result | Non-sensitive evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| Historical remote session | Managed legacy Git repository | 2026-09-01 | BLOCKED | Expiration metadata review | Provider confirmation unavailable | Historical timestamp is past; no current local reference |
+| Historical remote access key | Managed legacy Git repository | 2026-09-01 | BLOCKED | Current consumer inventory | Owner and external consumers remain unidentified | No current repository configuration reference |
+| Forge backend API credential | Manus Forge | 2026-09-01 | BLOCKED | Provider console access | Authentication to the provider console is unavailable | Active Forge capabilities remain referenced by the application |
+| Historical database credential | TiDB Cloud (MySQL protocol) | 2026-09-01 | BLOCKED | Provider and protocol classification | Outside the PostgreSQL-only rotation authorization | Current local database configuration differs from the historical value |
+| JWT session-signing secret | HOROS runtime | 2026-09-01 | BLOCKED | User-presence count | Users are present; a maintenance window is required | No user identities or secret values were inspected or recorded |
