@@ -42,6 +42,7 @@
     { "idx": 37, "version": "7", "when": 1788240000000, "tag": "0037_service_ticket_events", "breakpoints": true },
     { "idx": 38, "version": "7", "when": 1788241800000, "tag": "0038_ticket_assignment", "breakpoints": true },
     { "idx": 39, "version": "7", "when": 1788243600000, "tag": "0039_service_policy_sla", "breakpoints": true },
-    { "idx": 40, "version": "7", "when": 1788245400000, "tag": "0040_canonical_maintenance_work_orders", "breakpoints": true }
+    { "idx": 40, "version": "7", "when": 1788245400000, "tag": "0040_canonical_maintenance_work_orders", "breakpoints": true },
+    { "idx": 41, "version": "7", "when": 1788247200000, "tag": "0041_maintenance_evidence_integrity", "breakpoints": true }
   ]
 }
