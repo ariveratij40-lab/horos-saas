@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
+  DollarSign,
   FileQuestion,
   HelpCircle,
   History,
@@ -43,6 +44,9 @@ import {
 import {
   RequestInformationDialog,
 } from "@/components/service-requests/RequestInformationDialog";
+import {
+  RequestQuoteDialog,
+} from "@/components/service-requests/RequestQuoteDialog";
 
 const requestTypeLabels: Record<string, string> = {
   service_attention: "Atención de servicio",
@@ -89,6 +93,7 @@ const eventLabels: Record<string, string> = {
   information_added: "Información aportada",
   requester_confirmed: "Solicitante confirmó información",
   clarity_evaluated: "Claridad evaluada",
+  quote_requested: "Cotización solicitada",
 };
 
 const eventMessageLabels: Record<string, string> = {
@@ -99,6 +104,8 @@ const eventMessageLabels: Record<string, string> = {
   "Service request clarity marked sufficient":
     "La solicitud cuenta con información suficiente para revisión",
   "Service request review started": "La revisión administrativa fue iniciada",
+  "Quote requested for service request":
+    "Se solicitó preparación de cotización",
 };
 
 function formatDate(value: Date | string | null | undefined) {
@@ -204,6 +211,8 @@ export default function ServiceRequestDetail() {
     useState(false);
   const [readyForReviewDialogOpen, setReadyForReviewDialogOpen] =
     useState(false);
+  const [requestQuoteDialogOpen, setRequestQuoteDialogOpen] =
+    useState(false);
 
   const requestId = params?.id ?? "";
   const utils = trpc.useUtils();
@@ -293,6 +302,16 @@ export default function ServiceRequestDetail() {
       onError: mutationError => toast.error(mutationError.message),
     });
 
+  const requestQuote =
+    trpc.serviceRequestContext.review.canonicalRequestQuote.useMutation({
+      onSuccess: async () => {
+        setRequestQuoteDialogOpen(false);
+        await refreshRequest();
+        toast.success("Solicitud enviada a preparación de cotización");
+      },
+      onError: mutationError => toast.error(mutationError.message),
+    });
+
   if (isLoading) {
     return (
       <div className="animate-fade-up space-y-4">
@@ -344,6 +363,9 @@ export default function ServiceRequestDetail() {
   const canProvideInformation = request.status === "needs_information";
   const canMarkReadyForReview = request.status === "submitted";
   const canStartReview = request.status === "ready_for_review";
+  const canRequestQuote =
+    request.status === "under_review"
+    && request.commercialStatus === "not_required";
 
   const workflowPending =
     submitRequest.isPending
@@ -351,7 +373,8 @@ export default function ServiceRequestDetail() {
     || requestInformation.isPending
     || provideInformation.isPending
     || markReadyForReview.isPending
-    || startReview.isPending;
+    || startReview.isPending
+    || requestQuote.isPending;
 
   const missingInformation = formatMissingInformation(
     request.missingInformation,
@@ -420,6 +443,17 @@ export default function ServiceRequestDetail() {
             </Button>
           )}
 
+          {canRequestQuote && (
+            <Button
+              className="gap-2 gradient-horos text-white"
+              disabled={workflowPending}
+              onClick={() => setRequestQuoteDialogOpen(true)}
+            >
+              <DollarSign className="w-4 h-4" />
+              Requiere cotización
+            </Button>
+          )}
+
           {canCancel && (
             <Button
               variant="outline"
@@ -476,21 +510,41 @@ export default function ServiceRequestDetail() {
         </Card>
       )}
 
-      {request.status === "under_review" && (
-        <Card className="mb-4 border-blue-300/70 bg-blue-50/60 dark:bg-blue-950/20">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <ClipboardCheck className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-semibold">Revisión administrativa en curso</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  La solicitud ya superó el gate de claridad y está siendo evaluada para determinar su siguiente tratamiento operativo o comercial.
-                </p>
+      {request.status === "under_review"
+        && request.commercialStatus !== "pending_quote"
+        && (
+          <Card className="mb-4 border-blue-300/70 bg-blue-50/60 dark:bg-blue-950/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <ClipboardCheck className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold">Revisión administrativa en curso</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    La solicitud ya superó el gate de claridad y está siendo evaluada para determinar su siguiente tratamiento operativo o comercial.
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
+
+      {request.status === "under_review"
+        && request.commercialStatus === "pending_quote"
+        && (
+          <Card className="mb-4 border-amber-300/70 bg-amber-50/60 dark:bg-amber-950/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <DollarSign className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold">Preparación de cotización requerida</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    La revisión determinó que esta solicitud necesita una propuesta comercial antes de continuar con autorización o ejecución.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
       <Card className="border-border/50 card-elevated">
         <CardContent className="p-6">
@@ -715,6 +769,14 @@ export default function ServiceRequestDetail() {
         requestNumber={request.requestNumber}
         isPending={markReadyForReview.isPending}
         onConfirm={input => markReadyForReview.mutate({ id: request.id, ...input })}
+      />
+
+      <RequestQuoteDialog
+        open={requestQuoteDialogOpen}
+        onOpenChange={setRequestQuoteDialogOpen}
+        requestNumber={request.requestNumber}
+        isPending={requestQuote.isPending}
+        onConfirm={input => requestQuote.mutate({ id: request.id, ...input })}
       />
     </div>
   );
