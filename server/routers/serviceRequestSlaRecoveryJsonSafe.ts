@@ -15,19 +15,27 @@ const prioritySchema = z.enum([
 type TicketRow = {
   id: string;
   ticketNumber: string;
+  branchId: string;
   priority: z.infer<typeof prioritySchema>;
   operationalStatus: string;
   createdAt: Date;
 };
 
-type CoverageRow = {
+type OriginRow = {
   requestId: string;
   requestNumber: string;
+};
+
+type PolicyReferenceRow = {
   policyId: string;
   policyNumber: string;
   policyName: string;
   policyServiceId: string;
   serviceName: string;
+  evidenceSource: "metadata" | "canonical_message";
+};
+
+type CoverageRow = PolicyReferenceRow & {
   slaRuleId: string;
   ruleName: string;
   priority: z.infer<typeof prioritySchema>;
@@ -64,6 +72,7 @@ async function loadTicket(
         SELECT
           id::text AS "id",
           ticket_number AS "ticketNumber",
+          branch_id::text AS "branchId",
           priority AS "priority",
           operational_status AS "operationalStatus",
           created_at AS "createdAt"
@@ -75,6 +84,7 @@ async function loadTicket(
         SELECT
           id::text AS "id",
           ticket_number AS "ticketNumber",
+          branch_id::text AS "branchId",
           priority AS "priority",
           operational_status AS "operationalStatus",
           created_at AS "createdAt"
@@ -82,6 +92,27 @@ async function loadTicket(
         WHERE id = ${ticketId}::uuid
         LIMIT 1
       `;
+
+  return rows[0] ?? null;
+}
+
+async function loadOrigin(
+  tx: TransactionSql,
+  ticketId: string,
+) {
+  const rows = await tx<OriginRow[]>`
+    SELECT
+      r.id::text AS "requestId",
+      r.request_number AS "requestNumber"
+    FROM service_request_ticket_links l
+    JOIN service_requests r
+      ON r.id = l.service_request_id
+      AND r.tenant_id = l.tenant_id
+    WHERE l.service_ticket_id = ${ticketId}::uuid
+      AND l.relation_type = 'converted'
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT 1
+  `;
 
   return rows[0] ?? null;
 }
@@ -101,63 +132,182 @@ async function hasCurrentSnapshot(
   return rows[0] ?? null;
 }
 
-async function resolveCoverage(
+async function authorizedEventCount(
   tx: TransactionSql,
-  ticketId: string,
-  priority: z.infer<typeof prioritySchema>,
+  requestId: string,
 ) {
-  const rows = await tx<CoverageRow[]>`
+  const rows = await tx<{ count: number }[]>`
+    SELECT count(*)::int AS "count"
+    FROM service_request_events
+    WHERE service_request_id = ${requestId}::uuid
+      AND event_type = 'authorized'
+  `;
+
+  return rows[0]?.count ?? 0;
+}
+
+async function resolvePolicyReference(
+  tx: TransactionSql,
+  origin: OriginRow,
+  ticket: TicketRow,
+) {
+  const rows = await tx<PolicyReferenceRow[]>`
     SELECT
-      r.id::text AS "requestId",
-      r.request_number AS "requestNumber",
       p.id::text AS "policyId",
       p.policy_number AS "policyNumber",
       p.name AS "policyName",
       ps.id::text AS "policyServiceId",
       ps.service_name AS "serviceName",
-      sr.id::text AS "slaRuleId",
-      sr.name AS "ruleName",
-      sr.priority AS "priority",
-      sr.response_target_minutes AS "responseTargetMinutes",
-      sr.resolution_target_minutes AS "resolutionTargetMinutes",
-      sr.escalation_target_minutes AS "escalationTargetMinutes"
-    FROM service_request_ticket_links l
-    JOIN service_requests r
-      ON r.id = l.service_request_id
-      AND r.tenant_id = l.tenant_id
-    JOIN LATERAL (
-      SELECT
-        e.metadata->>'policyId' AS "policyId",
-        e.metadata->>'policyServiceId' AS "policyServiceId"
-      FROM service_request_events e
-      WHERE e.service_request_id = r.id
-        AND e.tenant_id = r.tenant_id
-        AND e.event_type = 'authorized'
-        AND NULLIF(e.metadata->>'policyId', '') IS NOT NULL
-        AND NULLIF(e.metadata->>'policyServiceId', '') IS NOT NULL
-      ORDER BY e.created_at DESC, e.id DESC
-      LIMIT 1
-    ) ev ON true
-    JOIN service_policy_services ps
-      ON ps.id = ev."policyServiceId"::uuid
-      AND ps.tenant_id = l.tenant_id
-      AND ps.is_included = true
+      CASE
+        WHEN
+          NULLIF(e.metadata->>'policyId', '') = p.id::text
+          AND NULLIF(e.metadata->>'policyServiceId', '') = ps.id::text
+        THEN 'metadata'
+        ELSE 'canonical_message'
+      END AS "evidenceSource"
+    FROM service_request_events e
     JOIN service_policies p
-      ON p.id = ev."policyId"::uuid
-      AND p.id = ps.policy_id
-      AND p.tenant_id = l.tenant_id
-    JOIN service_policy_sla_rules sr
-      ON sr.policy_id = p.id
-      AND sr.tenant_id = p.tenant_id
-      AND sr.priority = ${priority}
-      AND sr.is_active = true
-    WHERE l.service_ticket_id = ${ticketId}::uuid
-      AND l.relation_type = 'converted'
-    ORDER BY l.created_at DESC, l.id DESC
+      ON p.tenant_id = e.tenant_id
+    JOIN service_policy_services ps
+      ON ps.policy_id = p.id
+      AND ps.tenant_id = p.tenant_id
+      AND ps.is_included = true
+    WHERE e.service_request_id = ${origin.requestId}::uuid
+      AND e.event_type = 'authorized'
+      AND (
+        (
+          NULLIF(e.metadata->>'policyId', '') = p.id::text
+          AND NULLIF(e.metadata->>'policyServiceId', '') = ps.id::text
+        )
+        OR e.message = (
+          'Cobertura aprobada por póliza '
+          || p.policy_number
+          || ' · '
+          || ps.service_name
+        )
+      )
+      AND (
+        p.branch_id IS NULL
+        OR p.branch_id = ${ticket.branchId}::uuid
+      )
+    ORDER BY e.created_at DESC, e.id DESC
     LIMIT 1
   `;
 
   return rows[0] ?? null;
+}
+
+async function resolveCoverage(
+  tx: TransactionSql,
+  reference: PolicyReferenceRow,
+  priority: z.infer<typeof prioritySchema>,
+): Promise<CoverageRow | null> {
+  const rows = await tx<{
+    slaRuleId: string;
+    ruleName: string;
+    priority: z.infer<typeof prioritySchema>;
+    responseTargetMinutes: number;
+    resolutionTargetMinutes: number;
+    escalationTargetMinutes: number | null;
+  }[]>`
+    SELECT
+      id::text AS "slaRuleId",
+      name AS "ruleName",
+      priority AS "priority",
+      response_target_minutes AS "responseTargetMinutes",
+      resolution_target_minutes AS "resolutionTargetMinutes",
+      escalation_target_minutes AS "escalationTargetMinutes"
+    FROM service_policy_sla_rules
+    WHERE policy_id = ${reference.policyId}::uuid
+      AND priority = ${priority}
+      AND is_active = true
+    LIMIT 1
+  `;
+
+  const rule = rows[0];
+  if (!rule) return null;
+
+  return {
+    ...reference,
+    ...rule,
+  };
+}
+
+async function inspectRecovery(
+  tx: TransactionSql,
+  ticket: TicketRow,
+) {
+  const current = await hasCurrentSnapshot(tx, ticket.id);
+  if (current) {
+    return {
+      recoverable: false as const,
+      reason: "already_configured" as const,
+      ticketNumber: ticket.ticketNumber,
+    };
+  }
+
+  const origin = await loadOrigin(tx, ticket.id);
+  if (!origin) {
+    return {
+      recoverable: false as const,
+      reason: "no_converted_origin" as const,
+      ticketNumber: ticket.ticketNumber,
+    };
+  }
+
+  const eventCount = await authorizedEventCount(tx, origin.requestId);
+  if (eventCount === 0) {
+    return {
+      recoverable: false as const,
+      reason: "no_authorized_event" as const,
+      ticketNumber: ticket.ticketNumber,
+      requestId: origin.requestId,
+      requestNumber: origin.requestNumber,
+    };
+  }
+
+  const reference = await resolvePolicyReference(tx, origin, ticket);
+  if (!reference) {
+    return {
+      recoverable: false as const,
+      reason: "no_policy_reference" as const,
+      ticketNumber: ticket.ticketNumber,
+      requestId: origin.requestId,
+      requestNumber: origin.requestNumber,
+      authorizedEventCount: eventCount,
+    };
+  }
+
+  const coverage = await resolveCoverage(
+    tx,
+    reference,
+    ticket.priority,
+  );
+
+  if (!coverage) {
+    return {
+      recoverable: false as const,
+      reason: "no_priority_sla_rule" as const,
+      ticketNumber: ticket.ticketNumber,
+      requestId: origin.requestId,
+      requestNumber: origin.requestNumber,
+      policyId: reference.policyId,
+      policyNumber: reference.policyNumber,
+      policyServiceId: reference.policyServiceId,
+      serviceName: reference.serviceName,
+      evidenceSource: reference.evidenceSource,
+      priority: ticket.priority,
+    };
+  }
+
+  return {
+    recoverable: true as const,
+    ticketNumber: ticket.ticketNumber,
+    operationalStatus: ticket.operationalStatus,
+    requestId: origin.requestId,
+    requestNumber: origin.requestNumber,
+    ...coverage,
+  };
 }
 
 export const serviceRequestSlaRecoveryJsonSafeRouter = router({
@@ -176,45 +326,7 @@ export const serviceRequestSlaRecoveryJsonSafeRouter = router({
               });
             }
 
-            const current = await hasCurrentSnapshot(tx, ticket.id);
-            if (current) {
-              return {
-                recoverable: false,
-                reason: "already_configured" as const,
-                ticketNumber: ticket.ticketNumber,
-              };
-            }
-
-            const coverage = await resolveCoverage(
-              tx,
-              ticket.id,
-              ticket.priority,
-            );
-
-            if (!coverage) {
-              return {
-                recoverable: false,
-                reason: "no_policy_origin" as const,
-                ticketNumber: ticket.ticketNumber,
-              };
-            }
-
-            return {
-              recoverable: true,
-              ticketNumber: ticket.ticketNumber,
-              operationalStatus: ticket.operationalStatus,
-              requestId: coverage.requestId,
-              requestNumber: coverage.requestNumber,
-              policyId: coverage.policyId,
-              policyNumber: coverage.policyNumber,
-              policyName: coverage.policyName,
-              policyServiceId: coverage.policyServiceId,
-              serviceName: coverage.serviceName,
-              priority: coverage.priority,
-              ruleName: coverage.ruleName,
-              responseTargetMinutes: coverage.responseTargetMinutes,
-              resolutionTargetMinutes: coverage.resolutionTargetMinutes,
-            } as const;
+            return inspectRecovery(tx, ticket);
           },
         );
       }),
@@ -243,34 +355,30 @@ export const serviceRequestSlaRecoveryJsonSafeRouter = router({
               });
             }
 
-            const current = await hasCurrentSnapshot(tx, ticket.id);
-            if (current) {
-              return {
-                changed: false,
-                snapshotId: current.id,
-              } as const;
-            }
+            const inspection = await inspectRecovery(tx, ticket);
 
-            const coverage = await resolveCoverage(
-              tx,
-              ticket.id,
-              ticket.priority,
-            );
+            if (!inspection.recoverable) {
+              if (inspection.reason === "already_configured") {
+                const current = await hasCurrentSnapshot(tx, ticket.id);
+                return {
+                  changed: false,
+                  snapshotId: current!.id,
+                } as const;
+              }
 
-            if (!coverage) {
               throw new TRPCError({
                 code: "CONFLICT",
-                message: "Ticket has no valid policy-covered Service Intake origin",
+                message: `Inherited SLA recovery is not available: ${inspection.reason}`,
               });
             }
 
             const responseDeadline = new Date(
               ticket.createdAt.getTime()
-              + coverage.responseTargetMinutes * 60_000,
+              + inspection.responseTargetMinutes * 60_000,
             );
             const resolutionDeadline = new Date(
               ticket.createdAt.getTime()
-              + coverage.resolutionTargetMinutes * 60_000,
+              + inspection.resolutionTargetMinutes * 60_000,
             );
 
             const snapshots = await tx<{ id: string }[]>`
@@ -296,27 +404,28 @@ export const serviceRequestSlaRecoveryJsonSafeRouter = router({
               VALUES (
                 ${ctx.pgTenant.tenantId}::uuid,
                 ${ticket.id}::uuid,
-                ${coverage.policyId}::uuid,
-                ${coverage.slaRuleId}::uuid,
-                ${coverage.policyNumber},
-                ${coverage.policyName},
-                ${coverage.ruleName},
-                ${coverage.priority},
-                ${coverage.responseTargetMinutes},
-                ${coverage.resolutionTargetMinutes},
-                ${coverage.escalationTargetMinutes},
+                ${inspection.policyId}::uuid,
+                ${inspection.slaRuleId}::uuid,
+                ${inspection.policyNumber},
+                ${inspection.policyName},
+                ${inspection.ruleName},
+                ${inspection.priority},
+                ${inspection.responseTargetMinutes},
+                ${inspection.resolutionTargetMinutes},
+                ${inspection.escalationTargetMinutes},
                 ${ticket.createdAt},
                 ${responseDeadline},
                 ${resolutionDeadline},
                 'policy',
                 ${actorName(ctx)},
                 ${JSON.stringify({
-                  action: "sla_recovered_from_service_request_sql_jsonb",
-                  source: "service_request_policy_reference",
-                  requestId: coverage.requestId,
-                  requestNumber: coverage.requestNumber,
-                  policyServiceId: coverage.policyServiceId,
-                  serviceName: coverage.serviceName,
+                  action: "sla_recovered_from_service_request_evidence",
+                  source: "service_request_policy_coverage",
+                  evidenceSource: inspection.evidenceSource,
+                  requestId: inspection.requestId,
+                  requestNumber: inspection.requestNumber,
+                  policyServiceId: inspection.policyServiceId,
+                  serviceName: inspection.serviceName,
                 })}::jsonb
               )
               RETURNING id::text AS "id"
@@ -347,22 +456,23 @@ export const serviceRequestSlaRecoveryJsonSafeRouter = router({
                 ${ticket.id}::uuid,
                 'sla_applied',
                 ${actorName(ctx)},
-                ${`SLA heredado de ${coverage.policyNumber} · ${coverage.serviceName}`},
+                ${`SLA heredado de ${inspection.policyNumber} · ${inspection.serviceName}`},
                 ${JSON.stringify({
-                  action: "sla_recovered_from_service_request_sql_jsonb",
+                  action: "sla_recovered_from_service_request_evidence",
                   snapshotId: snapshots[0]!.id,
-                  requestId: coverage.requestId,
-                  requestNumber: coverage.requestNumber,
-                  policyId: coverage.policyId,
-                  policyNumber: coverage.policyNumber,
-                  policyName: coverage.policyName,
-                  policyServiceId: coverage.policyServiceId,
-                  serviceName: coverage.serviceName,
-                  ruleId: coverage.slaRuleId,
-                  ruleName: coverage.ruleName,
-                  priority: coverage.priority,
-                  responseTargetMinutes: coverage.responseTargetMinutes,
-                  resolutionTargetMinutes: coverage.resolutionTargetMinutes,
+                  evidenceSource: inspection.evidenceSource,
+                  requestId: inspection.requestId,
+                  requestNumber: inspection.requestNumber,
+                  policyId: inspection.policyId,
+                  policyNumber: inspection.policyNumber,
+                  policyName: inspection.policyName,
+                  policyServiceId: inspection.policyServiceId,
+                  serviceName: inspection.serviceName,
+                  ruleId: inspection.slaRuleId,
+                  ruleName: inspection.ruleName,
+                  priority: inspection.priority,
+                  responseTargetMinutes: inspection.responseTargetMinutes,
+                  resolutionTargetMinutes: inspection.resolutionTargetMinutes,
                   responseDeadline: responseDeadline.toISOString(),
                   resolutionDeadline: resolutionDeadline.toISOString(),
                 })}::jsonb
@@ -372,9 +482,9 @@ export const serviceRequestSlaRecoveryJsonSafeRouter = router({
             return {
               changed: true,
               snapshotId: snapshots[0]!.id,
-              policyNumber: coverage.policyNumber,
-              policyName: coverage.policyName,
-              serviceName: coverage.serviceName,
+              policyNumber: inspection.policyNumber,
+              policyName: inspection.policyName,
+              serviceName: inspection.serviceName,
               responseDeadline,
               resolutionDeadline,
             } as const;
