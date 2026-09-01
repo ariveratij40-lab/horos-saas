@@ -14,6 +14,7 @@ import { serviceSlaDashboardRouter } from "./routers/serviceSlaDashboard";
 import { assetsRouter } from "./routers/assets";
 import { maintenanceRouter } from "./routers/maintenance";
 import { canonicalMaintenanceRouter } from "./routers/canonicalMaintenance";
+import { canonicalMaintenanceEvidenceRouter } from "./routers/canonicalMaintenanceEvidence";
 import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashboard";
 import { slaRouter } from "./routers/sla";
 import { cctvRouter } from "./routers/cctv";
@@ -61,7 +62,6 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
-        // Find user by email
         const [user] = await db.select().from(users)
           .where(eq(users.email, input.email))
           .limit(1);
@@ -244,6 +244,7 @@ export const appRouter = router({
   assets: assetsRouter,
   maintenance: maintenanceRouter,
   canonicalMaintenance: canonicalMaintenanceRouter,
+  canonicalMaintenanceEvidence: canonicalMaintenanceEvidenceRouter,
   sla: slaRouter,
   cctv: cctvRouter,
   cctvImport: cctvImportRouter,
