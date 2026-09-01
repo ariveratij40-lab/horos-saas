@@ -10,6 +10,7 @@ import { serviceRequestsRouter } from "./routers/serviceRequests";
 import { serviceRequestContextRouter } from "./routers/serviceRequestContext";
 import { serviceTraceabilityRouter } from "./routers/serviceTraceability";
 import { servicePolicySlaRouter } from "./routers/servicePolicySla";
+import { serviceSlaDashboardRouter } from "./routers/serviceSlaDashboard";
 import { assetsRouter } from "./routers/assets";
 import { maintenanceRouter } from "./routers/maintenance";
 import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashboard";
@@ -238,6 +239,7 @@ export const appRouter = router({
   serviceRequestContext: serviceRequestContextRouter,
   serviceTraceability: serviceTraceabilityRouter,
   servicePolicySla: servicePolicySlaRouter,
+  serviceSlaDashboard: serviceSlaDashboardRouter,
   assets: assetsRouter,
   maintenance: maintenanceRouter,
   sla: slaRouter,
