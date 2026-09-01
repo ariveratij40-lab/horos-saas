@@ -126,6 +126,21 @@ export default function CanonicalPolicyDetail() {
   const ready =
     includedServices.length > 0
     && allPriorities.every(priority => activePriorities.has(priority));
+  const isActive = policy.status === "active";
+
+  const bannerTitle = isActive
+    ? "Póliza activa"
+    : ready
+      ? "Contrato listo para activación"
+      : "Configuración contractual incompleta";
+
+  const bannerMessage = isActive
+    ? "La póliza está activa y puede aplicarse a tickets compatibles con su ámbito, vigencia y prioridad."
+    : ready
+      ? "La póliza contiene al menos un servicio incluido y reglas SLA activas para Crítica, Alta, Media y Baja."
+      : "Se requiere al menos un servicio incluido y las cuatro reglas SLA antes de activar.";
+
+  const bannerReady = isActive || ready;
 
   return (
     <div className="animate-fade-up space-y-5">
@@ -160,17 +175,15 @@ export default function CanonicalPolicyDetail() {
         )}
       </div>
 
-      <Card className={ready ? "border-emerald-200 bg-emerald-50/30" : "border-amber-200 bg-amber-50/30"}>
+      <Card className={bannerReady ? "border-emerald-200 bg-emerald-50/30" : "border-amber-200 bg-amber-50/30"}>
         <CardContent className="p-4 flex items-start gap-3">
-          <CheckCircle2 className={ready ? "h-5 w-5 text-emerald-600 mt-0.5" : "h-5 w-5 text-amber-600 mt-0.5"} />
+          <CheckCircle2 className={bannerReady ? "h-5 w-5 text-emerald-600 mt-0.5" : "h-5 w-5 text-amber-600 mt-0.5"} />
           <div>
             <p className="font-semibold text-sm">
-              {ready ? "Contrato listo para activación" : "Configuración contractual incompleta"}
+              {bannerTitle}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              {ready
-                ? "La póliza contiene al menos un servicio incluido y reglas SLA activas para Crítica, Alta, Media y Baja."
-                : "Se requiere al menos un servicio incluido y las cuatro reglas SLA antes de activar."}
+              {bannerMessage}
             </p>
           </div>
         </CardContent>
