@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useLocation, useRoute } from "wouter";
+import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -158,8 +159,8 @@ function InfoItem({
   icon: Icon,
 }: {
   label: string;
-  value: React.ReactNode;
-  icon?: typeof Building2;
+  value: ReactNode;
+  icon?: LucideIcon;
 }) {
   return (
     <div className="space-y-1">
@@ -175,12 +176,12 @@ function InfoItem({
 export default function CanonicalMaintenanceDetail() {
   const [, params] = useRoute("/maintenance/:id");
   const [, navigate] = useLocation();
-  const id = params?.id;
+  const routeId = params?.id;
   const utils = trpc.useUtils();
 
   const query = trpc.canonicalMaintenance.canonicalGet.useQuery(
-    { id: id ?? "00000000-0000-4000-8000-000000000000" },
-    { enabled: Boolean(id), retry: false },
+    { id: routeId ?? "00000000-0000-4000-8000-000000000000" },
+    { enabled: Boolean(routeId), retry: false },
   );
   const candidatesQuery = trpc.ticketAssignment.canonicalCandidates.useQuery();
 
@@ -190,7 +191,7 @@ export default function CanonicalMaintenanceDetail() {
   const [planAssignee, setPlanAssignee] = useState("");
 
   const [showAsset, setShowAsset] = useState(false);
-  const [assetId, setAssetId] = useState("");
+  const [selectedAssetId, setSelectedAssetId] = useState("");
   const [assetStatus, setAssetStatus] = useState("pending");
   const [conditionBefore, setConditionBefore] = useState("");
   const [conditionAfter, setConditionAfter] = useState("");
@@ -227,13 +228,13 @@ export default function CanonicalMaintenanceDetail() {
   const [showAcceptance, setShowAcceptance] = useState(false);
   const [acceptanceNote, setAcceptanceNote] = useState("");
 
-  async function refresh() {
-    if (!id) return;
+  const refresh = async () => {
+    if (!routeId) return;
     await Promise.all([
-      utils.canonicalMaintenance.canonicalGet.invalidate({ id }),
+      utils.canonicalMaintenance.canonicalGet.invalidate({ id: routeId }),
       utils.canonicalMaintenance.canonicalList.invalidate(),
     ]);
-  }
+  };
 
   const planMutation = trpc.canonicalMaintenance.canonicalPlan.useMutation({
     onSuccess: async () => {
@@ -309,7 +310,7 @@ export default function CanonicalMaintenanceDetail() {
   }
 
   const order = query.data;
-  if (query.error || !order || !id) {
+  if (query.error || !order || !routeId) {
     return (
       <Card>
         <CardContent className="space-y-3 p-6">
@@ -321,33 +322,35 @@ export default function CanonicalMaintenanceDetail() {
     );
   }
 
-  const pendingCount = order.assets.filter(asset => asset.status === "pending").length;
-  const processedCount = order.assets.length - pendingCount;
-  const progress = order.assets.length > 0
-    ? Math.round((processedCount / order.assets.length) * 100)
+  const loadedOrder = order;
+  const workOrderId: string = routeId;
+  const pendingCount = loadedOrder.assets.filter(asset => asset.status === "pending").length;
+  const processedCount = loadedOrder.assets.length - pendingCount;
+  const progress = loadedOrder.assets.length > 0
+    ? Math.round((processedCount / loadedOrder.assets.length) * 100)
     : 0;
 
-  function openPlanDialog() {
-    setPlanStart(toInputDateTime(order.scheduledStart));
-    setPlanEnd(toInputDateTime(order.scheduledEnd));
-    setPlanAssignee(order.assignedToUserId ?? "");
+  const openPlanDialog = () => {
+    setPlanStart(toInputDateTime(loadedOrder.scheduledStart));
+    setPlanEnd(toInputDateTime(loadedOrder.scheduledEnd));
+    setPlanAssignee(loadedOrder.assignedToUserId ?? "");
     setShowPlan(true);
-  }
+  };
 
-  function openAssetDialog(selectedId: string) {
-    const asset = order.assets.find(item => item.id === selectedId);
+  const openAssetDialog = (assetId: string) => {
+    const asset = loadedOrder.assets.find(item => item.id === assetId);
     if (!asset) return;
-    setAssetId(asset.id);
+    setSelectedAssetId(asset.id);
     setAssetStatus(asset.status);
     setConditionBefore(asset.conditionBefore ?? "");
     setConditionAfter(asset.conditionAfter ?? "");
     setWorkPerformed(asset.workPerformed ?? "");
     setTechnicianNotes(asset.technicianNotes ?? "");
     setShowAsset(true);
-  }
+  };
 
-  function openFindingDialog(selectedId?: string) {
-    setFindingAssetId(selectedId ?? "general");
+  const openFindingDialog = (assetId?: string) => {
+    setFindingAssetId(assetId ?? "general");
     setFindingType("anomaly");
     setFindingSeverity("medium");
     setFindingStatus("open");
@@ -359,18 +362,18 @@ export default function CanonicalMaintenanceDetail() {
     setFindingFollowUp(false);
     setFindingCapex(false);
     setShowFinding(true);
-  }
+  };
 
-  function openEvidenceDialog(selectedId?: string) {
-    setEvidenceAssetId(selectedId ?? "general");
+  const openEvidenceDialog = (assetId?: string) => {
+    setEvidenceAssetId(assetId ?? "general");
     setEvidenceFindingId("none");
     setEvidencePhase("before");
     setEvidenceCaption("");
     setEvidenceFile(null);
     setShowEvidence(true);
-  }
+  };
 
-  async function uploadEvidence() {
+  const uploadEvidence = async () => {
     if (!evidenceFile) return;
     if (evidenceFile.size > 20 * 1024 * 1024) {
       toast.error("El archivo excede 20 MB");
@@ -385,7 +388,7 @@ export default function CanonicalMaintenanceDetail() {
     try {
       const fileBase64 = await fileToBase64(evidenceFile);
       evidenceMutation.mutate({
-        workOrderId: id,
+        workOrderId,
         workOrderAssetId: evidenceAssetId === "general" ? undefined : evidenceAssetId,
         findingId: evidenceFindingId === "none" ? undefined : evidenceFindingId,
         evidencePhase: evidencePhase as "before" | "during" | "after" | "general",
@@ -399,9 +402,9 @@ export default function CanonicalMaintenanceDetail() {
     } finally {
       setPreparingEvidence(false);
     }
-  }
+  };
 
-  const compatibleFindings = order.findings.filter(finding =>
+  const compatibleFindings = loadedOrder.findings.filter(finding =>
     evidenceAssetId === "general"
       ? finding.workOrderAssetId === null
       : finding.workOrderAssetId === evidenceAssetId,
@@ -415,31 +418,31 @@ export default function CanonicalMaintenanceDetail() {
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Mantenimiento
           </Button>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">{order.workOrderNumber}</span>
-            <Badge variant="outline" className={cn("font-medium", STATUS_STYLES[order.status])}>
-              {STATUS_LABELS[order.status] ?? order.status}
+            <span className="text-xs font-medium text-muted-foreground">{loadedOrder.workOrderNumber}</span>
+            <Badge variant="outline" className={cn("font-medium", STATUS_STYLES[loadedOrder.status])}>
+              {STATUS_LABELS[loadedOrder.status] ?? loadedOrder.status}
             </Badge>
-            <Badge variant="secondary">{TYPE_LABELS[order.maintenanceType] ?? order.maintenanceType}</Badge>
+            <Badge variant="secondary">{TYPE_LABELS[loadedOrder.maintenanceType] ?? loadedOrder.maintenanceType}</Badge>
           </div>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight">{order.title}</h1>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight">{loadedOrder.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Orden canónica · fuente estructurada para la memoria técnica.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {order.status === "draft" ? (
+          {loadedOrder.status === "draft" ? (
             <Button onClick={openPlanDialog}>
               <CalendarDays className="mr-2 h-4 w-4" /> Planear
             </Button>
           ) : null}
-          {order.status === "planned" ? (
-            <Button disabled={startMutation.isPending} onClick={() => startMutation.mutate({ id })}>
+          {loadedOrder.status === "planned" ? (
+            <Button disabled={startMutation.isPending} onClick={() => startMutation.mutate({ id: workOrderId })}>
               <Play className="mr-2 h-4 w-4" />
               {startMutation.isPending ? "Iniciando..." : "Iniciar trabajo"}
             </Button>
           ) : null}
-          {order.status === "in_progress" ? (
+          {loadedOrder.status === "in_progress" ? (
             <>
               <Button variant="outline" onClick={() => openFindingDialog()}>
                 <Plus className="mr-2 h-4 w-4" /> Hallazgo
@@ -452,7 +455,7 @@ export default function CanonicalMaintenanceDetail() {
               </Button>
             </>
           ) : null}
-          {order.status === "completed" && !order.customerAcceptedAt ? (
+          {loadedOrder.status === "completed" && !loadedOrder.customerAcceptedAt ? (
             <Button onClick={() => setShowAcceptance(true)}>
               <BadgeCheck className="mr-2 h-4 w-4" /> Aceptación cliente
             </Button>
@@ -463,30 +466,30 @@ export default function CanonicalMaintenanceDetail() {
       <Card className="border-primary/20 bg-primary/[0.025]">
         <CardContent className="p-5">
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            <InfoItem label="Sucursal" value={`${order.branchName} (${order.branchCode})`} icon={Building2} />
-            <InfoItem label="Póliza" value={order.policyNumber ? `${order.policyNumber} — ${order.policyName ?? ""}` : "Sin póliza vinculada"} icon={ShieldCheck} />
-            <InfoItem label="Sistema" value={order.systemName ?? "Sin sistema específico"} icon={Wrench} />
-            <InfoItem label="Responsable" value={order.assignedToName ?? "Sin asignar"} icon={UserRound} />
+            <InfoItem label="Sucursal" value={`${loadedOrder.branchName} (${loadedOrder.branchCode})`} icon={Building2} />
+            <InfoItem label="Póliza" value={loadedOrder.policyNumber ? `${loadedOrder.policyNumber} — ${loadedOrder.policyName ?? ""}` : "Sin póliza vinculada"} icon={ShieldCheck} />
+            <InfoItem label="Sistema" value={loadedOrder.systemName ?? "Sin sistema específico"} icon={Wrench} />
+            <InfoItem label="Responsable" value={loadedOrder.assignedToName ?? "Sin asignar"} icon={UserRound} />
           </div>
           <div className="mt-5 grid gap-5 border-t pt-5 md:grid-cols-3">
-            <InfoItem label="Inicio programado" value={formatDateTime(order.scheduledStart)} icon={CalendarDays} />
-            <InfoItem label="Inicio real" value={formatDateTime(order.startedAt)} icon={Clock3} />
-            <InfoItem label="Completado" value={formatDateTime(order.completedAt)} icon={CheckCircle2} />
+            <InfoItem label="Inicio programado" value={formatDateTime(loadedOrder.scheduledStart)} icon={CalendarDays} />
+            <InfoItem label="Inicio real" value={formatDateTime(loadedOrder.startedAt)} icon={Clock3} />
+            <InfoItem label="Completado" value={formatDateTime(loadedOrder.completedAt)} icon={CheckCircle2} />
           </div>
-          {order.objective ? (
+          {loadedOrder.objective ? (
             <div className="mt-5 border-t pt-5">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Objetivo</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{order.objective}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{loadedOrder.objective}</p>
             </div>
           ) : null}
         </CardContent>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{order.assets.length}</p><p className="text-xs text-muted-foreground">Activos en alcance</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{loadedOrder.assets.length}</p><p className="text-xs text-muted-foreground">Activos en alcance</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-2xl font-bold">{processedCount}</p><p className="text-xs text-muted-foreground">Activos procesados</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{order.findings.length}</p><p className="text-xs text-muted-foreground">Hallazgos</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{order.evidence.length}</p><p className="text-xs text-muted-foreground">Evidencias</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{loadedOrder.findings.length}</p><p className="text-xs text-muted-foreground">Hallazgos</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{loadedOrder.evidence.length}</p><p className="text-xs text-muted-foreground">Evidencias</p></CardContent></Card>
       </div>
 
       <Card>
@@ -494,7 +497,7 @@ export default function CanonicalMaintenanceDetail() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <CardTitle className="text-base">Avance de ejecución</CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">{processedCount} de {order.assets.length} activos · {progress}%</p>
+              <p className="mt-1 text-sm text-muted-foreground">{processedCount} de {loadedOrder.assets.length} activos · {progress}%</p>
             </div>
             {pendingCount > 0 ? <Badge variant="outline">{pendingCount} pendiente(s)</Badge> : null}
           </div>
@@ -512,12 +515,12 @@ export default function CanonicalMaintenanceDetail() {
           <p className="text-sm text-muted-foreground">Condición, trabajo, hallazgos y evidencia quedan ligados al activo canónico.</p>
         </CardHeader>
         <CardContent className="p-0">
-          {order.assets.length === 0 ? (
+          {loadedOrder.assets.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">No hay activos en esta orden.</div>
           ) : (
             <div className="divide-y">
-              {order.assets.map(asset => {
-                const assetEvidence = Array.from(order.evidence).filter(item => item.workOrderAssetId === asset.id);
+              {loadedOrder.assets.map(asset => {
+                const assetEvidence = Array.from(loadedOrder.evidence).filter(item => item.workOrderAssetId === asset.id);
                 const phases = new Set(assetEvidence.map(item => item.evidencePhase));
                 return (
                   <div key={asset.id} className="p-4 md:p-5">
@@ -534,7 +537,7 @@ export default function CanonicalMaintenanceDetail() {
                           {[asset.manufacturer, asset.model, asset.locationName].filter(Boolean).join(" · ") || "Sin detalle adicional"}
                         </p>
                       </div>
-                      {order.status === "in_progress" ? (
+                      {loadedOrder.status === "in_progress" ? (
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" variant="outline" onClick={() => openAssetDialog(asset.id)}>
                             <Wrench className="mr-1.5 h-3.5 w-3.5" /> Ejecutar
@@ -591,17 +594,17 @@ export default function CanonicalMaintenanceDetail() {
                 <CardTitle className="text-base">Hallazgos</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">Diagnóstico, acción y recomendación.</p>
               </div>
-              {order.status === "in_progress" ? (
+              {loadedOrder.status === "in_progress" ? (
                 <Button size="sm" variant="outline" onClick={() => openFindingDialog()}><Plus className="mr-1 h-3.5 w-3.5" /> Agregar</Button>
               ) : null}
             </div>
           </CardHeader>
           <CardContent>
-            {order.findings.length === 0 ? (
+            {loadedOrder.findings.length === 0 ? (
               <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Sin hallazgos.</div>
             ) : (
               <div className="space-y-3">
-                {order.findings.map(finding => (
+                {loadedOrder.findings.map(finding => (
                   <div key={finding.id} className="rounded-xl border p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium">{finding.title}</p>
@@ -634,17 +637,17 @@ export default function CanonicalMaintenanceDetail() {
                 <CardTitle className="text-base">Evidencia</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">Antes, durante, después y soporte.</p>
               </div>
-              {["in_progress", "completed"].includes(order.status) ? (
+              {["in_progress", "completed"].includes(loadedOrder.status) ? (
                 <Button size="sm" variant="outline" onClick={() => openEvidenceDialog()}><Upload className="mr-1 h-3.5 w-3.5" /> Agregar</Button>
               ) : null}
             </div>
           </CardHeader>
           <CardContent>
-            {order.evidence.length === 0 ? (
+            {loadedOrder.evidence.length === 0 ? (
               <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Sin evidencia.</div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
-                {order.evidence.map(item => (
+                {loadedOrder.evidence.map(item => (
                   <div key={item.id} className="overflow-hidden rounded-xl border">
                     {item.mediaType === "photo" && item.fileUrl ? (
                       <a href={item.fileUrl} target="_blank" rel="noreferrer" className="block aspect-video bg-muted">
@@ -671,19 +674,19 @@ export default function CanonicalMaintenanceDetail() {
         </Card>
       </div>
 
-      {(order.summary || order.generalFindings || order.correctiveActions || order.recommendations || order.customerAcceptedAt) ? (
+      {(loadedOrder.summary || loadedOrder.generalFindings || loadedOrder.correctiveActions || loadedOrder.recommendations || loadedOrder.customerAcceptedAt) ? (
         <Card className="border-emerald-200/70">
           <CardHeader><CardTitle className="text-base">Cierre técnico</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            {order.summary ? <InfoItem label="Resumen" value={<p className="whitespace-pre-wrap font-normal">{order.summary}</p>} icon={ClipboardList} /> : null}
-            {order.generalFindings ? <InfoItem label="Hallazgos generales" value={<p className="whitespace-pre-wrap font-normal">{order.generalFindings}</p>} icon={AlertTriangle} /> : null}
-            {order.correctiveActions ? <InfoItem label="Acciones correctivas" value={<p className="whitespace-pre-wrap font-normal">{order.correctiveActions}</p>} icon={Wrench} /> : null}
-            {order.recommendations ? <InfoItem label="Recomendaciones" value={<p className="whitespace-pre-wrap font-normal">{order.recommendations}</p>} icon={Flag} /> : null}
-            {order.customerAcceptedAt ? (
+            {loadedOrder.summary ? <InfoItem label="Resumen" value={<p className="whitespace-pre-wrap font-normal">{loadedOrder.summary}</p>} icon={ClipboardList} /> : null}
+            {loadedOrder.generalFindings ? <InfoItem label="Hallazgos generales" value={<p className="whitespace-pre-wrap font-normal">{loadedOrder.generalFindings}</p>} icon={AlertTriangle} /> : null}
+            {loadedOrder.correctiveActions ? <InfoItem label="Acciones correctivas" value={<p className="whitespace-pre-wrap font-normal">{loadedOrder.correctiveActions}</p>} icon={Wrench} /> : null}
+            {loadedOrder.recommendations ? <InfoItem label="Recomendaciones" value={<p className="whitespace-pre-wrap font-normal">{loadedOrder.recommendations}</p>} icon={Flag} /> : null}
+            {loadedOrder.customerAcceptedAt ? (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
                 <div className="flex items-center gap-2 font-medium"><BadgeCheck className="h-4 w-4" /> Aceptación registrada</div>
-                <p className="mt-1 text-sm">{formatDateTime(order.customerAcceptedAt)}</p>
-                {order.customerAcceptanceNotes ? <p className="mt-2 text-sm">{order.customerAcceptanceNotes}</p> : null}
+                <p className="mt-1 text-sm">{formatDateTime(loadedOrder.customerAcceptedAt)}</p>
+                {loadedOrder.customerAcceptanceNotes ? <p className="mt-2 text-sm">{loadedOrder.customerAcceptanceNotes}</p> : null}
               </div>
             ) : null}
           </CardContent>
@@ -694,7 +697,7 @@ export default function CanonicalMaintenanceDetail() {
         <CardHeader><CardTitle className="text-base">Historial operativo</CardTitle></CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {order.events.map(event => (
+            {loadedOrder.events.map(event => (
               <div key={event.id} className="border-b pb-4 last:border-0 last:pb-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-medium">{EVENT_LABELS[event.eventType] ?? event.eventType}</p>
@@ -708,9 +711,9 @@ export default function CanonicalMaintenanceDetail() {
         </CardContent>
       </Card>
 
-      {order.serviceTicketId ? (
-        <Button variant="outline" onClick={() => navigate(`/tickets/${order.serviceTicketId}`)}>
-          <Link2 className="mr-2 h-4 w-4" /> Abrir ticket de origen {order.ticketNumber ? `· ${order.ticketNumber}` : ""}
+      {loadedOrder.serviceTicketId ? (
+        <Button variant="outline" onClick={() => navigate(`/tickets/${loadedOrder.serviceTicketId}`)}>
+          <Link2 className="mr-2 h-4 w-4" /> Abrir ticket de origen {loadedOrder.ticketNumber ? `· ${loadedOrder.ticketNumber}` : ""}
         </Button>
       ) : null}
 
@@ -740,7 +743,7 @@ export default function CanonicalMaintenanceDetail() {
             <Button
               disabled={!planStart || !planAssignee || planMutation.isPending}
               onClick={() => planMutation.mutate({
-                id,
+                id: workOrderId,
                 scheduledStart: new Date(planStart),
                 scheduledEnd: planEnd ? new Date(planEnd) : undefined,
                 assignedToUserId: planAssignee,
@@ -777,10 +780,10 @@ export default function CanonicalMaintenanceDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAsset(false)}>Cancelar</Button>
             <Button
-              disabled={!assetId || assetMutation.isPending}
+              disabled={!selectedAssetId || assetMutation.isPending}
               onClick={() => assetMutation.mutate({
-                workOrderId: id,
-                workOrderAssetId: assetId,
+                workOrderId,
+                workOrderAssetId: selectedAssetId,
                 status: assetStatus as "pending" | "inspected" | "serviced" | "skipped" | "follow_up_required",
                 conditionBefore: conditionBefore.trim() || undefined,
                 conditionAfter: conditionAfter.trim() || undefined,
@@ -802,7 +805,7 @@ export default function CanonicalMaintenanceDetail() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="general">Hallazgo general</SelectItem>
-                  {order.assets.map(asset => <SelectItem key={asset.id} value={asset.id}>{asset.assetCode}</SelectItem>)}
+                  {loadedOrder.assets.map(asset => <SelectItem key={asset.id} value={asset.id}>{asset.assetCode}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -826,7 +829,7 @@ export default function CanonicalMaintenanceDetail() {
             <Button
               disabled={!findingTitle.trim() || findingMutation.isPending}
               onClick={() => findingMutation.mutate({
-                workOrderId: id,
+                workOrderId,
                 workOrderAssetId: findingAssetId === "general" ? undefined : findingAssetId,
                 findingType: findingType as "anomaly" | "damage" | "degradation" | "configuration" | "recommendation" | "other",
                 severity: findingSeverity as "info" | "low" | "medium" | "high" | "critical",
@@ -853,7 +856,7 @@ export default function CanonicalMaintenanceDetail() {
                 <Label>Activo</Label>
                 <Select value={evidenceAssetId} onValueChange={value => { setEvidenceAssetId(value); setEvidenceFindingId("none"); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="general">Evidencia general</SelectItem>{order.assets.map(asset => <SelectItem key={asset.id} value={asset.id}>{asset.assetCode}</SelectItem>)}</SelectContent>
+                  <SelectContent><SelectItem value="general">Evidencia general</SelectItem>{loadedOrder.assets.map(asset => <SelectItem key={asset.id} value={asset.id}>{asset.assetCode}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
@@ -901,7 +904,7 @@ export default function CanonicalMaintenanceDetail() {
             <Button variant="outline" onClick={() => setShowComplete(false)}>Cancelar</Button>
             <Button
               disabled={!summary.trim() || pendingCount > 0 || completeMutation.isPending}
-              onClick={() => completeMutation.mutate({ id, summary: summary.trim(), generalFindings: generalFindings.trim() || undefined, correctiveActions: correctiveActions.trim() || undefined, recommendations: recommendations.trim() || undefined })}
+              onClick={() => completeMutation.mutate({ id: workOrderId, summary: summary.trim(), generalFindings: generalFindings.trim() || undefined, correctiveActions: correctiveActions.trim() || undefined, recommendations: recommendations.trim() || undefined })}
             ><CheckCircle2 className="mr-2 h-4 w-4" /> {completeMutation.isPending ? "Completando..." : "Completar orden"}</Button>
           </DialogFooter>
         </DialogContent>
@@ -913,7 +916,7 @@ export default function CanonicalMaintenanceDetail() {
           <div className="space-y-1.5 py-2"><Label>Nota de aceptación</Label><Textarea rows={4} value={acceptanceNote} onChange={event => setAcceptanceNote(event.target.value)} /></div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAcceptance(false)}>Cancelar</Button>
-            <Button disabled={acceptanceMutation.isPending} onClick={() => acceptanceMutation.mutate({ id, note: acceptanceNote.trim() || undefined })}>
+            <Button disabled={acceptanceMutation.isPending} onClick={() => acceptanceMutation.mutate({ id: workOrderId, note: acceptanceNote.trim() || undefined })}>
               <BadgeCheck className="mr-2 h-4 w-4" /> {acceptanceMutation.isPending ? "Registrando..." : "Confirmar aceptación"}
             </Button>
           </DialogFooter>
