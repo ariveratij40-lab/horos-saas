@@ -18,7 +18,6 @@ import {
   Building2,
   Calendar,
   CheckCircle,
-  Clock,
   DollarSign,
   FileCheck,
   Package,
@@ -433,59 +432,6 @@ export default function TicketDetail() {
                 </p>
                 <p className="text-sm font-medium capitalize">
                   {ticket.category}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/50 card-elevated">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                SLA
-              </CardTitle>
-            </CardHeader>
-
-            <CardContent className="space-y-3 text-xs">
-              <div>
-                <p className="text-muted-foreground">
-                  Nivel SLA
-                </p>
-                <p className="font-medium">
-                  {ticket.slaTier ||
-                    "No definido"}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-muted-foreground">
-                  Horas objetivo
-                </p>
-                <p className="font-medium">
-                  {ticket.slaDeadlineHours ??
-                    "No definido"}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-muted-foreground">
-                  Límite de respuesta
-                </p>
-                <p className="font-medium">
-                  {formatDate(
-                    ticket.responseDeadline,
-                  )}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-muted-foreground">
-                  Límite de resolución
-                </p>
-                <p className="font-medium">
-                  {formatDate(
-                    ticket.resolutionDeadline,
-                  )}
                 </p>
               </div>
             </CardContent>
