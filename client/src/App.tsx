@@ -17,8 +17,8 @@ import Home from "./pages/Home";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
-import Policies from "./pages/Policies";
-import PolicyDetail from "./pages/PolicyDetail";
+import Policies from "./pages/CanonicalPolicies";
+import PolicyDetail from "./pages/CanonicalPolicyDetail";
 import Tickets from "./pages/Tickets";
 import TicketDetail from "./pages/TicketDetail";
 import ServiceRequests from "./pages/ServiceRequests";
