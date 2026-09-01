@@ -134,5 +134,22 @@ describe(
         ).toBeDefined();
       },
     );
+
+    it(
+      "exposes authorized fulfillment separately from commercial review",
+      () => {
+        expect(
+          procedures[
+            "serviceRequestContext.fulfillment.canonicalSetOperationalContext"
+          ],
+        ).toBeDefined();
+
+        expect(
+          procedures[
+            "serviceRequestContext.fulfillment.canonicalConvertToTicket"
+          ],
+        ).toBeDefined();
+      },
+    );
   },
 );
