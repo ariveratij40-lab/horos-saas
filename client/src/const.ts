@@ -5,10 +5,14 @@ export const getLoginUrl = () => {
   const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
   const appId = import.meta.env.VITE_APP_ID;
 
-  // Guard: if env vars are not configured (e.g. self-hosted VPS without Manus OAuth),
-  // return a safe fallback instead of throwing URL@[native code]
+  // Local development uses a loopback-only canonical login bootstrap.
+  if (import.meta.env.DEV && (!oauthPortalUrl || !appId)) {
+    return "/api/dev/login";
+  }
+
+  // Self-hosted environments without OAuth fall back to the local login page.
   if (!oauthPortalUrl || !appId) {
-    return "/";
+    return "/login";
   }
 
   try {
@@ -21,6 +25,6 @@ export const getLoginUrl = () => {
     url.searchParams.set("type", "signIn");
     return url.toString();
   } catch {
-    return "/";
+    return "/login";
   }
 };
