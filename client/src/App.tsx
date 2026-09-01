@@ -5,6 +5,9 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
+import {
+  ServiceTraceabilityBanner,
+} from "./components/service-requests/ServiceTraceabilityBanner";
 import { useAuth } from "./_core/hooks/useAuth";
 import { getLoginUrl } from "./const";
 import Home from "./pages/Home";
@@ -70,6 +73,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }
   return (
     <DashboardLayout>
+      <ServiceTraceabilityBanner />
       <Component />
     </DashboardLayout>
   );
