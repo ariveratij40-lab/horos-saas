@@ -33,17 +33,19 @@ function actorName(ctx: {
   );
 }
 
+type LockedTicket = {
+  id: string;
+  ticketNumber: string;
+  operationalStatus: string;
+  contractualStatus: string;
+  assignedToUserId: string | null;
+};
+
 async function lockTicket(
   tx: TransactionSql,
   id: string,
-) {
-  const rows = await tx<{
-    id: string;
-    ticketNumber: string;
-    operationalStatus: string;
-    contractualStatus: string;
-    assignedToUserId: string | null;
-  }[]>`
+): Promise<LockedTicket> {
+  const rows = await tx<LockedTicket[]>`
     SELECT
       id::text AS "id",
       ticket_number AS "ticketNumber",
@@ -63,6 +65,51 @@ async function lockTicket(
   }
 
   return rows[0]!;
+}
+
+async function requireTicketOperator(
+  tx: TransactionSql,
+  current: LockedTicket,
+  ctx: {
+    pgTenant: {
+      tenantId: string;
+      tenantRole: string;
+      externalSubject: string;
+    };
+  },
+) {
+  if (ctx.pgTenant.tenantRole === "admin") {
+    return;
+  }
+
+  const rows = await tx<{
+    userId: string;
+  }[]>`
+    SELECT
+      u.id::text AS "userId"
+    FROM tenant_users tu
+    JOIN users u
+      ON u.id = tu.user_id
+    WHERE tu.tenant_id = ${ctx.pgTenant.tenantId}::uuid
+      AND u.external_subject = ${ctx.pgTenant.externalSubject}
+      AND tu.is_active = true
+      AND u.is_active = true
+    LIMIT 1
+  `;
+
+  if (
+    rows.length === 1
+    && current.assignedToUserId
+      === rows[0]!.userId
+  ) {
+    return;
+  }
+
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message:
+      "Canonical ticket workflow requires the assigned operator or tenant administrator",
+  });
 }
 
 async function appendEvent(
@@ -158,8 +205,6 @@ export const ticketWorkflowRouter = router({
         }),
       )
       .mutation(async ({ ctx, input }) => {
-        requireTicketAdministrator(ctx.pgTenant.tenantRole);
-
         return withTenantTransaction(
           ctx.pgTenant.tenantId,
           async tx => {
@@ -172,6 +217,12 @@ export const ticketWorkflowRouter = router({
                   "Ticket must have a canonical assignee before work can start",
               });
             }
+
+            await requireTicketOperator(
+              tx,
+              current,
+              ctx,
+            );
 
             if (
               !["assigned", "pending"].includes(
@@ -297,12 +348,16 @@ export const ticketWorkflowRouter = router({
         }),
       )
       .mutation(async ({ ctx, input }) => {
-        requireTicketAdministrator(ctx.pgTenant.tenantRole);
-
         return withTenantTransaction(
           ctx.pgTenant.tenantId,
           async tx => {
             const current = await lockTicket(tx, input.id);
+
+            await requireTicketOperator(
+              tx,
+              current,
+              ctx,
+            );
 
             if (
               !["in_progress", "pending"].includes(
@@ -357,6 +412,8 @@ export const ticketWorkflowRouter = router({
                 fromStatus: current.operationalStatus,
                 toStatus: "resolved",
                 actualCost: input.actualCost ?? null,
+                assignedToUserId:
+                  current.assignedToUserId,
               },
             });
 
