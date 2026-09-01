@@ -21,6 +21,42 @@ type ProvideInformationDialogProps = {
   onConfirm: (response: string) => void;
 };
 
+function normalizeRequestedInformation(value: string): string {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "Sin información pendiente";
+  }
+
+  if (
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    || (trimmed.startsWith("\"") && trimmed.endsWith("\""))
+  ) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+
+      if (Array.isArray(parsed)) {
+        const items = parsed
+          .filter((item): item is string => typeof item === "string")
+          .map(item => item.trim())
+          .filter(Boolean);
+
+        if (items.length > 0) {
+          return items.join("\n");
+        }
+      }
+
+      if (typeof parsed === "string" && parsed.trim()) {
+        return parsed.trim();
+      }
+    } catch {
+      // Keep the original value when it is not valid JSON.
+    }
+  }
+
+  return trimmed;
+}
+
 export function ProvideInformationDialog({
   open,
   onOpenChange,
@@ -38,6 +74,8 @@ export function ProvideInformationDialog({
   }, [open]);
 
   const normalizedResponse = response.trim();
+  const normalizedRequestedInformation =
+    normalizeRequestedInformation(requestedInformation);
 
   return (
     <Dialog
@@ -65,7 +103,7 @@ export function ProvideInformationDialog({
             Información solicitada
           </p>
           <p className="mt-1 text-sm whitespace-pre-wrap">
-            {requestedInformation}
+            {normalizedRequestedInformation}
           </p>
         </div>
 
