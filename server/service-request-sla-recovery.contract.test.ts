@@ -10,7 +10,7 @@ function source(path: string) {
 }
 
 describe("covered ticket inherited SLA recovery", () => {
-  it("recovers policy references through PostgreSQL JSONB extraction", () => {
+  it("diagnoses each continuity boundary and supports exact canonical-message fallback", () => {
     const router = source(
       "server/routers/serviceRequestSlaRecoveryJsonSafe.ts",
     );
@@ -19,23 +19,28 @@ describe("covered ticket inherited SLA recovery", () => {
     expect(router).toMatch(/withTenantTransaction\(/);
     expect(router).toMatch(/service_request_ticket_links/);
     expect(router).toMatch(/relation_type = 'converted'/);
-    expect(router).toMatch(/e\.event_type = 'authorized'/);
-    expect(router).toMatch(/e\.metadata->>'policyId'/);
-    expect(router).toMatch(/e\.metadata->>'policyServiceId'/);
+    expect(router).toMatch(/event_type = 'authorized'/);
+    expect(router).toMatch(/metadata->>'policyId'/);
+    expect(router).toMatch(/metadata->>'policyServiceId'/);
+    expect(router).toMatch(/Cobertura aprobada por póliza/);
     expect(router).not.toMatch(/metadata->>'action' = 'policy_coverage_authorized'/);
     expect(router).toMatch(/service_policy_services/);
     expect(router).toMatch(/service_policy_sla_rules/);
-    expect(router).toMatch(/sr\.priority = \$\{priority\}/);
+    expect(router).toMatch(/priority = \$\{priority\}/);
     expect(router).toMatch(/service_ticket_sla_snapshots/);
     expect(router).toMatch(/response_deadline/);
     expect(router).toMatch(/resolution_deadline/);
     expect(router).toMatch(/estimated_cost = NULL/);
     expect(router).toMatch(/is_billable = false/);
     expect(router).toMatch(/'sla_applied'/);
-    expect(router).toMatch(/sla_recovered_from_service_request_sql_jsonb/);
+    expect(router).toMatch(/sla_recovered_from_service_request_evidence/);
+    expect(router).toMatch(/no_converted_origin/);
+    expect(router).toMatch(/no_authorized_event/);
+    expect(router).toMatch(/no_policy_reference/);
+    expect(router).toMatch(/no_priority_sla_rule/);
   });
 
-  it("is exposed through Service Intake context and mounted in ticket UX", () => {
+  it("is exposed through Service Intake context and surfaces development diagnostics", () => {
     const context = source(
       "server/routers/serviceRequestContext.ts",
     );
@@ -57,6 +62,8 @@ describe("covered ticket inherited SLA recovery", () => {
     );
     expect(panel).toMatch(/SLA contractual recuperable/);
     expect(panel).toMatch(/Heredar SLA de/);
+    expect(panel).toMatch(/Diagnóstico de continuidad SLA/);
+    expect(panel).toMatch(/no_policy_reference/);
     expect(app).toMatch(/<TicketSlaRecoveryRoutePanel \/>/);
   });
 
