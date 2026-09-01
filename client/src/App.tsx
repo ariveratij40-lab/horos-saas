@@ -9,6 +9,9 @@ import {
   ServiceTraceabilityBanner,
 } from "./components/service-requests/ServiceTraceabilityBanner";
 import {
+  ServiceRequestPolicyCoverageRoutePanel,
+} from "./components/service-requests/ServiceRequestPolicyCoverageRoutePanel";
+import {
   TicketAssignmentRoutePanel,
 } from "./components/tickets/TicketAssignmentRoutePanel";
 import {
@@ -80,6 +83,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   return (
     <DashboardLayout>
       <ServiceTraceabilityBanner />
+      <ServiceRequestPolicyCoverageRoutePanel />
       <TicketAssignmentRoutePanel />
       <TicketSlaRoutePanel />
       <Component />
