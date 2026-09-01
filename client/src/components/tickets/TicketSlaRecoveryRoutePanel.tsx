@@ -98,9 +98,14 @@ export function TicketSlaRecoveryRoutePanel() {
     || recoveryLoading
     || sla?.configured !== false
     || !recovery?.recoverable
+    || typeof recovery.responseTargetMinutes !== "number"
+    || typeof recovery.resolutionTargetMinutes !== "number"
   ) {
     return null;
   }
+
+  const responseTargetMinutes = recovery.responseTargetMinutes;
+  const resolutionTargetMinutes = recovery.resolutionTargetMinutes;
 
   return (
     <Card className="mb-5 border-emerald-200 bg-emerald-50/40 dark:border-emerald-900 dark:bg-emerald-950/20">
@@ -114,7 +119,7 @@ export function TicketSlaRecoveryRoutePanel() {
               SLA contractual recuperable
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              {recovery.requestNumber} fue cubierta por {recovery.policyNumber} · {recovery.serviceName}. Este ticket debe heredar la regla {recovery.ruleName}: respuesta {formatMinutes(recovery.responseTargetMinutes)} y resolución {formatMinutes(recovery.resolutionTargetMinutes)}.
+              {recovery.requestNumber} fue cubierta por {recovery.policyNumber} · {recovery.serviceName}. Este ticket debe heredar la regla {recovery.ruleName}: respuesta {formatMinutes(responseTargetMinutes)} y resolución {formatMinutes(resolutionTargetMinutes)}.
             </p>
           </div>
         </div>
