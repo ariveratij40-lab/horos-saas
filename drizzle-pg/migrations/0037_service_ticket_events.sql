@@ -67,6 +67,31 @@ ON "service_ticket_events" (
 );
 --> statement-breakpoint
 
+INSERT INTO "service_ticket_events" (
+  "tenant_id",
+  "service_ticket_id",
+  "event_type",
+  "actor_name",
+  "message",
+  "metadata",
+  "created_at"
+)
+SELECT
+  st."tenant_id",
+  st."id",
+  'created',
+  'HOROS migration',
+  'Canonical ticket ledger baseline',
+  jsonb_build_object(
+    'action', 'baseline_created',
+    'ticketNumber', st."ticket_number",
+    'operationalStatus', st."operational_status",
+    'contractualStatus', st."contractual_status"
+  ),
+  st."created_at"
+FROM "service_tickets" st;
+--> statement-breakpoint
+
 ALTER TABLE "service_ticket_events"
 ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
