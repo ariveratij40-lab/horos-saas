@@ -6,6 +6,7 @@ import {
   resolveCanonicalTenantForSubject,
 } from "../db.pg";
 import {
+  prepareDevLocalCanonicalRuntime,
   repairDevLocalCanonicalIdentity,
 } from "./devLocalAuth";
 
@@ -50,6 +51,22 @@ const requirePgTenant = t.middleware(async opts => {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: UNAUTHED_ERR_MSG,
+    });
+  }
+
+  // A persistent localhost session may remain valid across source updates.
+  // Preflight pending canonical migrations before resolution so a new schema
+  // contract never depends on forcing a fresh /api/dev/login. Production and
+  // non-local identities are no-ops here.
+  try {
+    prepareDevLocalCanonicalRuntime(
+      ctx.user.openId,
+    );
+  } catch {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message:
+        "Local canonical PostgreSQL runtime could not be prepared",
     });
   }
 
