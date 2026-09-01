@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   useLocation,
   useRoute,
@@ -46,6 +47,10 @@ import {
   Skeleton,
 } from "@/components/ui/skeleton";
 
+import {
+  CancelServiceRequestDialog,
+} from "@/components/service-requests/CancelServiceRequestDialog";
+
 const requestTypeLabels:
   Record<string, string> = {
     service_attention:
@@ -90,6 +95,10 @@ const eventLabels:
       "Solicitud enviada",
     cancelled:
       "Solicitud cancelada",
+    information_requested:
+      "Información solicitada",
+    clarity_evaluated:
+      "Claridad evaluada",
   };
 
 function formatDate(
@@ -239,6 +248,11 @@ export default function ServiceRequestDetail() {
   ] =
     useLocation();
 
+  const [
+    cancelDialogOpen,
+    setCancelDialogOpen,
+  ] = useState(false);
+
   const requestId =
     params?.id ?? "";
 
@@ -335,6 +349,7 @@ export default function ServiceRequestDetail() {
       .useMutation({
         onSuccess:
           async () => {
+            setCancelDialogOpen(false);
             await refreshRequest();
 
             toast.success(
@@ -435,24 +450,9 @@ export default function ServiceRequestDetail() {
                   cancelRequest.isPending
                   || submitRequest.isPending
                 }
-                onClick={() => {
-                  const reason =
-                    window.prompt(
-                      "Motivo de cancelación (opcional)",
-                    );
-
-                  if (reason === null) {
-                    return;
-                  }
-
-                  cancelRequest.mutate({
-                    id:
-                      request.id,
-                    reason:
-                      reason.trim()
-                      || undefined,
-                  });
-                }}
+                onClick={() =>
+                  setCancelDialogOpen(true)
+                }
               >
                 {
                   cancelRequest.isPending
@@ -955,6 +955,19 @@ export default function ServiceRequestDetail() {
           }
         </CardContent>
       </Card>
+
+      <CancelServiceRequestDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        requestNumber={request.requestNumber}
+        isPending={cancelRequest.isPending}
+        onConfirm={reason =>
+          cancelRequest.mutate({
+            id: request.id,
+            reason,
+          })
+        }
+      />
     </div>
   );
 }
