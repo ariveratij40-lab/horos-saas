@@ -8,9 +8,11 @@ import {
   ArrowLeft,
   Building2,
   CalendarDays,
+  CheckCircle2,
   ClipboardCheck,
   ClipboardList,
   FileQuestion,
+  HelpCircle,
   History,
   Loader2,
   MonitorCog,
@@ -50,6 +52,12 @@ import {
 import {
   CancelServiceRequestDialog,
 } from "@/components/service-requests/CancelServiceRequestDialog";
+import {
+  MarkReadyForReviewDialog,
+} from "@/components/service-requests/MarkReadyForReviewDialog";
+import {
+  RequestInformationDialog,
+} from "@/components/service-requests/RequestInformationDialog";
 
 const requestTypeLabels:
   Record<string, string> = {
@@ -252,6 +260,14 @@ export default function ServiceRequestDetail() {
     cancelDialogOpen,
     setCancelDialogOpen,
   ] = useState(false);
+  const [
+    requestInformationDialogOpen,
+    setRequestInformationDialogOpen,
+  ] = useState(false);
+  const [
+    readyForReviewDialogOpen,
+    setReadyForReviewDialogOpen,
+  ] = useState(false);
 
   const requestId =
     params?.id ?? "";
@@ -364,6 +380,50 @@ export default function ServiceRequestDetail() {
           },
       });
 
+  const requestInformation =
+    trpc.serviceRequestContext
+      .workflow
+      .canonicalRequestInformation
+      .useMutation({
+        onSuccess:
+          async () => {
+            setRequestInformationDialogOpen(false);
+            await refreshRequest();
+
+            toast.success(
+              "Información solicitada",
+            );
+          },
+        onError:
+          mutationError => {
+            toast.error(
+              mutationError.message,
+            );
+          },
+      });
+
+  const markReadyForReview =
+    trpc.serviceRequestContext
+      .workflow
+      .canonicalMarkReadyForReview
+      .useMutation({
+        onSuccess:
+          async () => {
+            setReadyForReviewDialogOpen(false);
+            await refreshRequest();
+
+            toast.success(
+              "Solicitud lista para revisión",
+            );
+          },
+        onError:
+          mutationError => {
+            toast.error(
+              mutationError.message,
+            );
+          },
+      });
+
   if (isLoading) {
     return (
       <div className="animate-fade-up space-y-4">
@@ -423,12 +483,35 @@ export default function ServiceRequestDetail() {
       request.status,
     );
 
+  const canRequestInformation =
+    [
+      "submitted",
+      "needs_information",
+      "ready_for_review",
+    ].includes(
+      request.status,
+    );
+
+  const canMarkReadyForReview =
+    [
+      "submitted",
+      "needs_information",
+    ].includes(
+      request.status,
+    );
+
+  const workflowPending =
+    submitRequest.isPending
+    || cancelRequest.isPending
+    || requestInformation.isPending
+    || markReadyForReview.isPending;
+
   return (
     <div className="animate-fade-up">
-      <div className="flex items-center justify-between gap-3 mb-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
         <Button
           variant="ghost"
-          className="gap-2"
+          className="gap-2 self-start"
           onClick={() =>
             navigate(
               "/requests",
@@ -439,17 +522,48 @@ export default function ServiceRequestDetail() {
           Solicitudes
         </Button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {
+            canRequestInformation
+            && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={workflowPending}
+                onClick={() =>
+                  setRequestInformationDialogOpen(true)
+                }
+              >
+                <HelpCircle className="w-4 h-4" />
+                Solicitar información
+              </Button>
+            )
+          }
+
+          {
+            canMarkReadyForReview
+            && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={workflowPending}
+                onClick={() =>
+                  setReadyForReviewDialogOpen(true)
+                }
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Lista para revisión
+              </Button>
+            )
+          }
+
           {
             canCancel
             && (
               <Button
                 variant="outline"
                 className="gap-2"
-                disabled={
-                  cancelRequest.isPending
-                  || submitRequest.isPending
-                }
+                disabled={workflowPending}
                 onClick={() =>
                   setCancelDialogOpen(true)
                 }
@@ -477,10 +591,7 @@ export default function ServiceRequestDetail() {
             && (
               <Button
                 className="gap-2 gradient-horos text-white"
-                disabled={
-                  submitRequest.isPending
-                  || cancelRequest.isPending
-                }
+                disabled={workflowPending}
                 onClick={() =>
                   submitRequest.mutate({
                     id:
@@ -965,6 +1076,34 @@ export default function ServiceRequestDetail() {
           cancelRequest.mutate({
             id: request.id,
             reason,
+          })
+        }
+      />
+
+      <RequestInformationDialog
+        open={requestInformationDialogOpen}
+        onOpenChange={setRequestInformationDialogOpen}
+        requestNumber={request.requestNumber}
+        isPending={requestInformation.isPending}
+        onConfirm={input =>
+          requestInformation.mutate({
+            id: request.id,
+            missingInformation: input.missingInformation,
+            message: input.message,
+          })
+        }
+      />
+
+      <MarkReadyForReviewDialog
+        open={readyForReviewDialogOpen}
+        onOpenChange={setReadyForReviewDialogOpen}
+        requestNumber={request.requestNumber}
+        isPending={markReadyForReview.isPending}
+        onConfirm={input =>
+          markReadyForReview.mutate({
+            id: request.id,
+            clarityScore: input.clarityScore,
+            summary: input.summary,
           })
         }
       />
