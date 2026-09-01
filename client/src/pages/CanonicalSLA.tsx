@@ -72,6 +72,14 @@ function SlaBadge({ status }: { status: string }) {
   );
 }
 
+function MobileFieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 xl:hidden">
+      {children}
+    </p>
+  );
+}
+
 export default function CanonicalSLA() {
   const [, navigate] = useLocation();
   const [view, setView] = useState<
@@ -212,13 +220,13 @@ export default function CanonicalSLA() {
           </SelectContent>
         </Select>
 
-        <div className="ml-auto text-xs text-muted-foreground">
+        <div className="w-full sm:w-auto sm:ml-auto text-xs text-muted-foreground">
           {overview?.configured ?? 0} ticket(s) con snapshot SLA · {overview?.totalTickets ?? 0} total
         </div>
       </div>
 
       <Card className="border-border/50 overflow-hidden">
-        <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(150px,0.7fr)_minmax(190px,0.9fr)_minmax(190px,0.9fr)_auto] gap-4 px-4 py-2.5 bg-muted/30 border-b text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="hidden xl:grid grid-cols-[minmax(0,1.2fr)_minmax(150px,0.7fr)_minmax(190px,0.9fr)_minmax(190px,0.9fr)_auto] gap-4 px-4 py-2.5 bg-muted/30 border-b text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           <span>Ticket</span>
           <span>Responsable</span>
           <span>Respuesta</span>
@@ -227,9 +235,9 @@ export default function CanonicalSLA() {
         </div>
 
         {loading ? (
-          <div className="divide-y">
+          <div className="divide-y divide-border/40">
             {Array.from({ length: 5 }).map((_, index) => (
-              <div key={index} className="grid grid-cols-5 gap-4 p-4">
+              <div key={index} className="p-4 space-y-3 xl:grid xl:grid-cols-5 xl:gap-4 xl:space-y-0">
                 <Skeleton className="h-12" />
                 <Skeleton className="h-12" />
                 <Skeleton className="h-12" />
@@ -265,62 +273,68 @@ export default function CanonicalSLA() {
                 key={ticket.id}
                 type="button"
                 onClick={() => navigate(`/tickets/${ticket.id}`)}
-                className="w-full text-left grid grid-cols-[minmax(0,1.2fr)_minmax(150px,0.7fr)_minmax(190px,0.9fr)_minmax(190px,0.9fr)_auto] gap-4 px-4 py-4 hover:bg-muted/30 transition-colors items-center"
+                className="w-full text-left px-4 py-4 hover:bg-muted/30 transition-colors"
               >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-mono text-muted-foreground">
-                      {ticket.ticketNumber}
-                    </span>
-                    <Badge variant="outline">
-                      {PRIORITY_LABEL[ticket.priority] ?? ticket.priority}
-                    </Badge>
-                    <Badge variant="outline">
-                      {STATUS_LABEL[ticket.operationalStatus] ?? ticket.operationalStatus}
-                    </Badge>
+                <div className="xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(150px,0.7fr)_minmax(190px,0.9fr)_minmax(190px,0.9fr)_auto] xl:gap-4 xl:items-center">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {ticket.ticketNumber}
+                      </span>
+                      <Badge variant="outline">
+                        {PRIORITY_LABEL[ticket.priority] ?? ticket.priority}
+                      </Badge>
+                      <Badge variant="outline">
+                        {STATUS_LABEL[ticket.operationalStatus] ?? ticket.operationalStatus}
+                      </Badge>
+                    </div>
+                    <p className="text-sm font-semibold mt-1 truncate">
+                      {ticket.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 truncate">
+                      {ticket.branchName}
+                      {ticket.policyNumber
+                        ? ` · ${ticket.policyNumber} — ${ticket.policyName}`
+                        : " · Sin póliza SLA aplicada"}
+                    </p>
                   </div>
-                  <p className="text-sm font-semibold mt-1 truncate">
-                    {ticket.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1 truncate">
-                    {ticket.branchName}
-                    {ticket.policyNumber
-                      ? ` · ${ticket.policyNumber} — ${ticket.policyName}`
-                      : " · Sin póliza SLA aplicada"}
-                  </p>
-                </div>
 
-                <div className="min-w-0 text-sm">
-                  <p className="truncate">
-                    {ticket.assignedToName
-                      ?? ticket.assignedToEmail
-                      ?? "Sin responsable"}
-                  </p>
-                </div>
+                  <div className="mt-4 grid grid-cols-2 gap-4 xl:contents">
+                    <div className="min-w-0 text-sm col-span-2 sm:col-span-1 xl:col-span-1">
+                      <MobileFieldLabel>Responsable</MobileFieldLabel>
+                      <p className="truncate">
+                        {ticket.assignedToName
+                          ?? ticket.assignedToEmail
+                          ?? "Sin responsable"}
+                      </p>
+                    </div>
 
-                <div>
-                  <div className="flex items-center gap-2">
-                    <SlaBadge status={ticket.responseStatus} />
+                    <div>
+                      <MobileFieldLabel>Respuesta</MobileFieldLabel>
+                      <SlaBadge status={ticket.responseStatus} />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {ticket.responseDeadline
+                          ? formatDateTime(ticket.responseDeadline)
+                          : "Sin deadline"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <MobileFieldLabel>Resolución</MobileFieldLabel>
+                      <SlaBadge status={ticket.resolutionStatus} />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {ticket.resolutionDeadline
+                          ? formatDateTime(ticket.resolutionDeadline)
+                          : "Sin deadline"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <MobileFieldLabel>SLA</MobileFieldLabel>
+                      <SlaBadge status={ticket.overallStatus} />
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {ticket.responseDeadline
-                      ? formatDateTime(ticket.responseDeadline)
-                      : "Sin deadline"}
-                  </p>
                 </div>
-
-                <div>
-                  <div className="flex items-center gap-2">
-                    <SlaBadge status={ticket.resolutionStatus} />
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {ticket.resolutionDeadline
-                      ? formatDateTime(ticket.resolutionDeadline)
-                      : "Sin deadline"}
-                  </p>
-                </div>
-
-                <SlaBadge status={ticket.overallStatus} />
               </button>
             ))}
           </div>
