@@ -77,18 +77,60 @@ export function AuthorizedFulfillmentActions({
       onError: mutationError => toast.error(mutationError.message),
     });
 
+  const recoverInheritedSla =
+    trpc.serviceRequestContext.slaRecovery.canonicalRecoverInherited.useMutation();
+
   const convertToTicket =
     trpc.serviceRequestContext.fulfillment.canonicalConvertToTicket.useMutation({
       onSuccess: async result => {
         setConvertOpen(false);
 
+        let slaRecovered = false;
+
+        if (!result.inheritedSla) {
+          try {
+            const originCoverage =
+              await utils.serviceRequestContext.slaRecovery.canonicalOriginCoverage.fetch({
+                ticketId: result.ticket.id,
+              });
+
+            if (originCoverage.recoverable) {
+              const recovery =
+                await recoverInheritedSla.mutateAsync({
+                  ticketId: result.ticket.id,
+                });
+
+              slaRecovered = recovery.changed;
+            }
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "No fue posible verificar la continuidad SLA";
+
+            toast.warning(
+              `El ticket fue creado, pero HOROS no pudo completar la continuidad SLA: ${message}`,
+            );
+          }
+        }
+
         await Promise.all([
           utils.serviceRequests.canonicalList.invalidate(),
           utils.tickets.canonicalList.invalidate(),
+          utils.servicePolicySla.canonicalCurrentForTicket.invalidate({
+            ticketId: result.ticket.id,
+          }),
+          utils.serviceSlaDashboard.canonicalOverview.invalidate(),
+          utils.serviceSlaDashboard.canonicalQueue.invalidate(),
+          utils.ticketWorkflow.canonicalEvents.invalidate({
+            id: result.ticket.id,
+          }),
         ]);
 
         toast.success(
-          `Ticket ${result.ticket.ticketNumber} creado`,
+          result.inheritedSla || slaRecovered
+            ? `Ticket ${result.ticket.ticketNumber} creado con SLA contractual`
+            : `Ticket ${result.ticket.ticketNumber} creado`,
         );
 
         navigate(`/tickets/${result.ticket.id}`);
@@ -99,7 +141,8 @@ export function AuthorizedFulfillmentActions({
   const pending =
     disabled
     || setOperationalContext.isPending
-    || convertToTicket.isPending;
+    || convertToTicket.isPending
+    || recoverInheritedSla.isPending;
 
   const convertible =
     Boolean(branchId)
@@ -151,7 +194,7 @@ export function AuthorizedFulfillmentActions({
         requestNumber={requestNumber}
         branchName={branchName ?? "Sucursal seleccionada"}
         amountLabel={formatMoney(estimatedAmount)}
-        isPending={convertToTicket.isPending}
+        isPending={convertToTicket.isPending || recoverInheritedSla.isPending}
         onConfirm={input =>
           convertToTicket.mutate({
             id: requestId,
