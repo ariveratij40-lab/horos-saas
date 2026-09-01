@@ -1,1 +1,0 @@
-Maintenance evidence/report outputs must never expose device credentials or secrets. Sensitive access data requires a separate protected secret-management surface and is out of scope for this maintenance-report slice.
