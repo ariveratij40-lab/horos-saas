@@ -13,7 +13,6 @@ export default defineConfig({
     "./drizzle-pg/schema.ts",
     "./drizzle-pg/schema.ticket-events.ts",
     "./drizzle-pg/schema.service-sla.ts",
-    "./drizzle-pg/schema.maintenance.ts",
   ],
   out: "./drizzle-pg/migrations",
   dialect: "postgresql",
