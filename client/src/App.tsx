@@ -8,6 +8,9 @@ import DashboardLayout from "./components/DashboardLayout";
 import {
   ServiceTraceabilityBanner,
 } from "./components/service-requests/ServiceTraceabilityBanner";
+import {
+  TicketAssignmentRoutePanel,
+} from "./components/tickets/TicketAssignmentRoutePanel";
 import { useAuth } from "./_core/hooks/useAuth";
 import { getLoginUrl } from "./const";
 import Home from "./pages/Home";
@@ -74,6 +77,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   return (
     <DashboardLayout>
       <ServiceTraceabilityBanner />
+      <TicketAssignmentRoutePanel />
       <Component />
     </DashboardLayout>
   );
