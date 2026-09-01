@@ -5,6 +5,7 @@ import { tenantsRouter, branchesRouter } from "./routers/tenants";
 import { policiesRouter } from "./routers/policies";
 import { ticketsRouter } from "./routers/tickets";
 import { ticketWorkflowRouter } from "./routers/ticketWorkflow";
+import { ticketAssignmentRouter } from "./routers/ticketAssignment";
 import { serviceRequestsRouter } from "./routers/serviceRequests";
 import { serviceRequestContextRouter } from "./routers/serviceRequestContext";
 import { serviceTraceabilityRouter } from "./routers/serviceTraceability";
@@ -218,7 +219,7 @@ export const appRouter = router({
           .where(eq(users.id, resetToken.userId));
 
         await db.update(passwordResetTokens)
-          .set({ usedAt: now })
+          .set({ usedAt: new Date() })
           .where(eq(passwordResetTokens.id, resetToken.id));
 
         return { success: true };
@@ -231,6 +232,7 @@ export const appRouter = router({
   policies: policiesRouter,
   tickets: ticketsRouter,
   ticketWorkflow: ticketWorkflowRouter,
+  ticketAssignment: ticketAssignmentRouter,
   serviceRequests: serviceRequestsRouter,
   serviceRequestContext: serviceRequestContextRouter,
   serviceTraceability: serviceTraceabilityRouter,
