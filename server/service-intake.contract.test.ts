@@ -108,6 +108,18 @@ describe(
             "serviceRequestContext.review.canonicalRequestQuote"
           ],
         ).toBeDefined();
+
+        expect(
+          procedures[
+            "serviceRequestContext.review.canonicalRegisterQuote"
+          ],
+        ).toBeDefined();
+
+        expect(
+          procedures[
+            "serviceRequestContext.review.canonicalRequestAuthorization"
+          ],
+        ).toBeDefined();
       },
     );
   },
