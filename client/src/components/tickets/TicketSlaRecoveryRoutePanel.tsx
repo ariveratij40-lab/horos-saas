@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   Loader2,
   ShieldCheck,
 } from "lucide-react";
@@ -11,6 +12,14 @@ import { trpc } from "@/lib/trpc";
 
 const TICKET_DETAIL_RE =
   /^\/tickets\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/i;
+
+const RECOVERY_REASON: Record<string, string> = {
+  already_configured: "El ticket ya tiene un snapshot SLA.",
+  no_converted_origin: "No se encontró el vínculo convertido con la solicitud de origen.",
+  no_authorized_event: "La solicitud de origen no tiene un evento de autorización.",
+  no_policy_reference: "La autorización existe, pero no fue posible resolver una referencia canónica de póliza y servicio.",
+  no_priority_sla_rule: "La póliza fue identificada, pero no existe una regla SLA activa para la prioridad del ticket.",
+};
 
 function formatMinutes(minutes: number) {
   if (minutes < 60) return `${minutes} min`;
@@ -49,6 +58,7 @@ export function TicketSlaRecoveryRoutePanel() {
   const {
     data: recovery,
     isLoading: recoveryLoading,
+    error: recoveryError,
   } = trpc.serviceRequestContext.slaRecovery.canonicalOriginCoverage.useQuery(
     {
       ticketId:
@@ -92,12 +102,58 @@ export function TicketSlaRecoveryRoutePanel() {
       onError: error => toast.error(error.message),
     });
 
+  if (!ticketId || slaLoading || recoveryLoading || sla?.configured !== false) {
+    return null;
+  }
+
+  if (recoveryError && import.meta.env.DEV) {
+    return (
+      <Card className="mb-5 border-red-200 bg-red-50/40 dark:border-red-900 dark:bg-red-950/20">
+        <CardContent className="p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold">Diagnóstico de continuidad SLA</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              La consulta de recuperación falló: {recoveryError.message}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (recovery && !recovery.recoverable) {
+    if (!import.meta.env.DEV || recovery.reason === "already_configured") {
+      return null;
+    }
+
+    return (
+      <Card className="mb-5 border-amber-200 bg-amber-50/40 dark:border-amber-900 dark:bg-amber-950/20">
+        <CardContent className="p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold">Diagnóstico de continuidad SLA</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {RECOVERY_REASON[recovery.reason] ?? recovery.reason}
+            </p>
+            {"requestNumber" in recovery && recovery.requestNumber && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Solicitud: {recovery.requestNumber}
+              </p>
+            )}
+            {"policyNumber" in recovery && recovery.policyNumber && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Póliza detectada: {recovery.policyNumber}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (
-    !ticketId
-    || slaLoading
-    || recoveryLoading
-    || sla?.configured !== false
-    || !recovery?.recoverable
+    !recovery?.recoverable
     || typeof recovery.responseTargetMinutes !== "number"
     || typeof recovery.resolutionTargetMinutes !== "number"
   ) {
