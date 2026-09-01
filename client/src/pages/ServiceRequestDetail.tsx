@@ -33,6 +33,9 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  AuthorizeServiceRequestDialog,
+} from "@/components/service-requests/AuthorizeServiceRequestDialog";
+import {
   CancelServiceRequestDialog,
 } from "@/components/service-requests/CancelServiceRequestDialog";
 import {
@@ -44,6 +47,9 @@ import {
 import {
   RegisterQuoteDialog,
 } from "@/components/service-requests/RegisterQuoteDialog";
+import {
+  RejectServiceRequestDialog,
+} from "@/components/service-requests/RejectServiceRequestDialog";
 import {
   RequestAuthorizationDialog,
 } from "@/components/service-requests/RequestAuthorizationDialog";
@@ -120,6 +126,8 @@ const eventMessageLabels: Record<string, string> = {
   "Service request quote registered": "Cotización formal registrada",
   "Authorization requested for quoted service request":
     "Cotización enviada a autorización",
+  "Service request commercial authorization granted":
+    "Autorización comercial confirmada",
 };
 
 function formatDate(value: Date | string | null | undefined) {
@@ -235,6 +243,8 @@ export default function ServiceRequestDetail() {
     useState(false);
   const [requestAuthorizationDialogOpen, setRequestAuthorizationDialogOpen] =
     useState(false);
+  const [authorizeDialogOpen, setAuthorizeDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
 
   const requestId = params?.id ?? "";
   const utils = trpc.useUtils();
@@ -354,6 +364,26 @@ export default function ServiceRequestDetail() {
       onError: mutationError => toast.error(mutationError.message),
     });
 
+  const authorizeRequest =
+    trpc.serviceRequestContext.review.canonicalAuthorize.useMutation({
+      onSuccess: async () => {
+        setAuthorizeDialogOpen(false);
+        await refreshRequest();
+        toast.success("Solicitud autorizada");
+      },
+      onError: mutationError => toast.error(mutationError.message),
+    });
+
+  const rejectAuthorization =
+    trpc.serviceRequestContext.review.canonicalRejectAuthorization.useMutation({
+      onSuccess: async () => {
+        setRejectDialogOpen(false);
+        await refreshRequest();
+        toast.success("Solicitud rechazada");
+      },
+      onError: mutationError => toast.error(mutationError.message),
+    });
+
   if (isLoading) {
     return (
       <div className="animate-fade-up space-y-4">
@@ -414,6 +444,9 @@ export default function ServiceRequestDetail() {
   const canRequestAuthorization =
     request.status === "under_review"
     && request.commercialStatus === "quoted";
+  const canDecideAuthorization =
+    request.status === "under_review"
+    && request.commercialStatus === "pending_authorization";
 
   const workflowPending =
     submitRequest.isPending
@@ -424,7 +457,9 @@ export default function ServiceRequestDetail() {
     || startReview.isPending
     || requestQuote.isPending
     || registerQuote.isPending
-    || requestAuthorization.isPending;
+    || requestAuthorization.isPending
+    || authorizeRequest.isPending
+    || rejectAuthorization.isPending;
 
   const missingInformation = formatMissingInformation(
     request.missingInformation,
@@ -524,6 +559,28 @@ export default function ServiceRequestDetail() {
               <CheckCircle2 className="w-4 h-4" />
               Solicitar autorización
             </Button>
+          )}
+
+          {canDecideAuthorization && (
+            <>
+              <Button
+                className="gap-2 gradient-horos text-white"
+                disabled={workflowPending}
+                onClick={() => setAuthorizeDialogOpen(true)}
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Autorizar
+              </Button>
+              <Button
+                variant="destructive"
+                className="gap-2"
+                disabled={workflowPending}
+                onClick={() => setRejectDialogOpen(true)}
+              >
+                <XCircle className="w-4 h-4" />
+                Rechazar
+              </Button>
+            </>
           )}
 
           {canCancel && (
@@ -646,13 +703,47 @@ export default function ServiceRequestDetail() {
                 <div>
                   <p className="text-sm font-semibold">Autorización pendiente</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    La cotización fue enviada a autorización. HOROS conservará la solicitud en revisión hasta registrar la decisión.
+                    La cotización fue enviada a autorización. Registre la decisión para continuar o cerrar la solicitud.
                   </p>
                 </div>
               </div>
             </CardContent>
           </Card>
         )}
+
+      {request.status === "under_review"
+        && request.commercialStatus === "authorized"
+        && (
+          <Card className="mb-4 border-emerald-300/70 bg-emerald-50/60 dark:bg-emerald-950/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold">Solicitud autorizada</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    La decisión comercial fue aprobada. HOROS puede continuar con la definición del tratamiento operativo correspondiente.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+      {request.status === "rejected" && (
+        <Card className="mb-4 border-red-300/70 bg-red-50/60 dark:bg-red-950/20">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <XCircle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">Solicitud rechazada</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {request.rejectionReason ?? "La autorización comercial fue rechazada."}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-border/50 card-elevated">
         <CardContent className="p-6">
@@ -903,6 +994,23 @@ export default function ServiceRequestDetail() {
         amountLabel={formatMoney(request.estimatedAmount)}
         isPending={requestAuthorization.isPending}
         onConfirm={note => requestAuthorization.mutate({ id: request.id, note })}
+      />
+
+      <AuthorizeServiceRequestDialog
+        open={authorizeDialogOpen}
+        onOpenChange={setAuthorizeDialogOpen}
+        requestNumber={request.requestNumber}
+        amountLabel={formatMoney(request.estimatedAmount)}
+        isPending={authorizeRequest.isPending}
+        onConfirm={note => authorizeRequest.mutate({ id: request.id, note })}
+      />
+
+      <RejectServiceRequestDialog
+        open={rejectDialogOpen}
+        onOpenChange={setRejectDialogOpen}
+        requestNumber={request.requestNumber}
+        isPending={rejectAuthorization.isPending}
+        onConfirm={reason => rejectAuthorization.mutate({ id: request.id, reason })}
       />
     </div>
   );
