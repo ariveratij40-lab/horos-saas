@@ -42,6 +42,12 @@ import {
   ProvideInformationDialog,
 } from "@/components/service-requests/ProvideInformationDialog";
 import {
+  RegisterQuoteDialog,
+} from "@/components/service-requests/RegisterQuoteDialog";
+import {
+  RequestAuthorizationDialog,
+} from "@/components/service-requests/RequestAuthorizationDialog";
+import {
   RequestInformationDialog,
 } from "@/components/service-requests/RequestInformationDialog";
 import {
@@ -94,6 +100,11 @@ const eventLabels: Record<string, string> = {
   requester_confirmed: "Solicitante confirmó información",
   clarity_evaluated: "Claridad evaluada",
   quote_requested: "Cotización solicitada",
+  quoted: "Cotización registrada",
+  authorized: "Solicitud autorizada",
+  rejected: "Solicitud rechazada",
+  converted_to_ticket: "Convertida a ticket",
+  completed: "Solicitud completada",
 };
 
 const eventMessageLabels: Record<string, string> = {
@@ -106,6 +117,9 @@ const eventMessageLabels: Record<string, string> = {
   "Service request review started": "La revisión administrativa fue iniciada",
   "Quote requested for service request":
     "Se solicitó preparación de cotización",
+  "Service request quote registered": "Cotización formal registrada",
+  "Authorization requested for quoted service request":
+    "Cotización enviada a autorización",
 };
 
 function formatDate(value: Date | string | null | undefined) {
@@ -197,6 +211,10 @@ function eventTitle(eventType: string, message: string | null) {
     return "Revisión iniciada";
   }
 
+  if (message === "Authorization requested for quoted service request") {
+    return "Autorización solicitada";
+  }
+
   return eventLabels[eventType] ?? eventType;
 }
 
@@ -212,6 +230,10 @@ export default function ServiceRequestDetail() {
   const [readyForReviewDialogOpen, setReadyForReviewDialogOpen] =
     useState(false);
   const [requestQuoteDialogOpen, setRequestQuoteDialogOpen] =
+    useState(false);
+  const [registerQuoteDialogOpen, setRegisterQuoteDialogOpen] =
+    useState(false);
+  const [requestAuthorizationDialogOpen, setRequestAuthorizationDialogOpen] =
     useState(false);
 
   const requestId = params?.id ?? "";
@@ -312,6 +334,26 @@ export default function ServiceRequestDetail() {
       onError: mutationError => toast.error(mutationError.message),
     });
 
+  const registerQuote =
+    trpc.serviceRequestContext.review.canonicalRegisterQuote.useMutation({
+      onSuccess: async () => {
+        setRegisterQuoteDialogOpen(false);
+        await refreshRequest();
+        toast.success("Cotización registrada");
+      },
+      onError: mutationError => toast.error(mutationError.message),
+    });
+
+  const requestAuthorization =
+    trpc.serviceRequestContext.review.canonicalRequestAuthorization.useMutation({
+      onSuccess: async () => {
+        setRequestAuthorizationDialogOpen(false);
+        await refreshRequest();
+        toast.success("Cotización enviada a autorización");
+      },
+      onError: mutationError => toast.error(mutationError.message),
+    });
+
   if (isLoading) {
     return (
       <div className="animate-fade-up space-y-4">
@@ -366,6 +408,12 @@ export default function ServiceRequestDetail() {
   const canRequestQuote =
     request.status === "under_review"
     && request.commercialStatus === "not_required";
+  const canRegisterQuote =
+    request.status === "under_review"
+    && request.commercialStatus === "pending_quote";
+  const canRequestAuthorization =
+    request.status === "under_review"
+    && request.commercialStatus === "quoted";
 
   const workflowPending =
     submitRequest.isPending
@@ -374,7 +422,9 @@ export default function ServiceRequestDetail() {
     || provideInformation.isPending
     || markReadyForReview.isPending
     || startReview.isPending
-    || requestQuote.isPending;
+    || requestQuote.isPending
+    || registerQuote.isPending
+    || requestAuthorization.isPending;
 
   const missingInformation = formatMissingInformation(
     request.missingInformation,
@@ -454,6 +504,28 @@ export default function ServiceRequestDetail() {
             </Button>
           )}
 
+          {canRegisterQuote && (
+            <Button
+              className="gap-2 gradient-horos text-white"
+              disabled={workflowPending}
+              onClick={() => setRegisterQuoteDialogOpen(true)}
+            >
+              <DollarSign className="w-4 h-4" />
+              Registrar cotización
+            </Button>
+          )}
+
+          {canRequestAuthorization && (
+            <Button
+              className="gap-2 gradient-horos text-white"
+              disabled={workflowPending}
+              onClick={() => setRequestAuthorizationDialogOpen(true)}
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              Solicitar autorización
+            </Button>
+          )}
+
           {canCancel && (
             <Button
               variant="outline"
@@ -511,7 +583,7 @@ export default function ServiceRequestDetail() {
       )}
 
       {request.status === "under_review"
-        && request.commercialStatus !== "pending_quote"
+        && request.commercialStatus === "not_required"
         && (
           <Card className="mb-4 border-blue-300/70 bg-blue-50/60 dark:bg-blue-950/20">
             <CardContent className="p-4">
@@ -538,7 +610,43 @@ export default function ServiceRequestDetail() {
                 <div>
                   <p className="text-sm font-semibold">Preparación de cotización requerida</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    La revisión determinó que esta solicitud necesita una propuesta comercial antes de continuar con autorización o ejecución.
+                    Registre el importe final y la referencia de la propuesta comercial para continuar con autorización.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+      {request.status === "under_review"
+        && request.commercialStatus === "quoted"
+        && (
+          <Card className="mb-4 border-blue-300/70 bg-blue-50/60 dark:bg-blue-950/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold">Cotización formal registrada</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    La propuesta comercial está registrada por {formatMoney(request.estimatedAmount)} y puede enviarse a autorización.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+      {request.status === "under_review"
+        && request.commercialStatus === "pending_authorization"
+        && (
+          <Card className="mb-4 border-blue-300/70 bg-blue-50/60 dark:bg-blue-950/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold">Autorización pendiente</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    La cotización fue enviada a autorización. HOROS conservará la solicitud en revisión hasta registrar la decisión.
                   </p>
                 </div>
               </div>
@@ -777,6 +885,24 @@ export default function ServiceRequestDetail() {
         requestNumber={request.requestNumber}
         isPending={requestQuote.isPending}
         onConfirm={input => requestQuote.mutate({ id: request.id, ...input })}
+      />
+
+      <RegisterQuoteDialog
+        open={registerQuoteDialogOpen}
+        onOpenChange={setRegisterQuoteDialogOpen}
+        requestNumber={request.requestNumber}
+        currentAmount={request.estimatedAmount}
+        isPending={registerQuote.isPending}
+        onConfirm={input => registerQuote.mutate({ id: request.id, ...input })}
+      />
+
+      <RequestAuthorizationDialog
+        open={requestAuthorizationDialogOpen}
+        onOpenChange={setRequestAuthorizationDialogOpen}
+        requestNumber={request.requestNumber}
+        amountLabel={formatMoney(request.estimatedAmount)}
+        isPending={requestAuthorization.isPending}
+        onConfirm={note => requestAuthorization.mutate({ id: request.id, note })}
       />
     </div>
   );
