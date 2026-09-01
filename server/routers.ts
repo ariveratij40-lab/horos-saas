@@ -7,6 +7,7 @@ import { ticketsRouter } from "./routers/tickets";
 import { ticketWorkflowRouter } from "./routers/ticketWorkflow";
 import { serviceRequestsRouter } from "./routers/serviceRequests";
 import { serviceRequestContextRouter } from "./routers/serviceRequestContext";
+import { serviceTraceabilityRouter } from "./routers/serviceTraceability";
 import { assetsRouter } from "./routers/assets";
 import { maintenanceRouter } from "./routers/maintenance";
 import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashboard";
@@ -232,6 +233,7 @@ export const appRouter = router({
   ticketWorkflow: ticketWorkflowRouter,
   serviceRequests: serviceRequestsRouter,
   serviceRequestContext: serviceRequestContextRouter,
+  serviceTraceability: serviceTraceabilityRouter,
   assets: assetsRouter,
   maintenance: maintenanceRouter,
   sla: slaRouter,
