@@ -11,6 +11,9 @@ import {
 import {
   TicketAssignmentRoutePanel,
 } from "./components/tickets/TicketAssignmentRoutePanel";
+import {
+  TicketSlaRoutePanel,
+} from "./components/tickets/TicketSlaRoutePanel";
 import { useAuth } from "./_core/hooks/useAuth";
 import { getLoginUrl } from "./const";
 import Home from "./pages/Home";
@@ -78,6 +81,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
     <DashboardLayout>
       <ServiceTraceabilityBanner />
       <TicketAssignmentRoutePanel />
+      <TicketSlaRoutePanel />
       <Component />
     </DashboardLayout>
   );
