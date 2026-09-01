@@ -10,9 +10,9 @@ function source(path: string) {
 }
 
 describe("covered ticket inherited SLA recovery", () => {
-  it("recovers from canonical policy references when historical SLA JSON is incomplete", () => {
+  it("recovers policy references through PostgreSQL JSONB extraction", () => {
     const router = source(
-      "server/routers/serviceRequestSlaRecoveryRobust.ts",
+      "server/routers/serviceRequestSlaRecoveryJsonSafe.ts",
     );
 
     expect(router).toMatch(/pgProtectedProcedure/);
@@ -20,8 +20,8 @@ describe("covered ticket inherited SLA recovery", () => {
     expect(router).toMatch(/service_request_ticket_links/);
     expect(router).toMatch(/relation_type = 'converted'/);
     expect(router).toMatch(/e\.event_type = 'authorized'/);
-    expect(router).toMatch(/e\.metadata \? 'policyId'/);
-    expect(router).toMatch(/e\.metadata \? 'policyServiceId'/);
+    expect(router).toMatch(/e\.metadata->>'policyId'/);
+    expect(router).toMatch(/e\.metadata->>'policyServiceId'/);
     expect(router).not.toMatch(/metadata->>'action' = 'policy_coverage_authorized'/);
     expect(router).toMatch(/service_policy_services/);
     expect(router).toMatch(/service_policy_sla_rules/);
@@ -32,7 +32,7 @@ describe("covered ticket inherited SLA recovery", () => {
     expect(router).toMatch(/estimated_cost = NULL/);
     expect(router).toMatch(/is_billable = false/);
     expect(router).toMatch(/'sla_applied'/);
-    expect(router).toMatch(/sla_recovered_from_service_request_reference/);
+    expect(router).toMatch(/sla_recovered_from_service_request_sql_jsonb/);
   });
 
   it("is exposed through Service Intake context and mounted in ticket UX", () => {
@@ -47,7 +47,7 @@ describe("covered ticket inherited SLA recovery", () => {
     );
 
     expect(context).toMatch(
-      /slaRecovery:\s*serviceRequestSlaRecoveryRobustRouter/,
+      /slaRecovery:\s*serviceRequestSlaRecoveryJsonSafeRouter/,
     );
     expect(panel).toMatch(
       /serviceRequestContext\.slaRecovery\.canonicalOriginCoverage/,
