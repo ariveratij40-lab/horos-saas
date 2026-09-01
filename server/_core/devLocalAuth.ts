@@ -141,6 +141,28 @@ function ensureCanonicalPgRuntimeConnection() {
     `postgres://horos_runtime:${password}@127.0.0.1:${port}/${database}`;
 }
 
+/**
+ * Prepares the dedicated localhost PostgreSQL runtime without mutating identity
+ * fixtures. It is safe to call from the pgProtectedProcedure boundary: schema
+ * migration runs at most once per process and runtime credentials remain the
+ * least-privilege horos_runtime role.
+ */
+export function prepareDevLocalCanonicalRuntime(
+  externalSubject: string,
+): boolean {
+  if (
+    process.env.NODE_ENV !== "development" ||
+    externalSubject !== DEV_LOCAL_OPEN_ID
+  ) {
+    return false;
+  }
+
+  ensureDevCanonicalMigrations();
+  ensureCanonicalPgRuntimeConnection();
+
+  return true;
+}
+
 function bootstrapCanonicalLocalIdentity() {
   const sql = `
 BEGIN;
@@ -289,21 +311,10 @@ COMMIT;
 export function repairDevLocalCanonicalIdentity(
   externalSubject: string,
 ): boolean {
-  if (
-    process.env.NODE_ENV !== "development" ||
-    externalSubject !== DEV_LOCAL_OPEN_ID
-  ) {
+  if (!prepareDevLocalCanonicalRuntime(externalSubject)) {
     return false;
   }
 
-  // Keep the local schema current before establishing the runtime connection.
-  // Migration credentials exist only in the child process environment.
-  ensureDevCanonicalMigrations();
-
-  // Establish the same runtime connection contract the canonical resolver will
-  // use before touching the bootstrap fixture. The bootstrap itself uses the
-  // local PostgreSQL container's administrative development role.
-  ensureCanonicalPgRuntimeConnection();
   bootstrapCanonicalLocalIdentity();
 
   return true;
