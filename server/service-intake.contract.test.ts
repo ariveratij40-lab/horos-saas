@@ -82,5 +82,16 @@ describe(
         ).toBeDefined();
       },
     );
+
+    it(
+      "exposes requester information response separately from review",
+      () => {
+        expect(
+          procedures[
+            "serviceRequestContext.requester.canonicalProvideInformation"
+          ],
+        ).toBeDefined();
+      },
+    );
   },
 );
