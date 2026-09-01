@@ -5,6 +5,9 @@ import type { TrpcContext } from "./context";
 import {
   resolveCanonicalTenantForSubject,
 } from "../db.pg";
+import {
+  repairDevLocalCanonicalIdentity,
+} from "./devLocalAuth";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -50,26 +53,48 @@ const requirePgTenant = t.middleware(async opts => {
     });
   }
 
+  let pgTenant;
+
   try {
-    const pgTenant =
+    pgTenant =
       await resolveCanonicalTenantForSubject(
         ctx.user.openId,
       );
-
-    return next({
-      ctx: {
-        ...ctx,
-        user: ctx.user,
-        pgTenant,
-      },
-    });
   } catch {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message:
-        "No active canonical tenant membership is available",
-    });
+    // A localhost development session can legitimately outlive a reset of the
+    // local PostgreSQL container. Repair only the dedicated local development
+    // subject, then retry canonical resolution once. Production and all other
+    // identities remain strictly fail-closed.
+    try {
+      const repaired =
+        repairDevLocalCanonicalIdentity(
+          ctx.user.openId,
+        );
+
+      if (!repaired) {
+        throw new Error("Canonical identity repair is not available");
+      }
+
+      pgTenant =
+        await resolveCanonicalTenantForSubject(
+          ctx.user.openId,
+        );
+    } catch {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message:
+          "No active canonical tenant membership is available",
+      });
+    }
   }
+
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user,
+      pgTenant,
+    },
+  });
 });
 
 export const pgProtectedProcedure =
