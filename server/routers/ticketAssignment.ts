@@ -69,6 +69,43 @@ async function lockTicket(
   return rows[0]!;
 }
 
+async function resolveActorUserId(
+  tx: TransactionSql,
+  tenantId: string,
+  externalSubject: string,
+) {
+  const rows = await tx<{ userId: string }[]>`
+    SELECT u.id::text AS "userId"
+    FROM tenant_users tu
+    JOIN users u
+      ON u.id = tu.user_id
+    WHERE tu.tenant_id = ${tenantId}::uuid
+      AND u.external_subject = ${externalSubject}
+      AND tu.is_active = true
+      AND u.is_active = true
+    LIMIT 1
+  `;
+
+  return rows[0]?.userId ?? null;
+}
+
+const operationalStatusSchema = z.enum([
+  "open",
+  "assigned",
+  "in_progress",
+  "pending",
+  "resolved",
+  "closed",
+  "cancelled",
+]);
+
+const prioritySchema = z.enum([
+  "critical",
+  "high",
+  "medium",
+  "low",
+]);
+
 export const ticketAssignmentRouter = router({
   canonicalCurrent:
     pgProtectedProcedure
@@ -150,6 +187,145 @@ export const ticketAssignmentRouter = router({
               ORDER BY
                 COALESCE(u.name, u.email, u.id::text),
                 u.id
+            `;
+          },
+        );
+      }),
+
+  canonicalQueue:
+    pgProtectedProcedure
+      .input(
+        z.object({
+          operationalStatus:
+            operationalStatusSchema.optional(),
+          priority:
+            prioritySchema.optional(),
+          assignment:
+            z.enum([
+              "all",
+              "unassigned",
+              "mine",
+            ]).optional(),
+          assigneeUserId:
+            z.string().uuid().optional(),
+        }).optional(),
+      )
+      .query(async ({ ctx, input }) => {
+        return withTenantTransaction(
+          ctx.pgTenant.tenantId,
+          async tx => {
+            const assignment =
+              input?.assignment ?? "all";
+
+            const actorUserId =
+              assignment === "mine"
+                ? await resolveActorUserId(
+                    tx,
+                    ctx.pgTenant.tenantId,
+                    ctx.pgTenant.externalSubject,
+                  )
+                : null;
+
+            if (
+              assignment === "mine"
+              && !actorUserId
+            ) {
+              return [];
+            }
+
+            const operationalStatus =
+              input?.operationalStatus ?? null;
+            const priority =
+              input?.priority ?? null;
+            const assigneeUserId =
+              input?.assigneeUserId ?? null;
+
+            return tx<{
+              id: string;
+              ticketNumber: string;
+              title: string;
+              description: string | null;
+              operationalStatus: string;
+              contractualStatus: string;
+              priority: string;
+              category: string;
+              branchId: string;
+              branchCode: string;
+              branchName: string;
+              assetId: string | null;
+              assetCode: string | null;
+              responseDeadline: Date | null;
+              resolutionDeadline: Date | null;
+              assignedToUserId: string | null;
+              assignedToName: string | null;
+              assignedToEmail: string | null;
+              assignedAt: Date | null;
+              createdAt: Date;
+              updatedAt: Date;
+            }[]>`
+              SELECT
+                st.id::text AS "id",
+                st.ticket_number AS "ticketNumber",
+                st.title AS "title",
+                st.description AS "description",
+                st.operational_status AS "operationalStatus",
+                st.contractual_status AS "contractualStatus",
+                st.priority AS "priority",
+                st.category AS "category",
+                st.branch_id::text AS "branchId",
+                b.code AS "branchCode",
+                b.name AS "branchName",
+                st.asset_id::text AS "assetId",
+                a.asset_code AS "assetCode",
+                st.response_deadline AS "responseDeadline",
+                st.resolution_deadline AS "resolutionDeadline",
+                st.assigned_to_user_id::text AS "assignedToUserId",
+                assigned_user.name AS "assignedToName",
+                assigned_user.email AS "assignedToEmail",
+                st.assigned_at AS "assignedAt",
+                st.created_at AS "createdAt",
+                st.updated_at AS "updatedAt"
+              FROM service_tickets st
+              JOIN branches b
+                ON b.id = st.branch_id
+                AND b.tenant_id = st.tenant_id
+              LEFT JOIN assets a
+                ON a.id = st.asset_id
+                AND a.tenant_id = st.tenant_id
+              LEFT JOIN users assigned_user
+                ON assigned_user.id = st.assigned_to_user_id
+              WHERE (
+                ${operationalStatus}::text IS NULL
+                OR st.operational_status = ${operationalStatus}
+              )
+              AND (
+                ${priority}::text IS NULL
+                OR st.priority = ${priority}
+              )
+              AND (
+                ${assigneeUserId}::uuid IS NULL
+                OR st.assigned_to_user_id = ${assigneeUserId}::uuid
+              )
+              AND (
+                ${assignment}::text = 'all'
+                OR (
+                  ${assignment}::text = 'unassigned'
+                  AND st.assigned_to_user_id IS NULL
+                )
+                OR (
+                  ${assignment}::text = 'mine'
+                  AND st.assigned_to_user_id = ${actorUserId}::uuid
+                )
+              )
+              ORDER BY
+                CASE st.priority
+                  WHEN 'critical' THEN 1
+                  WHEN 'high' THEN 2
+                  WHEN 'medium' THEN 3
+                  ELSE 4
+                END,
+                st.created_at DESC,
+                st.ticket_number
             `;
           },
         );
