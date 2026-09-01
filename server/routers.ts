@@ -13,6 +13,7 @@ import { servicePolicySlaRouter } from "./routers/servicePolicySla";
 import { serviceSlaDashboardRouter } from "./routers/serviceSlaDashboard";
 import { assetsRouter } from "./routers/assets";
 import { maintenanceRouter } from "./routers/maintenance";
+import { canonicalMaintenanceRouter } from "./routers/canonicalMaintenance";
 import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashboard";
 import { slaRouter } from "./routers/sla";
 import { cctvRouter } from "./routers/cctv";
@@ -242,6 +243,7 @@ export const appRouter = router({
   serviceSlaDashboard: serviceSlaDashboardRouter,
   assets: assetsRouter,
   maintenance: maintenanceRouter,
+  canonicalMaintenance: canonicalMaintenanceRouter,
   sla: slaRouter,
   cctv: cctvRouter,
   cctvImport: cctvImportRouter,
