@@ -18,6 +18,9 @@ import {
 import {
   serviceRequestReviewRouter,
 } from "./serviceRequestReview";
+import {
+  serviceRequestFulfillmentRouter,
+} from "./serviceRequestFulfillment";
 
 /**
  * Canonical lookup surfaces used by the Service Intake create UX.
@@ -27,8 +30,8 @@ import {
  * progressive: a request may be created without branch/system/asset.
  *
  * Lifecycle actions are nested under `workflow`; requester-side actions are
- * separated under `requester`; review-only actions are separated under
- * `review` so authorities remain explicit as Service Intake evolves.
+ * separated under `requester`; review-only actions under `review`; authorized
+ * execution handoff under `fulfillment` so authorities remain explicit.
  */
 export const serviceRequestContextRouter =
   router({
@@ -40,6 +43,9 @@ export const serviceRequestContextRouter =
 
     review:
       serviceRequestReviewRouter,
+
+    fulfillment:
+      serviceRequestFulfillmentRouter,
 
     canonicalOptions:
       pgProtectedProcedure
