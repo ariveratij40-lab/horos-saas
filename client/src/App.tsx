@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch, Redirect } from "wouter";
+import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
@@ -57,17 +57,15 @@ import ResetPassword from "./pages/ResetPassword";
 import FloorPlans from "./pages/FloorPlans";
 import FloorPlanViewer from "./pages/FloorPlanViewer";
 
+function redirectToLogin() {
+  window.location.href = getLoginUrl();
+}
+
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return null;
   if (!isAuthenticated) {
-    // Use local login page if Manus OAuth is not configured
-    const hasManusOAuth = !!import.meta.env.VITE_OAUTH_PORTAL_URL && !!import.meta.env.VITE_APP_ID;
-    if (hasManusOAuth) {
-      window.location.href = getLoginUrl();
-    } else {
-      window.location.href = "/login";
-    }
+    redirectToLogin();
     return null;
   }
   return (
@@ -81,7 +79,13 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/login" component={Login} />
+      <Route path="/login" component={() => {
+        if (import.meta.env.DEV) {
+          redirectToLogin();
+          return null;
+        }
+        return <Login />;
+      }} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
@@ -114,7 +118,7 @@ function Router() {
       <Route path="/floor-plans/:id" component={() => {
         const { isAuthenticated, loading } = useAuth();
         if (loading) return null;
-        if (!isAuthenticated) { window.location.href = "/login"; return null; }
+        if (!isAuthenticated) { redirectToLogin(); return null; }
         return <FloorPlanViewer />;
       }} />
       <Route path="/floor-plans" component={() => <ProtectedRoute component={FloorPlans} />} />
@@ -143,17 +147,15 @@ function Router() {
   );
 }
 
-function App() {
+export default function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
-          <Toaster position="top-right" richColors />
+          <Toaster />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
 }
-
-export default App;
