@@ -95,11 +95,17 @@ describe(
     );
 
     it(
-      "exposes administrative review start separately from requester actions",
+      "exposes administrative review decisions separately from requester actions",
       () => {
         expect(
           procedures[
             "serviceRequestContext.review.canonicalStartReview"
+          ],
+        ).toBeDefined();
+
+        expect(
+          procedures[
+            "serviceRequestContext.review.canonicalRequestQuote"
           ],
         ).toBeDefined();
       },
