@@ -59,4 +59,22 @@ describe("covered ticket inherited SLA recovery", () => {
     expect(panel).toMatch(/Heredar SLA de/);
     expect(app).toMatch(/<TicketSlaRecoveryRoutePanel \/>/);
   });
+
+  it("self-heals a covered conversion before navigating to the ticket", () => {
+    const actions = source(
+      "client/src/components/service-requests/AuthorizedFulfillmentActions.tsx",
+    );
+
+    expect(actions).toMatch(/if \(!result\.inheritedSla\)/);
+    expect(actions).toMatch(
+      /slaRecovery\.canonicalOriginCoverage\.fetch/,
+    );
+    expect(actions).toMatch(/if \(originCoverage\.recoverable\)/);
+    expect(actions).toMatch(
+      /slaRecovery\.canonicalRecoverInherited\.useMutation/,
+    );
+    expect(actions).toMatch(/mutateAsync\(/);
+    expect(actions).toMatch(/creado con SLA contractual/);
+    expect(actions).toMatch(/navigate\(`\/tickets\/\$\{result\.ticket\.id\}`\)/);
+  });
 });
