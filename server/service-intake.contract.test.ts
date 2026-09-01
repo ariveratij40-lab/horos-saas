@@ -120,6 +120,18 @@ describe(
             "serviceRequestContext.review.canonicalRequestAuthorization"
           ],
         ).toBeDefined();
+
+        expect(
+          procedures[
+            "serviceRequestContext.review.canonicalAuthorize"
+          ],
+        ).toBeDefined();
+
+        expect(
+          procedures[
+            "serviceRequestContext.review.canonicalRejectAuthorization"
+          ],
+        ).toBeDefined();
       },
     );
   },
