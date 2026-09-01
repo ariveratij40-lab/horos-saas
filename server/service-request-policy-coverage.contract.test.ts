@@ -18,50 +18,28 @@ test("service request policy coverage stays canonical and tenant-safe", () => {
   );
   const app = source("client/src/App.tsx");
 
-  assert.match(
-    router,
-    /pgProtectedProcedure/,
-  );
-  assert.match(
-    router,
-    /withTenantTransaction\(/,
-  );
-  assert.match(
-    router,
-    /p\.status = 'active'/,
-  );
+  assert.match(router, /pgProtectedProcedure/);
+  assert.match(router, /withTenantTransaction\(/);
+  assert.match(router, /p\.status = 'active'/);
   assert.match(
     router,
     /CURRENT_DATE BETWEEN p\.start_date AND p\.end_date/,
   );
-  assert.match(
-    router,
-    /ps\.is_included = true/,
-  );
+  assert.match(router, /ps\.is_included = true/);
   assert.match(
     router,
     /p\.branch_id IS NULL\s+OR p\.branch_id = \$\{request\.branchId\}::uuid/,
   );
-  assert.match(
-    router,
-    /request\.status !== "under_review"/,
-  );
+  assert.match(router, /request\.status !== "under_review"/);
   assert.match(
     router,
     /request\.commercialStatus !== "not_required"/,
   );
-  assert.match(
-    router,
-    /commercial_status = 'authorized'/,
-  );
-  assert.match(
-    router,
-    /'authorized'/,
-  );
-  assert.match(
-    router,
-    /policy_coverage_authorized/,
-  );
+  assert.match(router, /commercial_status = 'authorized'/);
+  assert.match(router, /policy_coverage_authorized/);
+  assert.match(router, /service_policy_sla_rules/);
+  assert.match(router, /ruleRows\.length !== 4/);
+  assert.match(router, /slaRules,/);
   assert.match(
     router,
     /policyServiceId: coverage\.policyServiceId/,
@@ -78,12 +56,60 @@ test("service request policy coverage stays canonical and tenant-safe", () => {
     panel,
     /serviceRequestContext\.coverage\.canonicalAuthorize/,
   );
-  assert.match(
-    panel,
-    /Cobertura contractual disponible/,
-  );
+  assert.match(panel, /Cobertura contractual disponible/);
   assert.match(
     app,
     /<ServiceRequestPolicyCoverageRoutePanel \/>/,
+  );
+});
+
+test("covered request conversion inherits immutable SLA snapshot", () => {
+  const fulfillment = source(
+    "server/routers/serviceRequestFulfillment.ts",
+  );
+
+  assert.match(
+    fulfillment,
+    /metadata->>'action' = 'policy_coverage_authorized'/,
+  );
+  assert.match(
+    fulfillment,
+    /metadata->'slaRules'->\$\{input\.priority\}/,
+  );
+  assert.match(
+    fulfillment,
+    /Policy-covered request has an incomplete SLA authorization snapshot/,
+  );
+  assert.match(
+    fulfillment,
+    /\$\{coveredByPolicy \? null : request\.estimatedAmount\}::numeric/,
+  );
+  assert.match(
+    fulfillment,
+    /\$\{!coveredByPolicy\}/,
+  );
+  assert.match(
+    fulfillment,
+    /ticket\.createdAt\.getTime\(\)/,
+  );
+  assert.match(
+    fulfillment,
+    /INSERT INTO service_ticket_sla_snapshots/,
+  );
+  assert.match(
+    fulfillment,
+    /'sla_applied'/,
+  );
+  assert.match(
+    fulfillment,
+    /sla_inherited_from_service_request/,
+  );
+  assert.match(
+    fulfillment,
+    /source:\s*"service_request_policy_coverage"/,
+  );
+  assert.match(
+    fulfillment,
+    /inheritedPolicyNumber/,
   );
 });
