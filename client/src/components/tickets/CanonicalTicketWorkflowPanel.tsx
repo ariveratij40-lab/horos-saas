@@ -38,6 +38,61 @@ const eventLabels: Record<string, string> = {
   contractual_changed: "Estado contractual actualizado",
 };
 
+const systemMessageLabels: Record<string, string> = {
+  "Canonical ticket ledger baseline":
+    "Ticket incorporado al ledger canónico",
+  "Ticket work started":
+    "Trabajo iniciado",
+  "Ticket closed after resolution":
+    "Ticket cerrado después de la resolución",
+};
+
+function eventAction(metadata: unknown): string | null {
+  if (
+    !metadata
+    || typeof metadata !== "object"
+    || Array.isArray(metadata)
+  ) {
+    return null;
+  }
+
+  const action =
+    (metadata as Record<string, unknown>).action;
+
+  return typeof action === "string"
+    ? action
+    : null;
+}
+
+function eventTitle(
+  eventType: string,
+  metadata: unknown,
+) {
+  const action = eventAction(metadata);
+
+  if (action === "work_started") {
+    return "Trabajo iniciado";
+  }
+
+  if (action === "resolved") {
+    return "Ticket resuelto";
+  }
+
+  if (action === "closed") {
+    return "Ticket cerrado";
+  }
+
+  if (action === "comment_added") {
+    return "Comentario";
+  }
+
+  return eventLabels[eventType] ?? eventType;
+}
+
+function eventMessage(message: string) {
+  return systemMessageLabels[message] ?? message;
+}
+
 function formatDateTime(value: Date | string) {
   return new Date(value).toLocaleString("es-MX");
 }
@@ -256,13 +311,11 @@ export function CanonicalTicketWorkflowPanel({
                 >
                   <div>
                     <p className="text-sm font-medium">
-                      {eventLabels[event.eventType] ?? event.eventType}
+                      {eventTitle(event.eventType, event.metadata)}
                     </p>
                     {event.message && (
                       <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
-                        {event.message === "Canonical ticket ledger baseline"
-                          ? "Ticket incorporado al ledger canónico"
-                          : event.message}
+                        {eventMessage(event.message)}
                       </p>
                     )}
                     {event.actorName && (
