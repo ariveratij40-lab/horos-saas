@@ -12,6 +12,9 @@ import {
 import {
   serviceRequestWorkflowRouter,
 } from "./serviceRequestWorkflow";
+import {
+  serviceRequestRequesterRouter,
+} from "./serviceRequestRequester";
 
 /**
  * Canonical lookup surfaces used by the Service Intake create UX.
@@ -20,13 +23,17 @@ import {
  * constrain tenant_id explicitly. Optional technical context remains
  * progressive: a request may be created without branch/system/asset.
  *
- * Lifecycle actions are nested under `workflow` so the existing root
- * registration remains stable while Service Intake evolves.
+ * Lifecycle actions are nested under `workflow`; requester-side actions are
+ * separated under `requester` so review authority and requester authority do
+ * not become conflated as Service Intake evolves.
  */
 export const serviceRequestContextRouter =
   router({
     workflow:
       serviceRequestWorkflowRouter,
+
+    requester:
+      serviceRequestRequesterRouter,
 
     canonicalOptions:
       pgProtectedProcedure
