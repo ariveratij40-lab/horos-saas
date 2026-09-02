@@ -1,0 +1,927 @@
+import { useState, type ReactNode } from "react";
+import { useLocation, useRoute } from "wouter";
+import type { LucideIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  BadgeCheck,
+  Building2,
+  CalendarDays,
+  Camera,
+  CheckCircle2,
+  ClipboardList,
+  Clock3,
+  FileImage,
+  FileText,
+  Flag,
+  Link2,
+  Play,
+  Plus,
+  ShieldCheck,
+  Upload,
+  UserRound,
+  Wrench,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { trpc } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Borrador",
+  planned: "Planeada",
+  in_progress: "En ejecución",
+  completed: "Completada",
+  cancelled: "Cancelada",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  draft: "border-slate-200 bg-slate-50 text-slate-700",
+  planned: "border-blue-200 bg-blue-50 text-blue-700",
+  in_progress: "border-amber-200 bg-amber-50 text-amber-700",
+  completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  cancelled: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  preventive: "Preventivo",
+  corrective: "Correctivo",
+  predictive: "Predictivo",
+  inspection: "Inspección",
+};
+
+const ASSET_STATUS_LABELS: Record<string, string> = {
+  pending: "Pendiente",
+  inspected: "Inspeccionado",
+  serviced: "Atendido",
+  skipped: "Omitido",
+  follow_up_required: "Requiere seguimiento",
+};
+
+const ASSET_STATUS_STYLES: Record<string, string> = {
+  pending: "border-slate-200 bg-slate-50 text-slate-700",
+  inspected: "border-blue-200 bg-blue-50 text-blue-700",
+  serviced: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  skipped: "border-zinc-200 bg-zinc-50 text-zinc-700",
+  follow_up_required: "border-amber-200 bg-amber-50 text-amber-700",
+};
+
+const SEVERITY_LABELS: Record<string, string> = {
+  info: "Informativo",
+  low: "Bajo",
+  medium: "Medio",
+  high: "Alto",
+  critical: "Crítico",
+};
+
+const SEVERITY_STYLES: Record<string, string> = {
+  info: "border-sky-200 bg-sky-50 text-sky-700",
+  low: "border-slate-200 bg-slate-50 text-slate-700",
+  medium: "border-amber-200 bg-amber-50 text-amber-700",
+  high: "border-orange-200 bg-orange-50 text-orange-700",
+  critical: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+const PHASE_LABELS: Record<string, string> = {
+  before: "Antes",
+  during: "Durante",
+  after: "Después",
+  general: "General",
+};
+
+const EVENT_LABELS: Record<string, string> = {
+  created: "Orden creada",
+  planned: "Orden planeada",
+  started: "Trabajo iniciado",
+  asset_added: "Activo agregado",
+  asset_updated: "Activo actualizado",
+  finding_added: "Hallazgo registrado",
+  evidence_added: "Evidencia agregada",
+  completed: "Mantenimiento completado",
+  cancelled: "Orden cancelada",
+  customer_accepted: "Aceptación del cliente",
+};
+
+function formatDateTime(value: Date | string | null | undefined) {
+  if (!value) return "No registrado";
+  return new Date(value).toLocaleString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function toInputDateTime(value: Date | string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function fileToBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result ?? "");
+      resolve(value.includes(",") ? value.split(",")[1] ?? "" : value);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("No fue posible leer el archivo"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function InfoItem({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: ReactNode;
+  icon?: LucideIcon;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
+        {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+        {label}
+      </div>
+      <div className="text-sm font-medium text-foreground">{value}</div>
+    </div>
+  );
+}
+
+export default function CanonicalMaintenanceDetail() {
+  const [, params] = useRoute("/maintenance/:id");
+  const [, navigate] = useLocation();
+  const routeId = params?.id;
+  const utils = trpc.useUtils();
+
+  const query = trpc.canonicalMaintenance.canonicalGet.useQuery(
+    { id: routeId ?? "00000000-0000-4000-8000-000000000000" },
+    { enabled: Boolean(routeId), retry: false },
+  );
+  const candidatesQuery = trpc.ticketAssignment.canonicalCandidates.useQuery();
+
+  const [showPlan, setShowPlan] = useState(false);
+  const [planStart, setPlanStart] = useState("");
+  const [planEnd, setPlanEnd] = useState("");
+  const [planAssignee, setPlanAssignee] = useState("");
+
+  const [showAsset, setShowAsset] = useState(false);
+  const [selectedAssetId, setSelectedAssetId] = useState("");
+  const [assetStatus, setAssetStatus] = useState("pending");
+  const [conditionBefore, setConditionBefore] = useState("");
+  const [conditionAfter, setConditionAfter] = useState("");
+  const [workPerformed, setWorkPerformed] = useState("");
+  const [technicianNotes, setTechnicianNotes] = useState("");
+
+  const [showFinding, setShowFinding] = useState(false);
+  const [findingAssetId, setFindingAssetId] = useState("general");
+  const [findingType, setFindingType] = useState("anomaly");
+  const [findingSeverity, setFindingSeverity] = useState("medium");
+  const [findingStatus, setFindingStatus] = useState("open");
+  const [findingTitle, setFindingTitle] = useState("");
+  const [findingDescription, setFindingDescription] = useState("");
+  const [findingDiagnosis, setFindingDiagnosis] = useState("");
+  const [findingAction, setFindingAction] = useState("");
+  const [findingRecommendation, setFindingRecommendation] = useState("");
+  const [findingFollowUp, setFindingFollowUp] = useState(false);
+  const [findingCapex, setFindingCapex] = useState(false);
+
+  const [showEvidence, setShowEvidence] = useState(false);
+  const [evidenceAssetId, setEvidenceAssetId] = useState("general");
+  const [evidenceFindingId, setEvidenceFindingId] = useState("none");
+  const [evidencePhase, setEvidencePhase] = useState("before");
+  const [evidenceCaption, setEvidenceCaption] = useState("");
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [preparingEvidence, setPreparingEvidence] = useState(false);
+
+  const [showComplete, setShowComplete] = useState(false);
+  const [summary, setSummary] = useState("");
+  const [generalFindings, setGeneralFindings] = useState("");
+  const [correctiveActions, setCorrectiveActions] = useState("");
+  const [recommendations, setRecommendations] = useState("");
+
+  const [showAcceptance, setShowAcceptance] = useState(false);
+  const [acceptanceNote, setAcceptanceNote] = useState("");
+
+  const refresh = async () => {
+    if (!routeId) return;
+    await Promise.all([
+      utils.canonicalMaintenance.canonicalGet.invalidate({ id: routeId }),
+      utils.canonicalMaintenance.canonicalList.invalidate(),
+    ]);
+  };
+
+  const planMutation = trpc.canonicalMaintenance.canonicalPlan.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowPlan(false);
+      toast.success("Orden planeada");
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  const startMutation = trpc.canonicalMaintenance.canonicalStart.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      toast.success("Ejecución iniciada");
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  const assetMutation = trpc.canonicalMaintenance.canonicalUpdateAsset.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowAsset(false);
+      toast.success("Activo actualizado");
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  const findingMutation = trpc.canonicalMaintenance.canonicalAddFinding.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowFinding(false);
+      toast.success("Hallazgo registrado");
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  const evidenceMutation = trpc.canonicalMaintenanceEvidence.upload.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowEvidence(false);
+      setEvidenceFile(null);
+      toast.success("Evidencia cargada");
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  const completeMutation = trpc.canonicalMaintenance.canonicalComplete.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowComplete(false);
+      toast.success("Mantenimiento completado");
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  const acceptanceMutation = trpc.canonicalMaintenance.canonicalCustomerAccept.useMutation({
+    onSuccess: async () => {
+      await refresh();
+      setShowAcceptance(false);
+      toast.success("Aceptación del cliente registrada");
+    },
+    onError: error => toast.error(error.message),
+  });
+
+  if (query.isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-48 rounded-xl" />
+        <Skeleton className="h-72 rounded-xl" />
+      </div>
+    );
+  }
+
+  const order = query.data;
+  if (query.error || !order || !routeId) {
+    return (
+      <Card>
+        <CardContent className="space-y-3 p-6">
+          <p className="font-semibold">No fue posible abrir la orden de mantenimiento.</p>
+          <p className="text-sm text-muted-foreground">{query.error?.message ?? "Orden no encontrada."}</p>
+          <Button variant="outline" onClick={() => navigate("/maintenance")}>Volver a mantenimiento</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const loadedOrder = order;
+  const workOrderId: string = routeId;
+  const pendingCount = loadedOrder.assets.filter(asset => asset.status === "pending").length;
+  const processedCount = loadedOrder.assets.length - pendingCount;
+  const progress = loadedOrder.assets.length > 0
+    ? Math.round((processedCount / loadedOrder.assets.length) * 100)
+    : 0;
+
+  const openPlanDialog = () => {
+    setPlanStart(toInputDateTime(loadedOrder.scheduledStart));
+    setPlanEnd(toInputDateTime(loadedOrder.scheduledEnd));
+    setPlanAssignee(loadedOrder.assignedToUserId ?? "");
+    setShowPlan(true);
+  };
+
+  const openAssetDialog = (assetId: string) => {
+    const asset = loadedOrder.assets.find(item => item.id === assetId);
+    if (!asset) return;
+    setSelectedAssetId(asset.id);
+    setAssetStatus(asset.status);
+    setConditionBefore(asset.conditionBefore ?? "");
+    setConditionAfter(asset.conditionAfter ?? "");
+    setWorkPerformed(asset.workPerformed ?? "");
+    setTechnicianNotes(asset.technicianNotes ?? "");
+    setShowAsset(true);
+  };
+
+  const openFindingDialog = (assetId?: string) => {
+    setFindingAssetId(assetId ?? "general");
+    setFindingType("anomaly");
+    setFindingSeverity("medium");
+    setFindingStatus("open");
+    setFindingTitle("");
+    setFindingDescription("");
+    setFindingDiagnosis("");
+    setFindingAction("");
+    setFindingRecommendation("");
+    setFindingFollowUp(false);
+    setFindingCapex(false);
+    setShowFinding(true);
+  };
+
+  const openEvidenceDialog = (assetId?: string) => {
+    setEvidenceAssetId(assetId ?? "general");
+    setEvidenceFindingId("none");
+    setEvidencePhase("before");
+    setEvidenceCaption("");
+    setEvidenceFile(null);
+    setShowEvidence(true);
+  };
+
+  const uploadEvidence = async () => {
+    if (!evidenceFile) return;
+    if (evidenceFile.size > 20 * 1024 * 1024) {
+      toast.error("El archivo excede 20 MB");
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(evidenceFile.type)) {
+      toast.error("Use JPEG, PNG, WEBP o PDF");
+      return;
+    }
+
+    setPreparingEvidence(true);
+    try {
+      const fileBase64 = await fileToBase64(evidenceFile);
+      evidenceMutation.mutate({
+        workOrderId,
+        workOrderAssetId: evidenceAssetId === "general" ? undefined : evidenceAssetId,
+        findingId: evidenceFindingId === "none" ? undefined : evidenceFindingId,
+        evidencePhase: evidencePhase as "before" | "during" | "after" | "general",
+        fileName: evidenceFile.name,
+        mimeType: evidenceFile.type,
+        fileBase64,
+        caption: evidenceCaption.trim() || undefined,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No fue posible preparar la evidencia");
+    } finally {
+      setPreparingEvidence(false);
+    }
+  };
+
+  const compatibleFindings = loadedOrder.findings.filter(finding =>
+    evidenceAssetId === "general"
+      ? finding.workOrderAssetId === null
+      : finding.workOrderAssetId === evidenceAssetId,
+  );
+
+  return (
+    <div className="animate-fade-up space-y-6 pb-10">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <Button variant="ghost" size="sm" className="-ml-2 mb-2" onClick={() => navigate("/maintenance")}>
+            <ArrowLeft className="mr-1.5 h-4 w-4" /> Mantenimiento
+          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">{loadedOrder.workOrderNumber}</span>
+            <Badge variant="outline" className={cn("font-medium", STATUS_STYLES[loadedOrder.status])}>
+              {STATUS_LABELS[loadedOrder.status] ?? loadedOrder.status}
+            </Badge>
+            <Badge variant="secondary">{TYPE_LABELS[loadedOrder.maintenanceType] ?? loadedOrder.maintenanceType}</Badge>
+          </div>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight">{loadedOrder.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Orden canónica · fuente estructurada para la memoria técnica.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {loadedOrder.status === "draft" ? (
+            <Button onClick={openPlanDialog}>
+              <CalendarDays className="mr-2 h-4 w-4" /> Planear
+            </Button>
+          ) : null}
+          {loadedOrder.status === "planned" ? (
+            <Button disabled={startMutation.isPending} onClick={() => startMutation.mutate({ id: workOrderId })}>
+              <Play className="mr-2 h-4 w-4" />
+              {startMutation.isPending ? "Iniciando..." : "Iniciar trabajo"}
+            </Button>
+          ) : null}
+          {loadedOrder.status === "in_progress" ? (
+            <>
+              <Button variant="outline" onClick={() => openFindingDialog()}>
+                <Plus className="mr-2 h-4 w-4" /> Hallazgo
+              </Button>
+              <Button variant="outline" onClick={() => openEvidenceDialog()}>
+                <Upload className="mr-2 h-4 w-4" /> Evidencia
+              </Button>
+              <Button onClick={() => setShowComplete(true)}>
+                <CheckCircle2 className="mr-2 h-4 w-4" /> Completar
+              </Button>
+            </>
+          ) : null}
+          {loadedOrder.status === "completed" && !loadedOrder.customerAcceptedAt ? (
+            <Button onClick={() => setShowAcceptance(true)}>
+              <BadgeCheck className="mr-2 h-4 w-4" /> Aceptación cliente
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <Card className="border-primary/20 bg-primary/[0.025]">
+        <CardContent className="p-5">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <InfoItem label="Sucursal" value={`${loadedOrder.branchName} (${loadedOrder.branchCode})`} icon={Building2} />
+            <InfoItem label="Póliza" value={loadedOrder.policyNumber ? `${loadedOrder.policyNumber} — ${loadedOrder.policyName ?? ""}` : "Sin póliza vinculada"} icon={ShieldCheck} />
+            <InfoItem label="Sistema" value={loadedOrder.systemName ?? "Sin sistema específico"} icon={Wrench} />
+            <InfoItem label="Responsable" value={loadedOrder.assignedToName ?? "Sin asignar"} icon={UserRound} />
+          </div>
+          <div className="mt-5 grid gap-5 border-t pt-5 md:grid-cols-3">
+            <InfoItem label="Inicio programado" value={formatDateTime(loadedOrder.scheduledStart)} icon={CalendarDays} />
+            <InfoItem label="Inicio real" value={formatDateTime(loadedOrder.startedAt)} icon={Clock3} />
+            <InfoItem label="Completado" value={formatDateTime(loadedOrder.completedAt)} icon={CheckCircle2} />
+          </div>
+          {loadedOrder.objective ? (
+            <div className="mt-5 border-t pt-5">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Objetivo</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{loadedOrder.objective}</p>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{loadedOrder.assets.length}</p><p className="text-xs text-muted-foreground">Activos en alcance</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{processedCount}</p><p className="text-xs text-muted-foreground">Activos procesados</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{loadedOrder.findings.length}</p><p className="text-xs text-muted-foreground">Hallazgos</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-2xl font-bold">{loadedOrder.evidence.length}</p><p className="text-xs text-muted-foreground">Evidencias</p></CardContent></Card>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">Avance de ejecución</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">{processedCount} de {loadedOrder.assets.length} activos · {progress}%</p>
+            </div>
+            {pendingCount > 0 ? <Badge variant="outline">{pendingCount} pendiente(s)</Badge> : null}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Activos intervenidos</CardTitle>
+          <p className="text-sm text-muted-foreground">Condición, trabajo, hallazgos y evidencia quedan ligados al activo canónico.</p>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loadedOrder.assets.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">No hay activos en esta orden.</div>
+          ) : (
+            <div className="divide-y">
+              {loadedOrder.assets.map(asset => {
+                const assetEvidence = Array.from(loadedOrder.evidence).filter(item => item.workOrderAssetId === asset.id);
+                const phases = new Set(assetEvidence.map(item => item.evidencePhase));
+                return (
+                  <div key={asset.id} className="p-4 md:p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold">{asset.assetCode}</span>
+                          <Badge variant="outline" className={cn("font-medium", ASSET_STATUS_STYLES[asset.status])}>
+                            {ASSET_STATUS_LABELS[asset.status] ?? asset.status}
+                          </Badge>
+                          <Badge variant="secondary">{asset.assetTypeName}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {[asset.manufacturer, asset.model, asset.locationName].filter(Boolean).join(" · ") || "Sin detalle adicional"}
+                        </p>
+                      </div>
+                      {loadedOrder.status === "in_progress" ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => openAssetDialog(asset.id)}>
+                            <Wrench className="mr-1.5 h-3.5 w-3.5" /> Ejecutar
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openFindingDialog(asset.id)}>
+                            <Flag className="mr-1.5 h-3.5 w-3.5" /> Hallazgo
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openEvidenceDialog(asset.id)}>
+                            <Camera className="mr-1.5 h-3.5 w-3.5" /> Evidencia
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {(asset.conditionBefore || asset.workPerformed || asset.conditionAfter) ? (
+                      <div className="mt-4 grid gap-3 md:grid-cols-3">
+                        <div className="rounded-lg bg-muted/40 p-3">
+                          <p className="text-[11px] font-semibold uppercase text-muted-foreground">Antes</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm">{asset.conditionBefore || "Sin registro"}</p>
+                        </div>
+                        <div className="rounded-lg bg-muted/40 p-3">
+                          <p className="text-[11px] font-semibold uppercase text-muted-foreground">Trabajo</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm">{asset.workPerformed || "Sin registro"}</p>
+                        </div>
+                        <div className="rounded-lg bg-muted/40 p-3">
+                          <p className="text-[11px] font-semibold uppercase text-muted-foreground">Después</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm">{asset.conditionAfter || "Sin registro"}</p>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-md border px-2 py-1">{asset.findingCount} hallazgo(s)</span>
+                      <span className="rounded-md border px-2 py-1">{asset.evidenceCount} evidencia(s)</span>
+                      {(["before", "during", "after"] as const).map(phase => (
+                        <span key={phase} className={cn("rounded-md border px-2 py-1", phases.has(phase) ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "text-muted-foreground")}>
+                          {PHASE_LABELS[phase]} {phases.has(phase) ? "✓" : "—"}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">Hallazgos</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">Diagnóstico, acción y recomendación.</p>
+              </div>
+              {loadedOrder.status === "in_progress" ? (
+                <Button size="sm" variant="outline" onClick={() => openFindingDialog()}><Plus className="mr-1 h-3.5 w-3.5" /> Agregar</Button>
+              ) : null}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadedOrder.findings.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Sin hallazgos.</div>
+            ) : (
+              <div className="space-y-3">
+                {loadedOrder.findings.map(finding => (
+                  <div key={finding.id} className="rounded-xl border p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{finding.title}</p>
+                      <Badge variant="outline" className={cn("font-medium", SEVERITY_STYLES[finding.severity])}>
+                        {SEVERITY_LABELS[finding.severity] ?? finding.severity}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{finding.assetCode ?? "Hallazgo general"} · {finding.status}</p>
+                    {finding.description ? <p className="mt-3 whitespace-pre-wrap text-sm">{finding.description}</p> : null}
+                    {finding.diagnosis ? <p className="mt-2 text-sm"><span className="font-medium">Diagnóstico:</span> {finding.diagnosis}</p> : null}
+                    {finding.actionTaken ? <p className="mt-2 text-sm"><span className="font-medium">Acción:</span> {finding.actionTaken}</p> : null}
+                    {finding.recommendation ? <p className="mt-2 text-sm"><span className="font-medium">Recomendación:</span> {finding.recommendation}</p> : null}
+                    {(finding.requiresFollowUp || finding.capexRecommended) ? (
+                      <div className="mt-3 flex gap-2">
+                        {finding.requiresFollowUp ? <Badge variant="secondary">Seguimiento</Badge> : null}
+                        {finding.capexRecommended ? <Badge variant="secondary">CAPEX</Badge> : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">Evidencia</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">Antes, durante, después y soporte.</p>
+              </div>
+              {["in_progress", "completed"].includes(loadedOrder.status) ? (
+                <Button size="sm" variant="outline" onClick={() => openEvidenceDialog()}><Upload className="mr-1 h-3.5 w-3.5" /> Agregar</Button>
+              ) : null}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadedOrder.evidence.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Sin evidencia.</div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {loadedOrder.evidence.map(item => (
+                  <div key={item.id} className="overflow-hidden rounded-xl border">
+                    {item.mediaType === "photo" && item.fileUrl ? (
+                      <a href={item.fileUrl} target="_blank" rel="noreferrer" className="block aspect-video bg-muted">
+                        <img src={item.fileUrl} alt={item.caption ?? item.fileName} className="h-full w-full object-cover" />
+                      </a>
+                    ) : (
+                      <div className="flex aspect-video items-center justify-center bg-muted">
+                        {item.mediaType === "document" ? <FileText className="h-8 w-8 text-muted-foreground" /> : <FileImage className="h-8 w-8 text-muted-foreground" />}
+                      </div>
+                    )}
+                    <div className="p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge variant="secondary">{PHASE_LABELS[item.evidencePhase] ?? item.evidencePhase}</Badge>
+                        {item.fileUrl ? <a href={item.fileUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">Abrir</a> : null}
+                      </div>
+                      <p className="mt-2 truncate text-sm font-medium">{item.fileName}</p>
+                      {item.caption ? <p className="mt-1 text-xs text-muted-foreground">{item.caption}</p> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {(loadedOrder.summary || loadedOrder.generalFindings || loadedOrder.correctiveActions || loadedOrder.recommendations || loadedOrder.customerAcceptedAt) ? (
+        <Card className="border-emerald-200/70">
+          <CardHeader><CardTitle className="text-base">Cierre técnico</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            {loadedOrder.summary ? <InfoItem label="Resumen" value={<p className="whitespace-pre-wrap font-normal">{loadedOrder.summary}</p>} icon={ClipboardList} /> : null}
+            {loadedOrder.generalFindings ? <InfoItem label="Hallazgos generales" value={<p className="whitespace-pre-wrap font-normal">{loadedOrder.generalFindings}</p>} icon={AlertTriangle} /> : null}
+            {loadedOrder.correctiveActions ? <InfoItem label="Acciones correctivas" value={<p className="whitespace-pre-wrap font-normal">{loadedOrder.correctiveActions}</p>} icon={Wrench} /> : null}
+            {loadedOrder.recommendations ? <InfoItem label="Recomendaciones" value={<p className="whitespace-pre-wrap font-normal">{loadedOrder.recommendations}</p>} icon={Flag} /> : null}
+            {loadedOrder.customerAcceptedAt ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+                <div className="flex items-center gap-2 font-medium"><BadgeCheck className="h-4 w-4" /> Aceptación registrada</div>
+                <p className="mt-1 text-sm">{formatDateTime(loadedOrder.customerAcceptedAt)}</p>
+                {loadedOrder.customerAcceptanceNotes ? <p className="mt-2 text-sm">{loadedOrder.customerAcceptanceNotes}</p> : null}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Historial operativo</CardTitle></CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {loadedOrder.events.map(event => (
+              <div key={event.id} className="border-b pb-4 last:border-0 last:pb-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium">{EVENT_LABELS[event.eventType] ?? event.eventType}</p>
+                  <span className="text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</span>
+                </div>
+                {event.message ? <p className="mt-1 text-sm text-muted-foreground">{event.message}</p> : null}
+                {event.actorName ? <p className="mt-1 text-xs text-muted-foreground">Por {event.actorName}</p> : null}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {loadedOrder.serviceTicketId ? (
+        <Button variant="outline" onClick={() => navigate(`/tickets/${loadedOrder.serviceTicketId}`)}>
+          <Link2 className="mr-2 h-4 w-4" /> Abrir ticket de origen {loadedOrder.ticketNumber ? `· ${loadedOrder.ticketNumber}` : ""}
+        </Button>
+      ) : null}
+
+      <Dialog open={showPlan} onOpenChange={setShowPlan}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Planear mantenimiento</DialogTitle>
+            <p className="text-sm text-muted-foreground">Defina ventana y responsable antes de iniciar.</p>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5"><Label>Inicio programado *</Label><Input type="datetime-local" value={planStart} onChange={event => setPlanStart(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Fin programado</Label><Input type="datetime-local" value={planEnd} onChange={event => setPlanEnd(event.target.value)} /></div>
+            <div className="space-y-1.5">
+              <Label>Técnico responsable *</Label>
+              <Select value={planAssignee} onValueChange={setPlanAssignee}>
+                <SelectTrigger><SelectValue placeholder="Seleccione responsable" /></SelectTrigger>
+                <SelectContent>
+                  {(candidatesQuery.data ?? []).map(candidate => (
+                    <SelectItem key={candidate.userId} value={candidate.userId}>{candidate.name ?? candidate.email ?? candidate.userId}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPlan(false)}>Cancelar</Button>
+            <Button
+              disabled={!planStart || !planAssignee || planMutation.isPending}
+              onClick={() => planMutation.mutate({
+                id: workOrderId,
+                scheduledStart: new Date(planStart),
+                scheduledEnd: planEnd ? new Date(planEnd) : undefined,
+                assignedToUserId: planAssignee,
+              })}
+            >{planMutation.isPending ? "Guardando..." : "Planear orden"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAsset} onOpenChange={setShowAsset}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Ejecutar activo</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Estado *</Label>
+              <Select value={assetStatus} onValueChange={setAssetStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="inspected">Inspeccionado</SelectItem>
+                  <SelectItem value="serviced">Atendido</SelectItem>
+                  <SelectItem value="follow_up_required">Requiere seguimiento</SelectItem>
+                  <SelectItem value="skipped">Omitido</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5"><Label>Condición antes</Label><Textarea rows={4} value={conditionBefore} onChange={event => setConditionBefore(event.target.value)} /></div>
+              <div className="space-y-1.5"><Label>Condición después</Label><Textarea rows={4} value={conditionAfter} onChange={event => setConditionAfter(event.target.value)} /></div>
+            </div>
+            <div className="space-y-1.5"><Label>Trabajo realizado</Label><Textarea rows={4} value={workPerformed} onChange={event => setWorkPerformed(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Notas del técnico</Label><Textarea rows={3} value={technicianNotes} onChange={event => setTechnicianNotes(event.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAsset(false)}>Cancelar</Button>
+            <Button
+              disabled={!selectedAssetId || assetMutation.isPending}
+              onClick={() => assetMutation.mutate({
+                workOrderId,
+                workOrderAssetId: selectedAssetId,
+                status: assetStatus as "pending" | "inspected" | "serviced" | "skipped" | "follow_up_required",
+                conditionBefore: conditionBefore.trim() || undefined,
+                conditionAfter: conditionAfter.trim() || undefined,
+                workPerformed: workPerformed.trim() || undefined,
+                technicianNotes: technicianNotes.trim() || undefined,
+              })}
+            >{assetMutation.isPending ? "Guardando..." : "Guardar ejecución"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showFinding} onOpenChange={setShowFinding}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Registrar hallazgo</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Activo</Label>
+              <Select value={findingAssetId} onValueChange={setFindingAssetId}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">Hallazgo general</SelectItem>
+                  {loadedOrder.assets.map(asset => <SelectItem key={asset.id} value={asset.id}>{asset.assetCode}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-1.5"><Label>Tipo</Label><Select value={findingType} onValueChange={setFindingType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="anomaly">Anomalía</SelectItem><SelectItem value="damage">Daño</SelectItem><SelectItem value="degradation">Degradación</SelectItem><SelectItem value="configuration">Configuración</SelectItem><SelectItem value="recommendation">Recomendación</SelectItem><SelectItem value="other">Otro</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Severidad</Label><Select value={findingSeverity} onValueChange={setFindingSeverity}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="info">Informativo</SelectItem><SelectItem value="low">Bajo</SelectItem><SelectItem value="medium">Medio</SelectItem><SelectItem value="high">Alto</SelectItem><SelectItem value="critical">Crítico</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><Label>Estado</Label><Select value={findingStatus} onValueChange={setFindingStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="open">Abierto</SelectItem><SelectItem value="resolved">Resuelto</SelectItem><SelectItem value="monitor">Monitorear</SelectItem><SelectItem value="recommended">Recomendado</SelectItem></SelectContent></Select></div>
+            </div>
+            <div className="space-y-1.5"><Label>Título *</Label><Input value={findingTitle} onChange={event => setFindingTitle(event.target.value)} placeholder="Ej. Palanca de emergencia dañada" /></div>
+            <div className="space-y-1.5"><Label>Descripción</Label><Textarea rows={3} value={findingDescription} onChange={event => setFindingDescription(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Diagnóstico / causa</Label><Textarea rows={3} value={findingDiagnosis} onChange={event => setFindingDiagnosis(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Acción realizada</Label><Textarea rows={3} value={findingAction} onChange={event => setFindingAction(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Recomendación</Label><Textarea rows={3} value={findingRecommendation} onChange={event => setFindingRecommendation(event.target.value)} /></div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="flex items-center gap-2 rounded-lg border p-3 text-sm"><input type="checkbox" checked={findingFollowUp} onChange={event => setFindingFollowUp(event.target.checked)} /> Requiere seguimiento</label>
+              <label className="flex items-center gap-2 rounded-lg border p-3 text-sm"><input type="checkbox" checked={findingCapex} onChange={event => setFindingCapex(event.target.checked)} /> Recomendar CAPEX</label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFinding(false)}>Cancelar</Button>
+            <Button
+              disabled={!findingTitle.trim() || findingMutation.isPending}
+              onClick={() => findingMutation.mutate({
+                workOrderId,
+                workOrderAssetId: findingAssetId === "general" ? undefined : findingAssetId,
+                findingType: findingType as "anomaly" | "damage" | "degradation" | "configuration" | "recommendation" | "other",
+                severity: findingSeverity as "info" | "low" | "medium" | "high" | "critical",
+                status: findingStatus as "open" | "resolved" | "monitor" | "recommended",
+                title: findingTitle.trim(),
+                description: findingDescription.trim() || undefined,
+                diagnosis: findingDiagnosis.trim() || undefined,
+                actionTaken: findingAction.trim() || undefined,
+                recommendation: findingRecommendation.trim() || undefined,
+                requiresFollowUp: findingFollowUp,
+                capexRecommended: findingCapex,
+              })}
+            >{findingMutation.isPending ? "Guardando..." : "Registrar hallazgo"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEvidence} onOpenChange={setShowEvidence}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Agregar evidencia</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Activo</Label>
+                <Select value={evidenceAssetId} onValueChange={value => { setEvidenceAssetId(value); setEvidenceFindingId("none"); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="general">Evidencia general</SelectItem>{loadedOrder.assets.map(asset => <SelectItem key={asset.id} value={asset.id}>{asset.assetCode}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Etapa</Label>
+                <Select value={evidencePhase} onValueChange={setEvidencePhase}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="before">Antes</SelectItem><SelectItem value="during">Durante</SelectItem><SelectItem value="after">Después</SelectItem><SelectItem value="general">General</SelectItem></SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Hallazgo relacionado</Label>
+              <Select value={evidenceFindingId} onValueChange={setEvidenceFindingId}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="none">Sin hallazgo específico</SelectItem>{compatibleFindings.map(finding => <SelectItem key={finding.id} value={finding.id}>{finding.title}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Archivo *</Label>
+              <Input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={event => setEvidenceFile(event.target.files?.[0] ?? null)} />
+              <p className="text-xs text-muted-foreground">Máximo 20 MB. No incluya contraseñas ni credenciales de dispositivos.</p>
+            </div>
+            <div className="space-y-1.5"><Label>Descripción</Label><Textarea rows={3} value={evidenceCaption} onChange={event => setEvidenceCaption(event.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEvidence(false)}>Cancelar</Button>
+            <Button disabled={!evidenceFile || preparingEvidence || evidenceMutation.isPending} onClick={uploadEvidence}>
+              <Upload className="mr-2 h-4 w-4" /> {preparingEvidence || evidenceMutation.isPending ? "Cargando..." : "Guardar evidencia"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showComplete} onOpenChange={setShowComplete}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Completar mantenimiento</DialogTitle><p className="text-sm text-muted-foreground">Estos campos alimentarán la memoria técnica.</p></DialogHeader>
+          <div className="space-y-4 py-2">
+            {pendingCount > 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Quedan {pendingCount} activo(s) pendientes.</div> : null}
+            <div className="space-y-1.5"><Label>Resumen técnico *</Label><Textarea rows={4} value={summary} onChange={event => setSummary(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Hallazgos generales</Label><Textarea rows={4} value={generalFindings} onChange={event => setGeneralFindings(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Acciones correctivas</Label><Textarea rows={4} value={correctiveActions} onChange={event => setCorrectiveActions(event.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Recomendaciones</Label><Textarea rows={4} value={recommendations} onChange={event => setRecommendations(event.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowComplete(false)}>Cancelar</Button>
+            <Button
+              disabled={!summary.trim() || pendingCount > 0 || completeMutation.isPending}
+              onClick={() => completeMutation.mutate({ id: workOrderId, summary: summary.trim(), generalFindings: generalFindings.trim() || undefined, correctiveActions: correctiveActions.trim() || undefined, recommendations: recommendations.trim() || undefined })}
+            ><CheckCircle2 className="mr-2 h-4 w-4" /> {completeMutation.isPending ? "Completando..." : "Completar orden"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAcceptance} onOpenChange={setShowAcceptance}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Registrar aceptación del cliente</DialogTitle><p className="text-sm text-muted-foreground">Confirme la conformidad del servicio.</p></DialogHeader>
+          <div className="space-y-1.5 py-2"><Label>Nota de aceptación</Label><Textarea rows={4} value={acceptanceNote} onChange={event => setAcceptanceNote(event.target.value)} /></div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAcceptance(false)}>Cancelar</Button>
+            <Button disabled={acceptanceMutation.isPending} onClick={() => acceptanceMutation.mutate({ id: workOrderId, note: acceptanceNote.trim() || undefined })}>
+              <BadgeCheck className="mr-2 h-4 w-4" /> {acceptanceMutation.isPending ? "Registrando..." : "Confirmar aceptación"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
