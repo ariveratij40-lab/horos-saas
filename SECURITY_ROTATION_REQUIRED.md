@@ -41,3 +41,13 @@ evidence containing values to this repository.
 | Forge backend API credential | Manus Forge | 2026-09-01 | BLOCKED | Provider console access | Authentication to the provider console is unavailable | Active Forge capabilities remain referenced by the application |
 | Historical database credential | TiDB Cloud (MySQL protocol) | 2026-09-01 | BLOCKED | Provider and protocol classification | Outside the PostgreSQL-only rotation authorization | Current local database configuration differs from the historical value |
 | JWT session-signing secret | HOROS runtime | 2026-09-01 | BLOCKED | User-presence count | Users are present; a maintenance window is required | No user identities or secret values were inspected or recorded |
+
+## SEC-ROT-001 continuation status
+
+| Category | Provider identified | Date UTC | Status | Test executed | Result | Non-sensitive evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| JWT session-signing secret | HOROS runtime | 2026-09-02 | BLOCKED_RUNTIME_ACCESS | Signing-secret rotation contract | Previous-key session rejected and replacement-key test session accepted | Deployed runtime and secret store are not accessible from this environment |
+| Existing test sessions | HOROS runtime | 2026-09-02 | BLOCKED | Runtime access preflight | No deployed session store or runtime restart control available | Owner confirmed that existing users are test-only |
+| Forge and Manus OAuth | Manus | 2026-09-02 | ACCOUNT_ACCESS_UNAVAILABLE | Runtime dependency audit | OAuth is an active alternative; Forge-backed storage, evidence, AI, maps, and notifications remain callable features | References retained to avoid removing active functionality |
+| Legacy database runtime | TiDB Cloud (MySQL protocol) | 2026-09-02 | ACTIVE_DEPENDENCY | Import and registered-router audit | Local authentication and registered legacy routers still use the MySQL data layer | Connection reference retained; no connection or provider mutation performed |
+| Legacy remote repository access | Managed legacy Git repository | 2026-09-02 | UNREVOKED_EXTERNAL_RESIDUAL_RISK | Current runtime and configuration search | No current runtime, example, or local configuration consumer found | External owner and automation remain unverified without Manus account access |
