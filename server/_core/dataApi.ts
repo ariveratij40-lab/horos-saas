@@ -17,6 +17,9 @@ export async function callDataApi(
   apiId: string,
   options: DataApiCallOptions = {}
 ): Promise<unknown> {
+  if (!ENV.manusForgeEnabled) {
+    throw new Error("Legacy data API integration is not available");
+  }
   if (!ENV.forgeApiUrl) {
     throw new Error("BUILT_IN_FORGE_API_URL is not configured");
   }

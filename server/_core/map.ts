@@ -19,6 +19,9 @@ type MapsConfig = {
 };
 
 function getMapsConfig(): MapsConfig {
+  if (!ENV.manusForgeEnabled) {
+    throw new Error("Legacy maps integration is not available");
+  }
   const baseUrl = ENV.forgeApiUrl;
   const apiKey = ENV.forgeApiKey;
 
@@ -313,7 +316,6 @@ export type RoadsResult = {
  * Output: Image URL (not JSON) - use directly in <img src={url} />
  * Note: Construct URL manually with getMapsConfig() for auth
  */
-
 
 
 

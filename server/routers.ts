@@ -40,6 +40,14 @@ import { sendPasswordResetEmail } from "./_core/mailer";
 import { passwordResetTokens } from "../drizzle/schema";
 import { and, lt, isNull, gt } from "drizzle-orm";
 import crypto from "crypto";
+import { ENV } from "./_core/env";
+
+function whenEnabled<TRoutes extends Record<string, unknown>>(
+  enabled: boolean,
+  routes: TRoutes,
+): TRoutes {
+  return enabled ? routes : ({} as TRoutes);
+}
 
 export const appRouter = router({
   system: systemRouter,
@@ -52,7 +60,9 @@ export const appRouter = router({
       return { success: true } as const;
     }),
 
-    // ── LOCAL AUTH (email + password, for self-hosted VPS) ─────────────────
+    // The historical email/password implementation uses the legacy MySQL
+    // identity schema and is absent unless TiDB is explicitly enabled.
+    ...whenEnabled(ENV.legacyTidbEnabled, {
     localLogin: publicProcedure
       .input(z.object({
         email: z.string().email(),
@@ -227,13 +237,10 @@ export const appRouter = router({
 
         return { success: true };
       }),
+    }),
   }),
 
-  dashboard: dashboardRouter,
-  tenants: tenantsRouter,
-  branches: branchesRouter,
-  policies: policiesRouter,
-  tickets: ticketsRouter,
+  // Canonical PostgreSQL routers are the only default application surface.
   ticketWorkflow: ticketWorkflowRouter,
   ticketAssignment: ticketAssignmentRouter,
   serviceRequests: serviceRequestsRouter,
@@ -241,48 +248,51 @@ export const appRouter = router({
   serviceTraceability: serviceTraceabilityRouter,
   servicePolicySla: servicePolicySlaRouter,
   serviceSlaDashboard: serviceSlaDashboardRouter,
-  assets: assetsRouter,
-  maintenance: maintenanceRouter,
   canonicalMaintenance: canonicalMaintenanceRouter,
   canonicalMaintenanceEvidence: canonicalMaintenanceEvidenceRouter,
-  sla: slaRouter,
-  cctv: cctvRouter,
-  cctvImport: cctvImportRouter,
-  rfid: rfidRouter,
-  cctvMaintenance: cctvMaintenanceRouter,
-  cctvPrograms: cctvMaintenanceProgramsRouter,
-  floorPlans: floorPlansRouter,
-  floorPlanLayers: floorPlanLayersRouter,
-  floorPlanAnnotations: floorPlanAnnotationsRouter,
-  floorPlanVersions: floorPlanVersionsRouter,
-  floorPlanShares: floorPlanSharesRouter,
-  audit: auditRouter,
-  ai: aiAssistantRouter,
 
-  acReaders: acReadersRouter,
-  acControllers: acControllersRouter,
-  acDoors: acDoorsRouter,
-  acMaintenance: acMaintenanceRouter,
-  acPrograms: acProgramsRouter,
-  acStats: acStatsRouter,
-
-  cabledSwitches: cabledSwitchesRouter,
-  cabledPatchPanels: cabledPatchPanelsRouter,
-  cabledOutlets: cabledOutletsRouter,
-  cabledDucts: cabledDuctsRouter,
-  cabledMaintenance: cabledMaintenanceRouter,
-  cabledPrograms: cabledProgramsRouter,
-  cabledStats: cabledStatsRouter,
-
-  pagingAmplifiers: pagingAmplifiersRouter,
-  pagingSpeakers: pagingSpeakersRouter,
-  pagingConsoles: pagingConsolesRouter,
-  pagingPower: pagingPowerRouter,
-  pagingMaintenance: pagingMaintenanceRouter,
-  pagingPrograms: pagingProgramsRouter,
-  pagingStats: pagingStatsRouter,
-
-  users: router({
+  ...whenEnabled(ENV.legacyTidbEnabled, {
+    dashboard: dashboardRouter,
+    tenants: tenantsRouter,
+    branches: branchesRouter,
+    policies: policiesRouter,
+    tickets: ticketsRouter,
+    assets: assetsRouter,
+    maintenance: maintenanceRouter,
+    sla: slaRouter,
+    cctv: cctvRouter,
+    cctvImport: cctvImportRouter,
+    rfid: rfidRouter,
+    cctvMaintenance: cctvMaintenanceRouter,
+    cctvPrograms: cctvMaintenanceProgramsRouter,
+    floorPlans: floorPlansRouter,
+    floorPlanLayers: floorPlanLayersRouter,
+    floorPlanAnnotations: floorPlanAnnotationsRouter,
+    floorPlanVersions: floorPlanVersionsRouter,
+    floorPlanShares: floorPlanSharesRouter,
+    audit: auditRouter,
+    ai: aiAssistantRouter,
+    acReaders: acReadersRouter,
+    acControllers: acControllersRouter,
+    acDoors: acDoorsRouter,
+    acMaintenance: acMaintenanceRouter,
+    acPrograms: acProgramsRouter,
+    acStats: acStatsRouter,
+    cabledSwitches: cabledSwitchesRouter,
+    cabledPatchPanels: cabledPatchPanelsRouter,
+    cabledOutlets: cabledOutletsRouter,
+    cabledDucts: cabledDuctsRouter,
+    cabledMaintenance: cabledMaintenanceRouter,
+    cabledPrograms: cabledProgramsRouter,
+    cabledStats: cabledStatsRouter,
+    pagingAmplifiers: pagingAmplifiersRouter,
+    pagingSpeakers: pagingSpeakersRouter,
+    pagingConsoles: pagingConsolesRouter,
+    pagingPower: pagingPowerRouter,
+    pagingMaintenance: pagingMaintenanceRouter,
+    pagingPrograms: pagingProgramsRouter,
+    pagingStats: pagingStatsRouter,
+    users: router({
     list: protectedProcedure.query(async ({ ctx }) => {
       if (!["admin", "supervisor"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
       const tenantId = ctx.user.tenantId ?? undefined;
@@ -298,6 +308,7 @@ export const appRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
       return { success: true };
+    }),
     }),
   }),
 });

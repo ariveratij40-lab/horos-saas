@@ -5,6 +5,9 @@
 import { ENV } from "./_core/env";
 
 function getForgeConfig() {
+  if (!ENV.manusForgeEnabled) {
+    throw new Error("Legacy storage integration is not available");
+  }
   const forgeUrl = ENV.forgeApiUrl;
   const forgeKey = ENV.forgeApiKey;
 
@@ -72,6 +75,9 @@ export async function storagePut(
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
+  if (!ENV.manusForgeEnabled) {
+    throw new Error("Legacy storage integration is not available");
+  }
   const key = normalizeKey(relKey);
   return { key, url: `/manus-storage/${key}` };
 }

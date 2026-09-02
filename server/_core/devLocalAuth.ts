@@ -3,7 +3,6 @@ import type { Express, Request, Response } from "express";
 
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
-import * as db from "../db";
 import { resolveCanonicalTenantForSubject } from "../db.pg";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
@@ -333,15 +332,6 @@ export function registerDevLocalAuthRoutes(app: Express) {
       // local session outlives a database/container reset.
       repairDevLocalCanonicalIdentity(DEV_LOCAL_OPEN_ID);
 
-      await db.upsertUser({
-        openId: DEV_LOCAL_OPEN_ID,
-        name: DEV_NAME,
-        email: DEV_EMAIL,
-        loginMethod: "local-dev",
-        role: "admin",
-        lastSignedIn: new Date(),
-      });
-
       const canonicalIdentity =
         await resolveCanonicalTenantForSubject(DEV_LOCAL_OPEN_ID);
 
@@ -365,7 +355,7 @@ export function registerDevLocalAuthRoutes(app: Express) {
     } catch (error) {
       console.error("[DevAuth] Local login bootstrap failed", error);
       res.status(500).send(
-        "No fue posible preparar el acceso local de HOROS. Verifique que horos_postgres_dev esté activo y que la base legacy esté disponible.",
+        "No fue posible preparar el acceso local canónico de HOROS. Verifique que PostgreSQL esté disponible.",
       );
     }
   });

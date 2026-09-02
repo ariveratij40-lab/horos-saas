@@ -7,7 +7,9 @@
   ],
   "dev_command": "pnpm run dev",
   "env_vars": {
-    "DATABASE_URL": "<SET_VIA_ENVIRONMENT>"
+    "HOROS_ENABLE_LEGACY_TIDB": "false",
+    "HOROS_ENABLE_MANUS_FORGE": "false",
+    "HOROS_ENABLE_LEGACY_OAUTH": "false"
   },
   "experiments": [
     "no_db_push"

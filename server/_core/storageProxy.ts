@@ -2,6 +2,9 @@ import type { Express } from "express";
 import { ENV } from "./env";
 
 export function registerStorageProxy(app: Express) {
+  if (!ENV.manusForgeEnabled) {
+    throw new Error("Legacy storage proxy must not be registered while disabled");
+  }
   app.get("/manus-storage/*", async (req, res) => {
     const key = (req.params as Record<string, string>)[0];
     if (!key) {
