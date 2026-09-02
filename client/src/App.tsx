@@ -36,7 +36,8 @@ import ServiceRequestDetail from "./pages/ServiceRequestDetail";
 import Assets from "./pages/Assets";
 import SLA from "./pages/CanonicalSLA";
 import Branches from "./pages/Branches";
-import Maintenance from "./pages/Maintenance";
+import Maintenance from "./pages/CanonicalMaintenance";
+import MaintenanceDetail from "./pages/CanonicalMaintenanceDetail";
 import Audit from "./pages/Audit";
 import AIAssistant from "./pages/AIAssistant";
 import Users from "./pages/Users";
@@ -119,6 +120,7 @@ function Router() {
       <Route path="/assets" component={() => <ProtectedRoute component={Assets} />} />
       <Route path="/sla" component={() => <ProtectedRoute component={SLA} />} />
       <Route path="/branches" component={() => <ProtectedRoute component={Branches} />} />
+      <Route path="/maintenance/:id" component={() => <ProtectedRoute component={MaintenanceDetail} />} />
       <Route path="/maintenance" component={() => <ProtectedRoute component={Maintenance} />} />
       <Route path="/audit" component={() => <ProtectedRoute component={Audit} />} />
       <Route path="/ai" component={() => <ProtectedRoute component={AIAssistant} />} />
