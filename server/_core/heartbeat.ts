@@ -43,6 +43,12 @@ export type HeartbeatJobInfo = {
 const SERVICE = "webdevtoken.v1.WebDevService";
 
 const buildEndpoint = (rpc: string): string => {
+  if (!ENV.manusForgeEnabled) {
+    throw new TRPCError({
+      code: "NOT_IMPLEMENTED",
+      message: "Legacy heartbeat integration is not available.",
+    });
+  }
   if (!ENV.forgeApiUrl) {
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",

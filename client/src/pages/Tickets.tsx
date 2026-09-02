@@ -1,238 +1,446 @@
-import { useState } from "react";
-import { trpc } from "@/lib/trpc";
-import { StatusBadge } from "@/components/StatusBadge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
+import { useMemo, useState } from "react";
 import {
-  Ticket, Plus, Search, Filter, AlertTriangle, Clock, User,
-  ChevronRight, Hash, Calendar, ArrowRight,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  CircleDot,
+  Plus,
+  Search,
+  Ticket,
+  UserRound,
+  UsersRound,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { cn } from "@/lib/utils";
 
-const PRIORITY_ICONS: Record<string, string> = {
-  critical: "🔴", high: "🟠", medium: "🟡", low: "🟢",
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { trpc } from "@/lib/trpc";
+
+const PRIORITY_ICON: Record<string, string> = {
+  critical: "🔴",
+  high: "🟠",
+  medium: "🟡",
+  low: "🟢",
 };
 
-function TicketRow({ ticket, onClick }: { ticket: any; onClick: () => void }) {
-  const createdAt = new Date(ticket.createdAt);
-  const isOverdue = ticket.resolutionDeadline && new Date(ticket.resolutionDeadline) < new Date() && ticket.operationalStatus !== "resolved";
+const PRIORITY_LABEL: Record<string, string> = {
+  critical: "Crítica",
+  high: "Alta",
+  medium: "Media",
+  low: "Baja",
+};
 
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-4 px-4 py-3.5 hover:bg-muted/30 cursor-pointer transition-colors border-b border-border/40 last:border-0 group",
-        isOverdue && "bg-red-50/50 dark:bg-red-900/10"
-      )}
-      onClick={onClick}
-    >
-      {/* Priority indicator */}
-      <div className="text-base shrink-0">{PRIORITY_ICONS[ticket.priority] ?? "⚪"}</div>
+const STATUS_LABEL: Record<string, string> = {
+  open: "Abierto",
+  assigned: "Asignado",
+  in_progress: "En progreso",
+  pending: "En espera",
+  resolved: "Resuelto",
+  closed: "Cerrado",
+  cancelled: "Cancelado",
+};
 
-      {/* Main info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-mono text-muted-foreground">{ticket.ticketNumber}</span>
-          {isOverdue && <span className="text-[10px] bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 rounded font-medium">VENCIDO</span>}
-        </div>
-        <p className="text-sm font-medium text-foreground truncate">{ticket.title}</p>
-        <p className="text-xs text-muted-foreground mt-0.5 capitalize">{ticket.category} · {createdAt.toLocaleDateString("es-MX")}</p>
-      </div>
+const CONTRACTUAL_LABEL: Record<string, string> = {
+  pending_approval: "Pendiente de aprobación",
+  approved: "Aprobado",
+  rejected: "Rechazado",
+  not_required: "No requerido",
+};
 
-      {/* Dual status */}
-      <div className="flex flex-col items-end gap-1.5 shrink-0">
-        <StatusBadge type="operational" value={ticket.operationalStatus} />
-        <StatusBadge type="contractual" value={ticket.contractualStatus} />
-      </div>
+const CATEGORY_LABEL: Record<string, string> = {
+  corrective: "Correctivo",
+  preventive: "Preventivo",
+  incident: "Incidente",
+  service_request: "Solicitud de servicio",
+  inspection: "Inspección",
+  other: "Otro",
+};
 
-      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-    </div>
-  );
+type QueueTicket = {
+  id: string;
+  ticketNumber: string;
+  title: string;
+  operationalStatus: string;
+  contractualStatus: string;
+  priority: string;
+  category: string;
+  branchName: string;
+  branchCode: string;
+  assetCode: string | null;
+  resolutionDeadline: Date | string | null;
+  assignedToUserId: string | null;
+  assignedToName: string | null;
+  assignedToEmail: string | null;
+  assignedAt: Date | string | null;
+  createdAt: Date | string;
+};
+
+function isTerminal(status: string) {
+  return [
+    "resolved",
+    "closed",
+    "cancelled",
+  ].includes(status);
 }
 
-function CreateTicketDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const utils = trpc.useUtils();
-  const { data: policies } = trpc.policies.list.useQuery();
-  const { data: assets } = trpc.assets.list.useQuery({});
-  const createMutation = trpc.tickets.create.useMutation({
-    onSuccess: () => { utils.tickets.list.invalidate(); toast.success("Ticket creado"); onClose(); },
-    onError: (e) => toast.error(e.message),
-  });
+function TicketRow({
+  ticket,
+  onOpen,
+}: {
+  ticket: QueueTicket;
+  onOpen: () => void;
+}) {
+  const terminal = isTerminal(ticket.operationalStatus);
 
-  const [form, setForm] = useState({
-    title: "", description: "", priority: "medium" as const, category: "corrective" as const,
-    policyId: "", assetId: "", contractualStatus: "pending_approval" as const, notes: "",
-  });
+  const overdue =
+    Boolean(ticket.resolutionDeadline)
+    && new Date(ticket.resolutionDeadline!).getTime()
+      < Date.now()
+    && !terminal;
+
+  const assignee =
+    ticket.assignedToName
+    ?? ticket.assignedToEmail
+    ?? null;
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle className="font-display">Nuevo Ticket de Servicio</DialogTitle></DialogHeader>
-        <div className="space-y-3 py-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Título *</Label>
-            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Descripción breve del problema" className="text-sm" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Prioridad</Label>
-              <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v as any })}>
-                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="critical">🔴 Crítica</SelectItem>
-                  <SelectItem value="high">🟠 Alta</SelectItem>
-                  <SelectItem value="medium">🟡 Media</SelectItem>
-                  <SelectItem value="low">🟢 Baja</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Categoría</Label>
-              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as any })}>
-                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="corrective">Correctivo</SelectItem>
-                  <SelectItem value="preventive">Preventivo</SelectItem>
-                  <SelectItem value="emergency">Emergencia</SelectItem>
-                  <SelectItem value="installation">Instalación</SelectItem>
-                  <SelectItem value="inspection">Inspección</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Póliza asociada</Label>
-              <Select value={form.policyId} onValueChange={(v) => setForm({ ...form, policyId: v })}>
-                <SelectTrigger className="text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                <SelectContent>
-                  {policies?.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Estado Contractual</Label>
-              <Select value={form.contractualStatus} onValueChange={(v) => setForm({ ...form, contractualStatus: v as any })}>
-                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="covered">Cubierto</SelectItem>
-                  <SelectItem value="not_covered">No cubierto</SelectItem>
-                  <SelectItem value="pending_approval">Pendiente aprobación</SelectItem>
-                  <SelectItem value="billable">Facturable</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Descripción</Label>
-            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Detalle el problema o solicitud..." className="text-sm resize-none" rows={3} />
-          </div>
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full text-left grid grid-cols-[auto_minmax(0,1fr)_minmax(140px,0.55fr)_auto] items-center gap-4 px-4 py-4 border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors group"
+    >
+      <div
+        className="text-base"
+        aria-label={PRIORITY_LABEL[ticket.priority] ?? ticket.priority}
+      >
+        {PRIORITY_ICON[ticket.priority] ?? "⚪"}
+      </div>
+
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-mono text-muted-foreground">
+            {ticket.ticketNumber}
+          </span>
+          {overdue && (
+            <Badge
+              variant="outline"
+              className="border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+            >
+              Vencido
+            </Badge>
+          )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} className="text-sm">Cancelar</Button>
-          <Button
-            onClick={() => createMutation.mutate({ ...form, policyId: form.policyId ? Number(form.policyId) : undefined, assetId: form.assetId ? Number(form.assetId) : undefined })}
-            disabled={createMutation.isPending}
-            className="text-sm gradient-horos text-white"
+
+        <p className="mt-1 text-sm font-semibold text-foreground truncate">
+          {ticket.title}
+        </p>
+
+        <p className="mt-1 text-xs text-muted-foreground truncate">
+          {ticket.branchName} · {CATEGORY_LABEL[ticket.category] ?? ticket.category}
+          {ticket.assetCode ? ` · ${ticket.assetCode}` : ""}
+        </p>
+      </div>
+
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <UserRound className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span
+            className={
+              assignee
+                ? "text-sm truncate"
+                : terminal
+                  ? "text-sm text-muted-foreground"
+                  : "text-sm text-amber-700 dark:text-amber-300"
+            }
           >
-            {createMutation.isPending ? "Creando..." : "Crear Ticket"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {assignee
+              ?? (terminal
+                ? "Sin responsable registrado"
+                : "Sin asignar")}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          {ticket.assignedAt
+            ? `Asignado ${new Date(ticket.assignedAt).toLocaleDateString("es-MX")}`
+            : terminal
+              ? "El ticket terminó sin asignación canónica"
+              : "Requiere responsable operativo"}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="flex flex-col items-end gap-1.5">
+          <Badge variant="outline">
+            {STATUS_LABEL[ticket.operationalStatus]
+              ?? ticket.operationalStatus}
+          </Badge>
+          <span className="text-[11px] text-muted-foreground">
+            {CONTRACTUAL_LABEL[ticket.contractualStatus]
+              ?? ticket.contractualStatus}
+          </span>
+        </div>
+        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+      </div>
+    </button>
   );
 }
 
 export default function Tickets() {
-  const [filters, setFilters] = useState({ operationalStatus: "", contractualStatus: "", priority: "" });
-  const [search, setSearch] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
   const [, navigate] = useLocation();
+  const [search, setSearch] = useState("");
+  const [operationalStatus, setOperationalStatus] =
+    useState("");
+  const [priority, setPriority] = useState("");
+  const [assignmentValue, setAssignmentValue] =
+    useState("all");
 
-  const { data: tickets, isLoading } = trpc.tickets.list.useQuery({
-    operationalStatus: filters.operationalStatus || undefined,
-    contractualStatus: filters.contractualStatus || undefined,
-    priority: filters.priority || undefined,
+  const assignment =
+    assignmentValue === "mine"
+      ? "mine" as const
+      : assignmentValue === "unassigned"
+        ? "unassigned" as const
+        : "all" as const;
+
+  const assigneeUserId =
+    assignmentValue.startsWith("user:")
+      ? assignmentValue.slice(5)
+      : undefined;
+
+  const {
+    data: tickets,
+    isLoading,
+    error,
+  } = trpc.ticketAssignment.canonicalQueue.useQuery({
+    operationalStatus:
+      operationalStatus
+        ? operationalStatus as
+            | "open"
+            | "assigned"
+            | "in_progress"
+            | "pending"
+            | "resolved"
+            | "closed"
+            | "cancelled"
+        : undefined,
+    priority:
+      priority
+        ? priority as
+            | "critical"
+            | "high"
+            | "medium"
+            | "low"
+        : undefined,
+    assignment,
+    assigneeUserId,
   });
 
-  const filtered = tickets?.filter((t) =>
-    !search || t.title.toLowerCase().includes(search.toLowerCase()) || t.ticketNumber.toLowerCase().includes(search.toLowerCase())
-  ) ?? [];
+  const {
+    data: allTickets,
+  } = trpc.ticketAssignment.canonicalQueue.useQuery({
+    assignment: "all",
+  });
 
-  const stats = {
-    open: tickets?.filter((t) => t.operationalStatus === "open").length ?? 0,
-    critical: tickets?.filter((t) => t.priority === "critical").length ?? 0,
-    outsideSla: tickets?.filter((t) => t.contractualStatus === "outside_sla").length ?? 0,
-    resolved: tickets?.filter((t) => t.operationalStatus === "resolved").length ?? 0,
-  };
+  const {
+    data: candidates,
+  } = trpc.ticketAssignment.canonicalCandidates.useQuery();
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
+    if (!term) {
+      return tickets ?? [];
+    }
+
+    return (tickets ?? []).filter(ticket => {
+      return [
+        ticket.ticketNumber,
+        ticket.title,
+        ticket.branchName,
+        ticket.branchCode,
+        ticket.assetCode,
+        ticket.assignedToName,
+        ticket.assignedToEmail,
+      ]
+        .filter(Boolean)
+        .some(value =>
+          String(value).toLowerCase().includes(term),
+        );
+    });
+  }, [tickets, search]);
+
+  const stats = useMemo(() => {
+    const source = allTickets ?? [];
+
+    return {
+      active: source.filter(ticket =>
+        !isTerminal(ticket.operationalStatus),
+      ).length,
+      unassigned: source.filter(ticket =>
+        !ticket.assignedToUserId
+        && !isTerminal(ticket.operationalStatus),
+      ).length,
+      critical: source.filter(ticket =>
+        ticket.priority === "critical"
+        && !isTerminal(ticket.operationalStatus),
+      ).length,
+      closed: source.filter(ticket =>
+        ticket.operationalStatus === "closed",
+      ).length,
+    };
+  }, [allTickets]);
 
   return (
     <div className="animate-fade-up">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold font-display text-foreground tracking-tight">Tickets</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sistema de gestión de solicitudes de servicio</p>
+          <h1 className="text-2xl font-bold font-display tracking-tight">
+            Tickets
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Cola operacional canónica con responsable, prioridad y estado de ejecución.
+          </p>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="gap-2 gradient-horos text-white shadow-sm text-sm">
-          <Plus className="w-4 h-4" /> Nuevo Ticket
+
+        <Button
+          className="gap-2"
+          onClick={() => navigate("/requests/new")}
+        >
+          <Plus className="h-4 w-4" />
+          Nueva solicitud
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {[
-          { label: "Abiertos", value: stats.open, color: "text-blue-600" },
-          { label: "Críticos", value: stats.critical, color: "text-red-600" },
-          { label: "Fuera de SLA", value: stats.outsideSla, color: "text-rose-600" },
-          { label: "Resueltos", value: stats.resolved, color: "text-emerald-600" },
-        ].map((s) => (
-          <div key={s.label} className="bg-card rounded-xl p-3.5 border border-border/50 card-elevated text-center">
-            <div className={cn("text-2xl font-bold font-display", s.color)}>{s.value}</div>
-            <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
-          </div>
+          {
+            label: "Activos",
+            value: stats.active,
+            icon: CircleDot,
+            className: "text-blue-600",
+          },
+          {
+            label: "Sin asignar",
+            value: stats.unassigned,
+            icon: UsersRound,
+            className: "text-amber-600",
+          },
+          {
+            label: "Críticos",
+            value: stats.critical,
+            icon: AlertTriangle,
+            className: "text-red-600",
+          },
+          {
+            label: "Cerrados",
+            value: stats.closed,
+            icon: CheckCircle2,
+            className: "text-emerald-600",
+          },
+        ].map(stat => (
+          <Card
+            key={stat.label}
+            className="border-border/50 card-elevated p-4"
+          >
+            <div className="flex items-center gap-3">
+              <stat.icon className={`h-5 w-5 ${stat.className}`} />
+              <div>
+                <p className="text-2xl font-bold font-display">
+                  {stat.value}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {stat.label}
+                </p>
+              </div>
+            </div>
+          </Card>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <div className="relative flex-1 min-w-48 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Buscar tickets..." className="pl-9 text-sm" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="relative flex-1 min-w-56 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+            placeholder="Buscar ticket, sucursal, activo o responsable..."
+            className="pl-9"
+          />
         </div>
-        <Select value={filters.operationalStatus || "all"} onValueChange={(v) => setFilters({ ...filters, operationalStatus: v === "all" ? "" : v })}>
-          <SelectTrigger className="w-44 text-sm"><SelectValue placeholder="Estado operativo" /></SelectTrigger>
+
+        <Select
+          value={assignmentValue}
+          onValueChange={setAssignmentValue}
+        >
+          <SelectTrigger className="w-52">
+            <SelectValue placeholder="Responsable" />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Estado operativo</SelectItem>
+            <SelectItem value="all">
+              Todos los responsables
+            </SelectItem>
+            <SelectItem value="unassigned">
+              Sin asignar
+            </SelectItem>
+            <SelectItem value="mine">
+              Mis tickets
+            </SelectItem>
+            {(candidates ?? []).map(candidate => (
+              <SelectItem
+                key={candidate.userId}
+                value={`user:${candidate.userId}`}
+              >
+                {candidate.name
+                  ?? candidate.email
+                  ?? candidate.userId}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={operationalStatus || "all"}
+          onValueChange={value =>
+            setOperationalStatus(
+              value === "all" ? "" : value,
+            )
+          }
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
             <SelectItem value="open">Abierto</SelectItem>
             <SelectItem value="assigned">Asignado</SelectItem>
-            <SelectItem value="technician_on_route">Técnico en ruta</SelectItem>
-            <SelectItem value="waiting_parts">Esperando partes</SelectItem>
+            <SelectItem value="in_progress">En progreso</SelectItem>
+            <SelectItem value="pending">En espera</SelectItem>
             <SelectItem value="resolved">Resuelto</SelectItem>
+            <SelectItem value="closed">Cerrado</SelectItem>
+            <SelectItem value="cancelled">Cancelado</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={filters.contractualStatus || "all"} onValueChange={(v) => setFilters({ ...filters, contractualStatus: v === "all" ? "" : v })}>
-          <SelectTrigger className="w-48 text-sm"><SelectValue placeholder="Estado contractual" /></SelectTrigger>
+
+        <Select
+          value={priority || "all"}
+          onValueChange={value =>
+            setPriority(value === "all" ? "" : value)
+          }
+        >
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="Prioridad" />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Estado contractual</SelectItem>
-            <SelectItem value="covered">Cubierto</SelectItem>
-            <SelectItem value="not_covered">No cubierto</SelectItem>
-            <SelectItem value="pending_approval">Pendiente aprobación</SelectItem>
-            <SelectItem value="outside_sla">Fuera de SLA</SelectItem>
-            <SelectItem value="billable">Facturable</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={filters.priority || "all"} onValueChange={(v) => setFilters({ ...filters, priority: v === "all" ? "" : v })}>
-          <SelectTrigger className="w-36 text-sm"><SelectValue placeholder="Prioridad" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Prioridad</SelectItem>
+            <SelectItem value="all">Todas</SelectItem>
             <SelectItem value="critical">🔴 Crítica</SelectItem>
             <SelectItem value="high">🟠 Alta</SelectItem>
             <SelectItem value="medium">🟡 Media</SelectItem>
@@ -241,48 +449,70 @@ export default function Tickets() {
         </Select>
       </div>
 
-      {/* Table */}
       <Card className="border-border/50 card-elevated overflow-hidden">
-        {/* Header */}
-        <div className="grid grid-cols-[auto_1fr_auto_auto] gap-4 px-4 py-2.5 bg-muted/30 border-b border-border/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(140px,0.55fr)_auto] gap-4 px-4 py-2.5 bg-muted/30 border-b border-border/50 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
           <span>Pri.</span>
           <span>Ticket</span>
-          <span>Estados</span>
-          <span></span>
+          <span>Responsable</span>
+          <span>Estado</span>
         </div>
 
         {isLoading ? (
           <div className="divide-y divide-border/40">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-4 py-3.5">
-                <Skeleton className="w-5 h-5 rounded" />
-                <div className="flex-1 space-y-1.5">
-                  <Skeleton className="h-3.5 w-3/4" />
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-4 px-4 py-4"
+              >
+                <Skeleton className="h-5 w-5 rounded" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-4 w-2/3" />
                   <Skeleton className="h-3 w-1/2" />
                 </div>
-                <div className="space-y-1">
-                  <Skeleton className="h-5 w-24 rounded-full" />
-                  <Skeleton className="h-5 w-28 rounded-full" />
-                </div>
+                <Skeleton className="h-8 w-40" />
+                <Skeleton className="h-8 w-24" />
               </div>
             ))}
           </div>
+        ) : error ? (
+          <div className="py-14 px-6 text-center">
+            <AlertTriangle className="h-9 w-9 text-red-500 mx-auto mb-3" />
+            <p className="text-sm font-semibold">
+              No fue posible cargar la cola de Tickets
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {error.message}
+            </p>
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16">
-            <Ticket className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">No se encontraron tickets</p>
-            <Button onClick={() => setShowCreate(true)} className="mt-4 gap-2 gradient-horos text-white text-sm">
-              <Plus className="w-4 h-4" /> Nuevo Ticket
+          <div className="py-16 px-6 text-center">
+            <Ticket className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-sm font-semibold">
+              No se encontraron tickets
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+              Ajuste los filtros o genere una nueva solicitud para iniciar el flujo de Service Intake.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-4 gap-2"
+              onClick={() => navigate("/requests/new")}
+            >
+              <Plus className="h-4 w-4" />
+              Nueva solicitud
             </Button>
           </div>
         ) : (
-          filtered.map((ticket) => (
-            <TicketRow key={ticket.id} ticket={ticket} onClick={() => navigate(`/tickets/${ticket.id}`)} />
+          filtered.map(ticket => (
+            <TicketRow
+              key={ticket.id}
+              ticket={ticket}
+              onOpen={() => navigate(`/tickets/${ticket.id}`)}
+            />
           ))
         )}
       </Card>
-
-      <CreateTicketDialog open={showCreate} onClose={() => setShowCreate(false)} />
     </div>
   );
 }

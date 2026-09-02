@@ -1,9 +1,20 @@
 import { z } from "zod";
-import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
-  getTicketsByTenant, getTicketById, createTicket, updateTicket,
-  getTicketComments, addTicketComment, getTicketHistory, createAuditLog,
+  pgProtectedProcedure,
+  protectedProcedure,
+  router,
+} from "../_core/trpc";
+import { withTenantTransaction } from "../db.pg";
+import {
+  getTicketsByTenant,
+  getTicketById,
+  createTicket,
+  updateTicket,
+  getTicketComments,
+  addTicketComment,
+  getTicketHistory,
+  createAuditLog,
 } from "../db";
 import { getDb } from "../db";
 import { ticketHistory } from "../../drizzle/schema";
@@ -11,6 +22,425 @@ import { nanoid } from "nanoid";
 import { sendEmail } from "../_core/mailer";
 
 export const ticketsRouter = router({
+
+  canonicalList: pgProtectedProcedure
+    .input(
+      z.object({
+        operationalStatus:
+          z.string().optional(),
+        contractualStatus:
+          z.string().optional(),
+        priority:
+          z.string().optional(),
+        category:
+          z.string().optional(),
+        branchId:
+          z.string().uuid().optional(),
+        assetId:
+          z.string().uuid().optional(),
+      }).optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      return withTenantTransaction(
+        ctx.pgTenant.tenantId,
+        async tx => {
+          const operationalStatus =
+            input?.operationalStatus ?? null;
+
+          const contractualStatus =
+            input?.contractualStatus ?? null;
+
+          const priority =
+            input?.priority ?? null;
+
+          const category =
+            input?.category ?? null;
+
+          const branchId =
+            input?.branchId ?? null;
+
+          const assetId =
+            input?.assetId ?? null;
+
+          return tx<{
+            id: string;
+            ticketNumber: string;
+            title: string;
+            description: string | null;
+            operationalStatus: string;
+            contractualStatus: string;
+            priority: string;
+            category: string;
+            branchId: string;
+            branchCode: string;
+            branchName: string;
+            assetId: string | null;
+            assetCode: string | null;
+            assetManufacturer: string | null;
+            assetModel: string | null;
+            responseDeadline: Date | null;
+            resolutionDeadline: Date | null;
+            respondedAt: Date | null;
+            resolvedAt: Date | null;
+            closedAt: Date | null;
+            estimatedCost: string | null;
+            actualCost: string | null;
+            isBillable: boolean;
+            slaTier: string | null;
+            slaDeadlineHours: number | null;
+            notes: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+          }[]>`
+            SELECT
+              st.id::text
+                AS "id",
+
+              st.ticket_number
+                AS "ticketNumber",
+
+              st.title
+                AS "title",
+
+              st.description
+                AS "description",
+
+              st.operational_status
+                AS "operationalStatus",
+
+              st.contractual_status
+                AS "contractualStatus",
+
+              st.priority
+                AS "priority",
+
+              st.category
+                AS "category",
+
+              st.branch_id::text
+                AS "branchId",
+
+              b.code
+                AS "branchCode",
+
+              b.name
+                AS "branchName",
+
+              st.asset_id::text
+                AS "assetId",
+
+              a.asset_code
+                AS "assetCode",
+
+              a.manufacturer
+                AS "assetManufacturer",
+
+              a.model
+                AS "assetModel",
+
+              st.response_deadline
+                AS "responseDeadline",
+
+              st.resolution_deadline
+                AS "resolutionDeadline",
+
+              st.responded_at
+                AS "respondedAt",
+
+              st.resolved_at
+                AS "resolvedAt",
+
+              st.closed_at
+                AS "closedAt",
+
+              st.estimated_cost::text
+                AS "estimatedCost",
+
+              st.actual_cost::text
+                AS "actualCost",
+
+              st.is_billable
+                AS "isBillable",
+
+              st.sla_tier
+                AS "slaTier",
+
+              st.sla_deadline_hours
+                AS "slaDeadlineHours",
+
+              st.notes
+                AS "notes",
+
+              st.created_at
+                AS "createdAt",
+
+              st.updated_at
+                AS "updatedAt"
+
+            FROM service_tickets st
+
+            JOIN branches b
+              ON b.id =
+                st.branch_id
+              AND b.tenant_id =
+                st.tenant_id
+
+            LEFT JOIN assets a
+              ON a.id =
+                st.asset_id
+              AND a.tenant_id =
+                st.tenant_id
+
+            WHERE
+              (
+                ${operationalStatus}::text
+                  IS NULL
+                OR st.operational_status =
+                  ${operationalStatus}
+              )
+
+              AND (
+                ${contractualStatus}::text
+                  IS NULL
+                OR st.contractual_status =
+                  ${contractualStatus}
+              )
+
+              AND (
+                ${priority}::text
+                  IS NULL
+                OR st.priority =
+                  ${priority}
+              )
+
+              AND (
+                ${category}::text
+                  IS NULL
+                OR st.category =
+                  ${category}
+              )
+
+              AND (
+                ${branchId}::uuid
+                  IS NULL
+                OR st.branch_id =
+                  ${branchId}::uuid
+              )
+
+              AND (
+                ${assetId}::uuid
+                  IS NULL
+                OR st.asset_id =
+                  ${assetId}::uuid
+              )
+
+            ORDER BY
+              st.created_at DESC,
+              st.ticket_number
+          `;
+        },
+      );
+    }),
+
+
+
+  canonicalGetById: pgProtectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      return withTenantTransaction(
+        ctx.pgTenant.tenantId,
+        async tx => {
+          const rows = await tx<{
+            id: string;
+            ticketNumber: string;
+            title: string;
+            description: string | null;
+            operationalStatus: string;
+            contractualStatus: string;
+            priority: string;
+            category: string;
+            branchId: string;
+            branchCode: string;
+            branchName: string;
+            assetId: string | null;
+            assetCode: string | null;
+            assetManufacturer: string | null;
+            assetModel: string | null;
+            responseDeadline: Date | null;
+            resolutionDeadline: Date | null;
+            respondedAt: Date | null;
+            resolvedAt: Date | null;
+            closedAt: Date | null;
+            estimatedCost: string | null;
+            actualCost: string | null;
+            isBillable: boolean;
+            slaTier: string | null;
+            slaDeadlineHours: number | null;
+            evidenceImageUrl: string | null;
+            evidenceImageKey: string | null;
+            resolutionNotes: string | null;
+            resolutionEvidenceUrls: unknown;
+            resolutionSignatureUrl: string | null;
+            resolutionReportUrl: string | null;
+            resolutionReportKey: string | null;
+            resolvedByName: string | null;
+            notificationSentAt: Date | null;
+            notes: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+          }[]>`
+            SELECT
+              st.id::text
+                AS "id",
+
+              st.ticket_number
+                AS "ticketNumber",
+
+              st.title
+                AS "title",
+
+              st.description
+                AS "description",
+
+              st.operational_status
+                AS "operationalStatus",
+
+              st.contractual_status
+                AS "contractualStatus",
+
+              st.priority
+                AS "priority",
+
+              st.category
+                AS "category",
+
+              st.branch_id::text
+                AS "branchId",
+
+              b.code
+                AS "branchCode",
+
+              b.name
+                AS "branchName",
+
+              st.asset_id::text
+                AS "assetId",
+
+              a.asset_code
+                AS "assetCode",
+
+              a.manufacturer
+                AS "assetManufacturer",
+
+              a.model
+                AS "assetModel",
+
+              st.response_deadline
+                AS "responseDeadline",
+
+              st.resolution_deadline
+                AS "resolutionDeadline",
+
+              st.responded_at
+                AS "respondedAt",
+
+              st.resolved_at
+                AS "resolvedAt",
+
+              st.closed_at
+                AS "closedAt",
+
+              st.estimated_cost::text
+                AS "estimatedCost",
+
+              st.actual_cost::text
+                AS "actualCost",
+
+              st.is_billable
+                AS "isBillable",
+
+              st.sla_tier
+                AS "slaTier",
+
+              st.sla_deadline_hours
+                AS "slaDeadlineHours",
+
+              st.evidence_image_url
+                AS "evidenceImageUrl",
+
+              st.evidence_image_key
+                AS "evidenceImageKey",
+
+              st.resolution_notes
+                AS "resolutionNotes",
+
+              st.resolution_evidence_urls
+                AS "resolutionEvidenceUrls",
+
+              st.resolution_signature_url
+                AS "resolutionSignatureUrl",
+
+              st.resolution_report_url
+                AS "resolutionReportUrl",
+
+              st.resolution_report_key
+                AS "resolutionReportKey",
+
+              st.resolved_by_name
+                AS "resolvedByName",
+
+              st.notification_sent_at
+                AS "notificationSentAt",
+
+              st.notes
+                AS "notes",
+
+              st.created_at
+                AS "createdAt",
+
+              st.updated_at
+                AS "updatedAt"
+
+            FROM service_tickets st
+
+            JOIN branches b
+              ON b.id =
+                st.branch_id
+              AND b.tenant_id =
+                st.tenant_id
+
+            LEFT JOIN assets a
+              ON a.id =
+                st.asset_id
+              AND a.tenant_id =
+                st.tenant_id
+
+            WHERE st.id =
+              ${input.id}::uuid
+
+            LIMIT 1
+          `;
+
+          const ticket =
+            rows[0];
+
+          if (!ticket) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message:
+                "Canonical ticket was not found",
+            });
+          }
+
+          return ticket;
+        },
+      );
+    }),
+
   list: protectedProcedure.input(z.object({
     operationalStatus: z.string().optional(),
     contractualStatus: z.string().optional(),

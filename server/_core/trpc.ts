@@ -2,6 +2,13 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import {
+  resolveCanonicalTenantForSubject,
+} from "../db.pg";
+import {
+  prepareDevLocalCanonicalRuntime,
+  repairDevLocalCanonicalIdentity,
+} from "./devLocalAuth";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -26,6 +33,89 @@ const requireUser = t.middleware(async opts => {
 });
 
 export const protectedProcedure = t.procedure.use(requireUser);
+
+/**
+ * PostgreSQL canonical tenant boundary.
+ *
+ * This middleware is deliberately separate from protectedProcedure.
+ * Legacy MySQL routers continue using the authenticated legacy user
+ * without acquiring or assuming a PostgreSQL tenant.
+ *
+ * PostgreSQL routers must use pgProtectedProcedure so canonical
+ * identity resolution is fail-closed before tenant-owned data access.
+ */
+const requirePgTenant = t.middleware(async opts => {
+  const { ctx, next } = opts;
+
+  if (!ctx.user) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: UNAUTHED_ERR_MSG,
+    });
+  }
+
+  // A persistent localhost session may remain valid across source updates.
+  // Preflight pending canonical migrations before resolution so a new schema
+  // contract never depends on forcing a fresh /api/dev/login. Production and
+  // non-local identities are no-ops here.
+  try {
+    prepareDevLocalCanonicalRuntime(
+      ctx.user.openId,
+    );
+  } catch {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message:
+        "Local canonical PostgreSQL runtime could not be prepared",
+    });
+  }
+
+  let pgTenant;
+
+  try {
+    pgTenant =
+      await resolveCanonicalTenantForSubject(
+        ctx.user.openId,
+      );
+  } catch {
+    // A localhost development session can legitimately outlive a reset of the
+    // local PostgreSQL container. Repair only the dedicated local development
+    // subject, then retry canonical resolution once. Production and all other
+    // identities remain strictly fail-closed.
+    try {
+      const repaired =
+        repairDevLocalCanonicalIdentity(
+          ctx.user.openId,
+        );
+
+      if (!repaired) {
+        throw new Error("Canonical identity repair is not available");
+      }
+
+      pgTenant =
+        await resolveCanonicalTenantForSubject(
+          ctx.user.openId,
+        );
+    } catch {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message:
+          "No active canonical tenant membership is available",
+      });
+    }
+  }
+
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user,
+      pgTenant,
+    },
+  });
+});
+
+export const pgProtectedProcedure =
+  t.procedure.use(requirePgTenant);
 
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {

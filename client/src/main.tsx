@@ -20,7 +20,10 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   // Already on login page — do not redirect again
   if (window.location.pathname === "/login") return;
 
-  const hasManusOAuth = !!import.meta.env.VITE_OAUTH_PORTAL_URL && !!import.meta.env.VITE_APP_ID;
+  const hasManusOAuth =
+    import.meta.env.VITE_HOROS_ENABLE_LEGACY_OAUTH === "true"
+    && !!import.meta.env.VITE_OAUTH_PORTAL_URL
+    && !!import.meta.env.VITE_APP_ID;
   window.location.href = hasManusOAuth ? getLoginUrl() : "/login";
 };
 

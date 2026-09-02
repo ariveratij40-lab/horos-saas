@@ -51,7 +51,9 @@ export default function Login() {
 
   // Check if Manus OAuth is available
   const hasManusOAuth =
-    !!import.meta.env.VITE_OAUTH_PORTAL_URL && !!import.meta.env.VITE_APP_ID;
+    import.meta.env.VITE_HOROS_ENABLE_LEGACY_OAUTH === "true"
+    && !!import.meta.env.VITE_OAUTH_PORTAL_URL
+    && !!import.meta.env.VITE_APP_ID;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">

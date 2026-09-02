@@ -68,6 +68,10 @@ export async function notifyOwner(
 ): Promise<boolean> {
   const { title, content } = validatePayload(payload);
 
+  if (!ENV.manusForgeEnabled) {
+    return false;
+  }
+
   if (!ENV.forgeApiUrl) {
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",

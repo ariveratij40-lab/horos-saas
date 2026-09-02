@@ -266,6 +266,9 @@ const normalizeResponseFormat = ({
 };
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
+  if (!ENV.manusForgeEnabled) {
+    throw new Error("Legacy AI integration is not available");
+  }
   assertApiKey();
 
   const {

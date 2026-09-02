@@ -1,24 +1,43 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch, Redirect } from "wouter";
+import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
+import {
+  ServiceTraceabilityBanner,
+} from "./components/service-requests/ServiceTraceabilityBanner";
+import {
+  ServiceRequestPolicyCoverageRoutePanel,
+} from "./components/service-requests/ServiceRequestPolicyCoverageRoutePanel";
+import {
+  TicketAssignmentRoutePanel,
+} from "./components/tickets/TicketAssignmentRoutePanel";
+import {
+  TicketSlaRecoveryRoutePanel,
+} from "./components/tickets/TicketSlaRecoveryRoutePanel";
+import {
+  TicketSlaRoutePanel,
+} from "./components/tickets/TicketSlaRoutePanel";
 import { useAuth } from "./_core/hooks/useAuth";
 import { getLoginUrl } from "./const";
 import Home from "./pages/Home";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
-import Policies from "./pages/Policies";
-import PolicyDetail from "./pages/PolicyDetail";
+import Policies from "./pages/CanonicalPolicies";
+import PolicyDetail from "./pages/CanonicalPolicyDetail";
 import Tickets from "./pages/Tickets";
 import TicketDetail from "./pages/TicketDetail";
+import ServiceRequests from "./pages/ServiceRequests";
+import ServiceRequestCreate from "./pages/ServiceRequestCreate";
+import ServiceRequestDetail from "./pages/ServiceRequestDetail";
 import Assets from "./pages/Assets";
-import SLA from "./pages/SLA";
+import SLA from "./pages/CanonicalSLA";
 import Branches from "./pages/Branches";
-import Maintenance from "./pages/Maintenance";
+import Maintenance from "./pages/CanonicalMaintenance";
+import MaintenanceDetail from "./pages/CanonicalMaintenanceDetail";
 import Audit from "./pages/Audit";
 import AIAssistant from "./pages/AIAssistant";
 import Users from "./pages/Users";
@@ -54,21 +73,24 @@ import ResetPassword from "./pages/ResetPassword";
 import FloorPlans from "./pages/FloorPlans";
 import FloorPlanViewer from "./pages/FloorPlanViewer";
 
+function redirectToLogin() {
+  window.location.href = getLoginUrl();
+}
+
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return null;
   if (!isAuthenticated) {
-    // Use local login page if Manus OAuth is not configured
-    const hasManusOAuth = !!import.meta.env.VITE_OAUTH_PORTAL_URL && !!import.meta.env.VITE_APP_ID;
-    if (hasManusOAuth) {
-      window.location.href = getLoginUrl();
-    } else {
-      window.location.href = "/login";
-    }
+    redirectToLogin();
     return null;
   }
   return (
     <DashboardLayout>
+      <ServiceTraceabilityBanner />
+      <ServiceRequestPolicyCoverageRoutePanel />
+      <TicketAssignmentRoutePanel />
+      <TicketSlaRecoveryRoutePanel />
+      <TicketSlaRoutePanel />
       <Component />
     </DashboardLayout>
   );
@@ -78,17 +100,27 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/login" component={Login} />
+      <Route path="/login" component={() => {
+        if (import.meta.env.DEV) {
+          redirectToLogin();
+          return null;
+        }
+        return <Login />;
+      }} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/policies" component={() => <ProtectedRoute component={Policies} />} />
       <Route path="/policies/:id" component={() => <ProtectedRoute component={PolicyDetail} />} />
+      <Route path="/requests" component={() => <ProtectedRoute component={ServiceRequests} />} />
+      <Route path="/requests/new" component={() => <ProtectedRoute component={ServiceRequestCreate} />} />
+      <Route path="/requests/:id" component={() => <ProtectedRoute component={ServiceRequestDetail} />} />
       <Route path="/tickets" component={() => <ProtectedRoute component={Tickets} />} />
       <Route path="/tickets/:id" component={() => <ProtectedRoute component={TicketDetail} />} />
       <Route path="/assets" component={() => <ProtectedRoute component={Assets} />} />
       <Route path="/sla" component={() => <ProtectedRoute component={SLA} />} />
       <Route path="/branches" component={() => <ProtectedRoute component={Branches} />} />
+      <Route path="/maintenance/:id" component={() => <ProtectedRoute component={MaintenanceDetail} />} />
       <Route path="/maintenance" component={() => <ProtectedRoute component={Maintenance} />} />
       <Route path="/audit" component={() => <ProtectedRoute component={Audit} />} />
       <Route path="/ai" component={() => <ProtectedRoute component={AIAssistant} />} />
@@ -108,7 +140,7 @@ function Router() {
       <Route path="/floor-plans/:id" component={() => {
         const { isAuthenticated, loading } = useAuth();
         if (loading) return null;
-        if (!isAuthenticated) { window.location.href = "/login"; return null; }
+        if (!isAuthenticated) { redirectToLogin(); return null; }
         return <FloorPlanViewer />;
       }} />
       <Route path="/floor-plans" component={() => <ProtectedRoute component={FloorPlans} />} />
@@ -137,17 +169,15 @@ function Router() {
   );
 }
 
-function App() {
+export default function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
-          <Toaster position="top-right" richColors />
+          <Toaster />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
 }
-
-export default App;

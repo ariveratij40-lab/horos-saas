@@ -13,7 +13,9 @@
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "pg:generate": "drizzle-kit generate --config=drizzle-pg.config.ts",
     "pg:migrate": "drizzle-kit migrate --config=drizzle-pg.config.ts",
-    "pg:studio": "drizzle-kit studio --config=drizzle-pg.config.ts"
+    "pg:studio": "drizzle-kit studio --config=drizzle-pg.config.ts",
+    "pg:journal:check": "node scripts/ci/check-migration-journal.mjs",
+    "pg:migrations:test": "sh scripts/ci/postgres-migrations.sh"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

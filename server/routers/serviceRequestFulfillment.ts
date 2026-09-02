@@ -1,0 +1,788 @@
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+
+import {
+  pgProtectedProcedure,
+  router,
+} from "../_core/trpc";
+import {
+  withTenantTransaction,
+} from "../db.pg";
+
+function requireFulfillmentRole(tenantRole: string) {
+  if (tenantRole !== "admin") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        "Service request fulfillment requires tenant administrator access",
+    });
+  }
+}
+
+function actorName(ctx: {
+  user: {
+    name?: string | null;
+    email?: string | null;
+  };
+}) {
+  return (
+    ctx.user.name
+    ?? ctx.user.email
+    ?? "Tenant administrator"
+  );
+}
+
+function ticketCategoryForRequestType(requestType: string) {
+  switch (requestType) {
+    case "service_attention":
+    case "event_service":
+      return "service_request";
+    case "infrastructure_assessment":
+    case "inventory_capture":
+      return "inspection";
+    case "other":
+      return "other";
+    case "meeting":
+      throw new TRPCError({
+        code: "CONFLICT",
+        message:
+          "Meeting requests are not converted to service tickets",
+      });
+    default:
+      throw new TRPCError({
+        code: "CONFLICT",
+        message:
+          `Unsupported service request type ${requestType}`,
+      });
+  }
+}
+
+/**
+ * Authorized Service Intake fulfillment.
+ *
+ * A service request remains the intake record. Operational work starts only
+ * after an explicit conversion to a canonical service ticket. Ticket
+ * conversion requires branch context because service_tickets.branch_id is
+ * mandatory. Context enrichment and conversion are intentionally separate
+ * procedures so an authorized request can be completed safely before the
+ * execution record is created.
+ *
+ * If the request was authorized through canonical policy coverage, conversion
+ * also inherits the SLA snapshot captured at authorization. Ticket creation,
+ * SLA deadlines, ticket/request linkage, ledgers, and intake completion remain
+ * in the same tenant transaction.
+ */
+export const serviceRequestFulfillmentRouter =
+  router({
+    canonicalSetOperationalContext:
+      pgProtectedProcedure
+        .input(
+          z.object({
+            id: z.string().uuid(),
+            branchId: z.string().uuid(),
+            departmentId:
+              z.string().uuid().nullable().optional(),
+            branchSystemId:
+              z.string().uuid().nullable().optional(),
+            assetId:
+              z.string().uuid().nullable().optional(),
+          }),
+        )
+        .mutation(async ({ ctx, input }) => {
+          requireFulfillmentRole(
+            ctx.pgTenant.tenantRole,
+          );
+
+          return withTenantTransaction(
+            ctx.pgTenant.tenantId,
+            async tx => {
+              const requestRows = await tx<{
+                id: string;
+                requestNumber: string;
+                status: string;
+                commercialStatus: string;
+              }[]>`
+                SELECT
+                  id::text AS "id",
+                  request_number AS "requestNumber",
+                  status AS "status",
+                  commercial_status AS "commercialStatus"
+                FROM service_requests
+                WHERE id = ${input.id}::uuid
+                LIMIT 1
+              `;
+
+              if (requestRows.length !== 1) {
+                throw new TRPCError({
+                  code: "NOT_FOUND",
+                  message:
+                    "Service request was not found",
+                });
+              }
+
+              const request = requestRows[0]!;
+
+              if (
+                request.status !== "under_review"
+                || request.commercialStatus !== "authorized"
+              ) {
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    `Operational context cannot be changed from status ${request.status} with commercial status ${request.commercialStatus}`,
+                });
+              }
+
+              const branches = await tx<{
+                id: string;
+              }[]>`
+                SELECT id::text AS "id"
+                FROM branches
+                WHERE id = ${input.branchId}::uuid
+                  AND tenant_id = ${ctx.pgTenant.tenantId}::uuid
+                  AND is_active = true
+                  AND status = 'active'
+                LIMIT 1
+              `;
+
+              if (branches.length !== 1) {
+                throw new TRPCError({
+                  code: "BAD_REQUEST",
+                  message:
+                    "Branch is not available for this tenant",
+                });
+              }
+
+              const departmentId =
+                input.departmentId ?? null;
+              const branchSystemId =
+                input.branchSystemId ?? null;
+              const assetId =
+                input.assetId ?? null;
+
+              if (departmentId) {
+                const departments = await tx<{
+                  id: string;
+                }[]>`
+                  SELECT id::text AS "id"
+                  FROM departments
+                  WHERE id = ${departmentId}::uuid
+                    AND tenant_id = ${ctx.pgTenant.tenantId}::uuid
+                    AND status = 'active'
+                  LIMIT 1
+                `;
+
+                if (departments.length !== 1) {
+                  throw new TRPCError({
+                    code: "BAD_REQUEST",
+                    message:
+                      "Department is not available for this tenant",
+                  });
+                }
+              }
+
+              if (branchSystemId) {
+                const systems = await tx<{
+                  id: string;
+                }[]>`
+                  SELECT id::text AS "id"
+                  FROM branch_systems
+                  WHERE id = ${branchSystemId}::uuid
+                    AND tenant_id = ${ctx.pgTenant.tenantId}::uuid
+                    AND branch_id = ${input.branchId}::uuid
+                    AND (
+                      ${departmentId}::uuid IS NULL
+                      OR department_id = ${departmentId}::uuid
+                    )
+                  LIMIT 1
+                `;
+
+                if (systems.length !== 1) {
+                  throw new TRPCError({
+                    code: "BAD_REQUEST",
+                    message:
+                      "System is not available for the selected branch and department",
+                  });
+                }
+              }
+
+              if (assetId) {
+                const assets = await tx<{
+                  id: string;
+                }[]>`
+                  SELECT id::text AS "id"
+                  FROM assets
+                  WHERE id = ${assetId}::uuid
+                    AND tenant_id = ${ctx.pgTenant.tenantId}::uuid
+                    AND branch_id = ${input.branchId}::uuid
+                  LIMIT 1
+                `;
+
+                if (assets.length !== 1) {
+                  throw new TRPCError({
+                    code: "BAD_REQUEST",
+                    message:
+                      "Asset is not available for the selected branch",
+                  });
+                }
+              }
+
+              const rows = await tx<{
+                id: string;
+                requestNumber: string;
+                branchId: string;
+                departmentId: string | null;
+                branchSystemId: string | null;
+                assetId: string | null;
+                updatedAt: Date;
+              }[]>`
+                UPDATE service_requests
+                SET
+                  branch_id = ${input.branchId}::uuid,
+                  department_id = ${departmentId}::uuid,
+                  branch_system_id = ${branchSystemId}::uuid,
+                  asset_id = ${assetId}::uuid,
+                  updated_at = now()
+                WHERE id = ${input.id}::uuid
+                  AND status = 'under_review'
+                  AND commercial_status = 'authorized'
+                RETURNING
+                  id::text AS "id",
+                  request_number AS "requestNumber",
+                  branch_id::text AS "branchId",
+                  department_id::text AS "departmentId",
+                  branch_system_id::text AS "branchSystemId",
+                  asset_id::text AS "assetId",
+                  updated_at AS "updatedAt"
+              `;
+
+              if (rows.length !== 1) {
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    "Service request operational context could not be updated",
+                });
+              }
+
+              await tx`
+                INSERT INTO service_request_events (
+                  tenant_id,
+                  service_request_id,
+                  event_type,
+                  actor_name,
+                  message,
+                  metadata
+                )
+                VALUES (
+                  ${ctx.pgTenant.tenantId}::uuid,
+                  ${rows[0]!.id}::uuid,
+                  'information_added',
+                  ${actorName(ctx)},
+                  'Operational context completed for authorized request',
+                  ${JSON.stringify({
+                    action:
+                      "operational_context_completed",
+                    branchId: input.branchId,
+                    departmentId,
+                    branchSystemId,
+                    assetId,
+                  })}::jsonb
+                )
+              `;
+
+              return rows[0]!;
+            },
+          );
+        }),
+
+    canonicalConvertToTicket:
+      pgProtectedProcedure
+        .input(
+          z.object({
+            id: z.string().uuid(),
+            priority:
+              z.enum([
+                "critical",
+                "high",
+                "medium",
+                "low",
+              ]).default("medium"),
+            note:
+              z.string()
+                .trim()
+                .min(1)
+                .max(2000)
+                .optional(),
+          }),
+        )
+        .mutation(async ({ ctx, input }) => {
+          requireFulfillmentRole(
+            ctx.pgTenant.tenantRole,
+          );
+
+          return withTenantTransaction(
+            ctx.pgTenant.tenantId,
+            async tx => {
+              const requestRows = await tx<{
+                id: string;
+                requestNumber: string;
+                requestType: string;
+                status: string;
+                commercialStatus: string;
+                branchId: string | null;
+                assetId: string | null;
+                title: string;
+                description: string | null;
+                estimatedAmount: string | null;
+              }[]>`
+                SELECT
+                  id::text AS "id",
+                  request_number AS "requestNumber",
+                  request_type AS "requestType",
+                  status AS "status",
+                  commercial_status AS "commercialStatus",
+                  branch_id::text AS "branchId",
+                  asset_id::text AS "assetId",
+                  title AS "title",
+                  description AS "description",
+                  estimated_amount::text AS "estimatedAmount"
+                FROM service_requests
+                WHERE id = ${input.id}::uuid
+                FOR UPDATE
+              `;
+
+              if (requestRows.length !== 1) {
+                throw new TRPCError({
+                  code: "NOT_FOUND",
+                  message:
+                    "Service request was not found",
+                });
+              }
+
+              const request = requestRows[0]!;
+
+              if (
+                request.status !== "under_review"
+                || request.commercialStatus !== "authorized"
+              ) {
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    `Ticket conversion requires an authorized request under review; current status is ${request.status} / ${request.commercialStatus}`,
+                });
+              }
+
+              if (!request.branchId) {
+                throw new TRPCError({
+                  code: "BAD_REQUEST",
+                  message:
+                    "A branch is required before converting the request to a ticket",
+                });
+              }
+
+              const category =
+                ticketCategoryForRequestType(
+                  request.requestType,
+                );
+
+              const existingLinks = await tx<{
+                ticketId: string;
+              }[]>`
+                SELECT
+                  service_ticket_id::text AS "ticketId"
+                FROM service_request_ticket_links
+                WHERE service_request_id = ${request.id}::uuid
+                  AND relation_type = 'converted'
+                LIMIT 1
+              `;
+
+              if (existingLinks.length > 0) {
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    "Service request has already been converted to a ticket",
+                });
+              }
+
+              const coverageRows = await tx<{
+                policyId: string | null;
+                policyNumber: string | null;
+                policyName: string | null;
+                policyServiceId: string | null;
+                serviceName: string | null;
+                slaRuleId: string | null;
+                ruleName: string | null;
+                responseTargetMinutes: number | null;
+                resolutionTargetMinutes: number | null;
+                escalationTargetMinutes: number | null;
+              }[]>`
+                SELECT
+                  metadata->>'policyId' AS "policyId",
+                  metadata->>'policyNumber' AS "policyNumber",
+                  metadata->>'policyName' AS "policyName",
+                  metadata->>'policyServiceId' AS "policyServiceId",
+                  metadata->>'serviceName' AS "serviceName",
+                  metadata->'slaRules'->${input.priority}->>'slaRuleId'
+                    AS "slaRuleId",
+                  metadata->'slaRules'->${input.priority}->>'ruleName'
+                    AS "ruleName",
+                  (
+                    metadata->'slaRules'->${input.priority}->>'responseTargetMinutes'
+                  )::int AS "responseTargetMinutes",
+                  (
+                    metadata->'slaRules'->${input.priority}->>'resolutionTargetMinutes'
+                  )::int AS "resolutionTargetMinutes",
+                  (
+                    metadata->'slaRules'->${input.priority}->>'escalationTargetMinutes'
+                  )::int AS "escalationTargetMinutes"
+                FROM service_request_events
+                WHERE service_request_id = ${request.id}::uuid
+                  AND event_type = 'authorized'
+                  AND metadata->>'action' = 'policy_coverage_authorized'
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+              `;
+
+              const coverage = coverageRows[0] ?? null;
+
+              if (
+                coverage
+                && (
+                  !coverage.policyId
+                  || !coverage.policyNumber
+                  || !coverage.policyName
+                  || !coverage.policyServiceId
+                  || !coverage.serviceName
+                  || !coverage.slaRuleId
+                  || !coverage.ruleName
+                  || !coverage.responseTargetMinutes
+                  || !coverage.resolutionTargetMinutes
+                )
+              ) {
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    "Policy-covered request has an incomplete SLA authorization snapshot",
+                });
+              }
+
+              const coveredByPolicy = Boolean(coverage);
+              const ticketNotes = coveredByPolicy
+                ? input.note
+                  ? `Converted from ${request.requestNumber} under ${coverage!.policyNumber}: ${input.note}`
+                  : `Converted from ${request.requestNumber} under ${coverage!.policyNumber} · ${coverage!.serviceName}`
+                : input.note
+                  ? `Converted from ${request.requestNumber}: ${input.note}`
+                  : `Converted from ${request.requestNumber}`;
+
+              const ticketRows = await tx<{
+                id: string;
+                ticketNumber: string;
+                operationalStatus: string;
+                contractualStatus: string;
+                createdAt: Date;
+              }[]>`
+                INSERT INTO service_tickets (
+                  tenant_id,
+                  branch_id,
+                  asset_id,
+                  ticket_number,
+                  title,
+                  description,
+                  operational_status,
+                  contractual_status,
+                  priority,
+                  category,
+                  estimated_cost,
+                  is_billable,
+                  notes
+                )
+                VALUES (
+                  ${ctx.pgTenant.tenantId}::uuid,
+                  ${request.branchId}::uuid,
+                  ${request.assetId}::uuid,
+                  'TKT-' || upper(
+                    substr(
+                      replace(
+                        gen_random_uuid()::text,
+                        '-',
+                        ''
+                      ),
+                      1,
+                      12
+                    )
+                  ),
+                  ${request.title},
+                  ${request.description},
+                  'open',
+                  'approved',
+                  ${input.priority},
+                  ${category},
+                  ${coveredByPolicy ? null : request.estimatedAmount}::numeric,
+                  ${!coveredByPolicy},
+                  ${ticketNotes}
+                )
+                RETURNING
+                  id::text AS "id",
+                  ticket_number AS "ticketNumber",
+                  operational_status AS "operationalStatus",
+                  contractual_status AS "contractualStatus",
+                  created_at AS "createdAt"
+              `;
+
+              if (ticketRows.length !== 1) {
+                throw new TRPCError({
+                  code: "INTERNAL_SERVER_ERROR",
+                  message:
+                    "Canonical ticket could not be created",
+                });
+              }
+
+              const ticket = ticketRows[0]!;
+
+              let inheritedSla: {
+                policyId: string;
+                policyNumber: string;
+                policyName: string;
+                policyServiceId: string;
+                serviceName: string;
+                slaRuleId: string;
+                ruleName: string;
+                responseTargetMinutes: number;
+                resolutionTargetMinutes: number;
+                escalationTargetMinutes: number | null;
+                responseDeadline: Date;
+                resolutionDeadline: Date;
+              } | null = null;
+
+              if (coverage) {
+                const responseDeadline = new Date(
+                  ticket.createdAt.getTime()
+                  + coverage.responseTargetMinutes! * 60_000,
+                );
+                const resolutionDeadline = new Date(
+                  ticket.createdAt.getTime()
+                  + coverage.resolutionTargetMinutes! * 60_000,
+                );
+
+                await tx`
+                  UPDATE service_tickets
+                  SET
+                    response_deadline = ${responseDeadline},
+                    resolution_deadline = ${resolutionDeadline},
+                    updated_at = now()
+                  WHERE id = ${ticket.id}::uuid
+                `;
+
+                await tx`
+                  INSERT INTO service_ticket_sla_snapshots (
+                    tenant_id,
+                    service_ticket_id,
+                    policy_id,
+                    sla_rule_id,
+                    policy_number_snapshot,
+                    policy_name_snapshot,
+                    rule_name_snapshot,
+                    priority_snapshot,
+                    response_target_minutes,
+                    resolution_target_minutes,
+                    escalation_target_minutes,
+                    sla_started_at,
+                    response_deadline,
+                    resolution_deadline,
+                    source,
+                    actor_name,
+                    metadata
+                  )
+                  VALUES (
+                    ${ctx.pgTenant.tenantId}::uuid,
+                    ${ticket.id}::uuid,
+                    ${coverage.policyId}::uuid,
+                    ${coverage.slaRuleId}::uuid,
+                    ${coverage.policyNumber},
+                    ${coverage.policyName},
+                    ${coverage.ruleName},
+                    ${input.priority},
+                    ${coverage.responseTargetMinutes},
+                    ${coverage.resolutionTargetMinutes},
+                    ${coverage.escalationTargetMinutes},
+                    ${ticket.createdAt},
+                    ${responseDeadline},
+                    ${resolutionDeadline},
+                    'policy',
+                    ${actorName(ctx)},
+                    ${JSON.stringify({
+                      source:
+                        "service_request_policy_coverage",
+                      requestId: request.id,
+                      requestNumber: request.requestNumber,
+                      policyServiceId:
+                        coverage.policyServiceId,
+                      serviceName: coverage.serviceName,
+                    })}::jsonb
+                  )
+                `;
+
+                await tx`
+                  INSERT INTO service_ticket_events (
+                    tenant_id,
+                    service_ticket_id,
+                    event_type,
+                    actor_name,
+                    message,
+                    metadata
+                  )
+                  VALUES (
+                    ${ctx.pgTenant.tenantId}::uuid,
+                    ${ticket.id}::uuid,
+                    'sla_applied',
+                    ${actorName(ctx)},
+                    ${`SLA heredado de ${coverage.policyNumber} · ${coverage.serviceName}`},
+                    ${JSON.stringify({
+                      action: "sla_inherited_from_service_request",
+                      requestId: request.id,
+                      requestNumber: request.requestNumber,
+                      policyId: coverage.policyId,
+                      policyNumber: coverage.policyNumber,
+                      policyServiceId:
+                        coverage.policyServiceId,
+                      serviceName: coverage.serviceName,
+                      priority: input.priority,
+                      responseTargetMinutes:
+                        coverage.responseTargetMinutes,
+                      resolutionTargetMinutes:
+                        coverage.resolutionTargetMinutes,
+                      responseDeadline:
+                        responseDeadline.toISOString(),
+                      resolutionDeadline:
+                        resolutionDeadline.toISOString(),
+                    })}::jsonb
+                  )
+                `;
+
+                inheritedSla = {
+                  policyId: coverage.policyId!,
+                  policyNumber: coverage.policyNumber!,
+                  policyName: coverage.policyName!,
+                  policyServiceId:
+                    coverage.policyServiceId!,
+                  serviceName: coverage.serviceName!,
+                  slaRuleId: coverage.slaRuleId!,
+                  ruleName: coverage.ruleName!,
+                  responseTargetMinutes:
+                    coverage.responseTargetMinutes!,
+                  resolutionTargetMinutes:
+                    coverage.resolutionTargetMinutes!,
+                  escalationTargetMinutes:
+                    coverage.escalationTargetMinutes,
+                  responseDeadline,
+                  resolutionDeadline,
+                };
+              }
+
+              await tx`
+                INSERT INTO service_request_ticket_links (
+                  tenant_id,
+                  service_request_id,
+                  service_ticket_id,
+                  relation_type
+                )
+                VALUES (
+                  ${ctx.pgTenant.tenantId}::uuid,
+                  ${request.id}::uuid,
+                  ${ticket.id}::uuid,
+                  'converted'
+                )
+              `;
+
+              await tx`
+                INSERT INTO service_request_events (
+                  tenant_id,
+                  service_request_id,
+                  event_type,
+                  actor_name,
+                  message,
+                  metadata
+                )
+                VALUES (
+                  ${ctx.pgTenant.tenantId}::uuid,
+                  ${request.id}::uuid,
+                  'converted_to_ticket',
+                  ${actorName(ctx)},
+                  'Authorized service request converted to ticket',
+                  ${JSON.stringify({
+                    action: "converted_to_ticket",
+                    ticketId: ticket.id,
+                    ticketNumber: ticket.ticketNumber,
+                    inheritedPolicyNumber:
+                      inheritedSla?.policyNumber ?? null,
+                  })}::jsonb
+                )
+              `;
+
+              const completedRows = await tx<{
+                id: string;
+                status: string;
+                completedAt: Date;
+              }[]>`
+                UPDATE service_requests
+                SET
+                  status = 'completed',
+                  completed_at = now(),
+                  updated_at = now()
+                WHERE id = ${request.id}::uuid
+                  AND status = 'under_review'
+                  AND commercial_status = 'authorized'
+                RETURNING
+                  id::text AS "id",
+                  status AS "status",
+                  completed_at AS "completedAt"
+              `;
+
+              if (completedRows.length !== 1) {
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    "Service request could not be completed after ticket conversion",
+                });
+              }
+
+              await tx`
+                INSERT INTO service_request_events (
+                  tenant_id,
+                  service_request_id,
+                  event_type,
+                  actor_name,
+                  message,
+                  metadata
+                )
+                VALUES (
+                  ${ctx.pgTenant.tenantId}::uuid,
+                  ${request.id}::uuid,
+                  'completed',
+                  ${actorName(ctx)},
+                  'Service Intake completed after ticket conversion',
+                  ${JSON.stringify({
+                    action:
+                      "intake_completed_after_ticket_conversion",
+                    ticketId: ticket.id,
+                    ticketNumber: ticket.ticketNumber,
+                    inheritedPolicyNumber:
+                      inheritedSla?.policyNumber ?? null,
+                  })}::jsonb
+                )
+              `;
+
+              return {
+                requestId: request.id,
+                requestStatus:
+                  completedRows[0]!.status,
+                completedAt:
+                  completedRows[0]!.completedAt,
+                ticket,
+                inheritedSla,
+              };
+            },
+          );
+        }),
+  });

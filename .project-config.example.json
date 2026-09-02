@@ -1,0 +1,21 @@
+{
+  "build_command": "pnpm run build",
+  "capabilities": [
+    "server",
+    "db",
+    "user"
+  ],
+  "dev_command": "pnpm run dev",
+  "env_vars": {
+    "HOROS_ENABLE_LEGACY_TIDB": "false",
+    "HOROS_ENABLE_MANUS_FORGE": "false",
+    "HOROS_ENABLE_LEGACY_OAUTH": "false"
+  },
+  "experiments": [
+    "no_db_push"
+  ],
+  "name": "horos-saas",
+  "port": 3000,
+  "template_id": "web-db-user",
+  "test_command": "pnpm test"
+}

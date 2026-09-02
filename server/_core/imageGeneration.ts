@@ -34,6 +34,9 @@ export type GenerateImageResponse = {
 export async function generateImage(
   options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {
+  if (!ENV.manusForgeEnabled) {
+    throw new Error("Legacy image generation is not available");
+  }
   if (!ENV.forgeApiUrl) {
     throw new Error("BUILT_IN_FORGE_API_URL is not configured");
   }

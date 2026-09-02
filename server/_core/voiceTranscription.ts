@@ -74,6 +74,12 @@ export async function transcribeAudio(
   options: TranscribeOptions
 ): Promise<TranscriptionResponse | TranscriptionError> {
   try {
+    if (!ENV.manusForgeEnabled) {
+      return {
+        error: "Voice transcription service is not available",
+        code: "SERVICE_ERROR",
+      };
+    }
     // Step 1: Validate environment configuration
     if (!ENV.forgeApiUrl) {
       return {

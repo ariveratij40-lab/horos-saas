@@ -4,8 +4,17 @@ import { publicProcedure, router } from "./_core/trpc";
 import { tenantsRouter, branchesRouter } from "./routers/tenants";
 import { policiesRouter } from "./routers/policies";
 import { ticketsRouter } from "./routers/tickets";
+import { ticketWorkflowRouter } from "./routers/ticketWorkflow";
+import { ticketAssignmentRouter } from "./routers/ticketAssignment";
+import { serviceRequestsRouter } from "./routers/serviceRequests";
+import { serviceRequestContextRouter } from "./routers/serviceRequestContext";
+import { serviceTraceabilityRouter } from "./routers/serviceTraceability";
+import { servicePolicySlaRouter } from "./routers/servicePolicySla";
+import { serviceSlaDashboardRouter } from "./routers/serviceSlaDashboard";
 import { assetsRouter } from "./routers/assets";
 import { maintenanceRouter } from "./routers/maintenance";
+import { canonicalMaintenanceRouter } from "./routers/canonicalMaintenance";
+import { canonicalMaintenanceEvidenceRouter } from "./routers/canonicalMaintenanceEvidence";
 import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashboard";
 import { slaRouter } from "./routers/sla";
 import { cctvRouter } from "./routers/cctv";
@@ -31,6 +40,14 @@ import { sendPasswordResetEmail } from "./_core/mailer";
 import { passwordResetTokens } from "../drizzle/schema";
 import { and, lt, isNull, gt } from "drizzle-orm";
 import crypto from "crypto";
+import { ENV } from "./_core/env";
+
+function whenEnabled<TRoutes extends Record<string, unknown>>(
+  enabled: boolean,
+  routes: TRoutes,
+): TRoutes {
+  return enabled ? routes : ({} as TRoutes);
+}
 
 export const appRouter = router({
   system: systemRouter,
@@ -43,7 +60,9 @@ export const appRouter = router({
       return { success: true } as const;
     }),
 
-    // ── LOCAL AUTH (email + password, for self-hosted VPS) ─────────────────
+    // The historical email/password implementation uses the legacy MySQL
+    // identity schema and is absent unless TiDB is explicitly enabled.
+    ...whenEnabled(ENV.legacyTidbEnabled, {
     localLogin: publicProcedure
       .input(z.object({
         email: z.string().email(),
@@ -53,7 +72,6 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
-        // Find user by email
         const [user] = await db.select().from(users)
           .where(eq(users.email, input.email))
           .limit(1);
@@ -67,7 +85,6 @@ export const appRouter = router({
           throw new TRPCError({ code: "UNAUTHORIZED", message: "Email o contraseña incorrectos" });
         }
 
-        // Sign session using existing JWT infrastructure
         const token = await sdk.signSession({
           openId: user.openId,
           appId: "local",
@@ -88,13 +105,12 @@ export const appRouter = router({
         name: z.string().min(2),
         email: z.string().email(),
         password: z.string().min(6),
-        registerKey: z.string().optional(), // optional invite/register key
+        registerKey: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
-        // Check if email already exists
         const [existing] = await db.select({ id: users.id }).from(users)
           .where(eq(users.email, input.email))
           .limit(1);
@@ -106,7 +122,6 @@ export const appRouter = router({
         const passwordHash = await bcrypt.hash(input.password, 12);
         const openId = `local_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-        // Check if this is the first user → make them admin
         const allUsers = await db.select({ id: users.id }).from(users).limit(1);
         const isFirstUser = allUsers.length === 0;
 
@@ -141,23 +156,20 @@ export const appRouter = router({
         return { success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role } };
       }),
 
-    // ── PASSWORD RESET ───────────────────────────────────────────────────────────────────
     requestPasswordReset: publicProcedure
       .input(z.object({
         email: z.string().email(),
-        origin: z.string().optional(), // frontend origin for building the reset URL
+        origin: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-        // Always return success to avoid email enumeration
         const [user] = await db.select().from(users)
           .where(and(eq(users.email, input.email), eq(users.authProvider, "local")))
           .limit(1);
 
         if (user) {
-          // Invalidate any existing tokens for this user
           await db.update(passwordResetTokens)
             .set({ usedAt: new Date() })
             .where(and(
@@ -165,9 +177,8 @@ export const appRouter = router({
               isNull(passwordResetTokens.usedAt)
             ));
 
-          // Generate a secure random token
           const token = crypto.randomBytes(48).toString("hex");
-          const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+          const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
           await db.insert(passwordResetTokens).values({
             userId: user.id,
@@ -185,7 +196,6 @@ export const appRouter = router({
           });
         }
 
-        // Always return success (security: don't reveal if email exists)
         return { success: true };
       }),
 
@@ -200,7 +210,6 @@ export const appRouter = router({
 
         const now = new Date();
 
-        // Find valid, unused, non-expired token
         const [resetToken] = await db.select().from(passwordResetTokens)
           .where(and(
             eq(passwordResetTokens.token, input.token),
@@ -216,71 +225,74 @@ export const appRouter = router({
           });
         }
 
-        // Hash the new password
         const passwordHash = await bcrypt.hash(input.newPassword, 12);
 
-        // Update user password
         await db.update(users)
           .set({ passwordHash, updatedAt: now })
           .where(eq(users.id, resetToken.userId));
 
-        // Mark token as used
         await db.update(passwordResetTokens)
-          .set({ usedAt: now })
+          .set({ usedAt: new Date() })
           .where(eq(passwordResetTokens.id, resetToken.id));
 
         return { success: true };
       }),
+    }),
   }),
 
-  dashboard: dashboardRouter,
-  tenants: tenantsRouter,
-  branches: branchesRouter,
-  policies: policiesRouter,
-  tickets: ticketsRouter,
-  assets: assetsRouter,
-  maintenance: maintenanceRouter,
-  sla: slaRouter,
-  cctv: cctvRouter,
-  cctvImport: cctvImportRouter,
-  rfid: rfidRouter,
-  cctvMaintenance: cctvMaintenanceRouter,
-  cctvPrograms: cctvMaintenanceProgramsRouter,
-  floorPlans: floorPlansRouter,
-  floorPlanLayers: floorPlanLayersRouter,
-  floorPlanAnnotations: floorPlanAnnotationsRouter,
-  floorPlanVersions: floorPlanVersionsRouter,
-  floorPlanShares: floorPlanSharesRouter,
-  audit: auditRouter,
-  ai: aiAssistantRouter,
+  // Canonical PostgreSQL routers are the only default application surface.
+  ticketWorkflow: ticketWorkflowRouter,
+  ticketAssignment: ticketAssignmentRouter,
+  serviceRequests: serviceRequestsRouter,
+  serviceRequestContext: serviceRequestContextRouter,
+  serviceTraceability: serviceTraceabilityRouter,
+  servicePolicySla: servicePolicySlaRouter,
+  serviceSlaDashboard: serviceSlaDashboardRouter,
+  canonicalMaintenance: canonicalMaintenanceRouter,
+  canonicalMaintenanceEvidence: canonicalMaintenanceEvidenceRouter,
 
-  // ─── Control de Acceso ───────────────────────────────────────────────────────
-  acReaders: acReadersRouter,
-  acControllers: acControllersRouter,
-  acDoors: acDoorsRouter,
-  acMaintenance: acMaintenanceRouter,
-  acPrograms: acProgramsRouter,
-  acStats: acStatsRouter,
-
-  // ─── Cableado Estructurado ───────────────────────────────────────────────────
-  cabledSwitches: cabledSwitchesRouter,
-  cabledPatchPanels: cabledPatchPanelsRouter,
-  cabledOutlets: cabledOutletsRouter,
-  cabledDucts: cabledDuctsRouter,
-  cabledMaintenance: cabledMaintenanceRouter,
-  cabledPrograms: cabledProgramsRouter,
-  cabledStats: cabledStatsRouter,
-
-  // ─── Voceo ───────────────────────────────────────────────────────────────────
-  pagingAmplifiers: pagingAmplifiersRouter,
-  pagingSpeakers: pagingSpeakersRouter,
-  pagingConsoles: pagingConsolesRouter,
-  pagingPower: pagingPowerRouter,
-  pagingMaintenance: pagingMaintenanceRouter,
-  pagingPrograms: pagingProgramsRouter,
-  pagingStats: pagingStatsRouter,
-
-  users: router({
+  ...whenEnabled(ENV.legacyTidbEnabled, {
+    dashboard: dashboardRouter,
+    tenants: tenantsRouter,
+    branches: branchesRouter,
+    policies: policiesRouter,
+    tickets: ticketsRouter,
+    assets: assetsRouter,
+    maintenance: maintenanceRouter,
+    sla: slaRouter,
+    cctv: cctvRouter,
+    cctvImport: cctvImportRouter,
+    rfid: rfidRouter,
+    cctvMaintenance: cctvMaintenanceRouter,
+    cctvPrograms: cctvMaintenanceProgramsRouter,
+    floorPlans: floorPlansRouter,
+    floorPlanLayers: floorPlanLayersRouter,
+    floorPlanAnnotations: floorPlanAnnotationsRouter,
+    floorPlanVersions: floorPlanVersionsRouter,
+    floorPlanShares: floorPlanSharesRouter,
+    audit: auditRouter,
+    ai: aiAssistantRouter,
+    acReaders: acReadersRouter,
+    acControllers: acControllersRouter,
+    acDoors: acDoorsRouter,
+    acMaintenance: acMaintenanceRouter,
+    acPrograms: acProgramsRouter,
+    acStats: acStatsRouter,
+    cabledSwitches: cabledSwitchesRouter,
+    cabledPatchPanels: cabledPatchPanelsRouter,
+    cabledOutlets: cabledOutletsRouter,
+    cabledDucts: cabledDuctsRouter,
+    cabledMaintenance: cabledMaintenanceRouter,
+    cabledPrograms: cabledProgramsRouter,
+    cabledStats: cabledStatsRouter,
+    pagingAmplifiers: pagingAmplifiersRouter,
+    pagingSpeakers: pagingSpeakersRouter,
+    pagingConsoles: pagingConsolesRouter,
+    pagingPower: pagingPowerRouter,
+    pagingMaintenance: pagingMaintenanceRouter,
+    pagingPrograms: pagingProgramsRouter,
+    pagingStats: pagingStatsRouter,
+    users: router({
     list: protectedProcedure.query(async ({ ctx }) => {
       if (!["admin", "supervisor"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
       const tenantId = ctx.user.tenantId ?? undefined;
@@ -296,6 +308,7 @@ export const appRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
       return { success: true };
+    }),
     }),
   }),
 });

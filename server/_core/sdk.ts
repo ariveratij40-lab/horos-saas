@@ -5,7 +5,6 @@ import { parse as parseCookieHeader } from "cookie";
 import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
-import * as db from "../db";
 import { ENV } from "./env";
 import type {
   ExchangeTokenRequest,
@@ -30,12 +29,8 @@ const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserI
 
 class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
-    console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
-    if (!ENV.oAuthServerUrl) {
-      console.error(
-        "[OAuth] ERROR: OAUTH_SERVER_URL is not configured! Set OAUTH_SERVER_URL environment variable."
-      );
-    }
+    // Configuration details are deliberately not logged. Legacy OAuth is
+    // reachable only when its explicit feature flag is enabled.
   }
 
   private decodeState(state: string): string {
@@ -82,11 +77,14 @@ const createOAuthHttpClient = (): AxiosInstance =>
     timeout: AXIOS_TIMEOUT_MS,
   });
 
-class SDKServer {
+export class SDKServer {
   private readonly client: AxiosInstance;
   private readonly oauthService: OAuthService;
 
-  constructor(client: AxiosInstance = createOAuthHttpClient()) {
+  constructor(
+    client: AxiosInstance = createOAuthHttpClient(),
+    private readonly sessionSecret: string = ENV.cookieSecret,
+  ) {
     this.client = client;
     this.oauthService = new OAuthService(this.client);
   }
@@ -122,6 +120,9 @@ class SDKServer {
     code: string,
     state: string
   ): Promise<ExchangeTokenResponse> {
+    if (!ENV.legacyOAuthEnabled) {
+      throw ForbiddenError("Legacy OAuth is disabled");
+    }
     return this.oauthService.getTokenByCode(code, state);
   }
 
@@ -131,6 +132,9 @@ class SDKServer {
    * const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
    */
   async getUserInfo(accessToken: string): Promise<GetUserInfoResponse> {
+    if (!ENV.legacyOAuthEnabled) {
+      throw ForbiddenError("Legacy OAuth is disabled");
+    }
     const data = await this.oauthService.getUserInfoByToken({
       accessToken,
     } as ExchangeTokenResponse);
@@ -155,8 +159,7 @@ class SDKServer {
   }
 
   private getSessionSecret() {
-    const secret = ENV.cookieSecret;
-    return new TextEncoder().encode(secret);
+    return new TextEncoder().encode(this.sessionSecret);
   }
 
   /**
@@ -235,6 +238,9 @@ class SDKServer {
   async getUserInfoWithJwt(
     jwtToken: string
   ): Promise<GetUserInfoWithJwtResponse> {
+    if (!ENV.legacyOAuthEnabled) {
+      throw ForbiddenError("Legacy OAuth is disabled");
+    }
     const payload: GetUserInfoWithJwtRequest = {
       jwtToken,
       projectId: ENV.appId,
@@ -266,6 +272,40 @@ class SDKServer {
       throw ForbiddenError("Invalid session cookie");
     }
 
+    // Local development sessions are intentionally independent from the
+    // legacy MySQL/Manus identity store. The canonical PostgreSQL tenant
+    // membership is resolved later by pgProtectedProcedure using openId.
+    // This branch is only accepted in NODE_ENV=development and only for the
+    // dedicated appId minted by /api/dev/login.
+    if (
+      process.env.NODE_ENV === "development" &&
+      session.appId === "horos-local-dev" &&
+      session.openId === "dev_local_horos_admin"
+    ) {
+      const now = new Date();
+      return {
+        id: 0,
+        openId: session.openId,
+        name: session.name,
+        email: "admin.local@horos.test",
+        loginMethod: "local-dev",
+        passwordHash: null,
+        authProvider: "local",
+        role: "admin",
+        tenantId: null,
+        phone: null,
+        avatarUrl: null,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+        lastSignedIn: now,
+      };
+    }
+
+    if (!ENV.legacyOAuthEnabled || !ENV.legacyTidbEnabled) {
+      throw ForbiddenError("Canonical PostgreSQL authentication required");
+    }
+
     if (session.openId.startsWith(CRON_OPEN_ID_PREFIX)) {
       const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
       const taskUid = userInfo.taskUid ?? null;
@@ -277,6 +317,7 @@ class SDKServer {
 
     const sessionUserId = session.openId;
     const signedInAt = new Date();
+    const db = await import("../db");
     let user = await db.getUserByOpenId(sessionUserId);
 
     // If user not in DB, sync from OAuth server automatically
@@ -328,13 +369,19 @@ function buildCronUser(
     name: userInfo.name || "Manus Scheduled Task",
     email: null,
     loginMethod: null,
+    passwordHash: null,
+    authProvider: "manus",
     role: "user",
+    tenantId: null,
+    phone: null,
+    avatarUrl: null,
+    isActive: true,
     createdAt: now,
     updatedAt: now,
     lastSignedIn: now,
     taskUid: userInfo.taskUid ?? undefined,
     isCron: true,
-  } as AuthenticatedUser;
+  };
 }
 
 export const sdk = new SDKServer();
