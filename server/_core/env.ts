@@ -1,7 +1,20 @@
 const isProduction = process.env.NODE_ENV === "production";
+const configuredCookieSecret = process.env.JWT_SECRET;
+
+if (
+  isProduction
+  && (
+    !configuredCookieSecret
+    || configuredCookieSecret.length < 32
+  )
+) {
+  throw new Error(
+    "JWT_SECRET must contain at least 32 characters in production",
+  );
+}
 
 const cookieSecret =
-  process.env.JWT_SECRET
+  configuredCookieSecret
   ?? (
     isProduction
       ? ""

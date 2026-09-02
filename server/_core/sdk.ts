@@ -82,11 +82,14 @@ const createOAuthHttpClient = (): AxiosInstance =>
     timeout: AXIOS_TIMEOUT_MS,
   });
 
-class SDKServer {
+export class SDKServer {
   private readonly client: AxiosInstance;
   private readonly oauthService: OAuthService;
 
-  constructor(client: AxiosInstance = createOAuthHttpClient()) {
+  constructor(
+    client: AxiosInstance = createOAuthHttpClient(),
+    private readonly sessionSecret: string = ENV.cookieSecret,
+  ) {
     this.client = client;
     this.oauthService = new OAuthService(this.client);
   }
@@ -155,8 +158,7 @@ class SDKServer {
   }
 
   private getSessionSecret() {
-    const secret = ENV.cookieSecret;
-    return new TextEncoder().encode(secret);
+    return new TextEncoder().encode(this.sessionSecret);
   }
 
   /**
