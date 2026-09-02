@@ -37,6 +37,29 @@ describe("session signing-secret rotation", () => {
     );
   });
 
+  it("fails closed when the production signing secret is too short", () => {
+    const envPath = fileURLToPath(
+      new URL("./_core/env.ts", import.meta.url),
+    );
+    const result = spawnSync(
+      process.execPath,
+      ["--import", "tsx", "--eval", `import(${JSON.stringify(envPath)})`],
+      {
+        env: {
+          ...process.env,
+          NODE_ENV: "production",
+          JWT_SECRET: "too-short",
+        },
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "JWT_SECRET must contain at least 32 characters in production",
+    );
+  });
+
   it("rejects an old session and accepts a newly signed local session", async () => {
     process.env.NODE_ENV = "development";
     const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
