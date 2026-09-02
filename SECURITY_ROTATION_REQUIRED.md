@@ -51,3 +51,22 @@ evidence containing values to this repository.
 | Forge and Manus OAuth | Manus | 2026-09-02 | ACCOUNT_ACCESS_UNAVAILABLE | Runtime dependency audit | OAuth is an active alternative; Forge-backed storage, evidence, AI, maps, and notifications remain callable features | References retained to avoid removing active functionality |
 | Legacy database runtime | TiDB Cloud (MySQL protocol) | 2026-09-02 | ACTIVE_DEPENDENCY | Import and registered-router audit | Local authentication and registered legacy routers still use the MySQL data layer | Connection reference retained; no connection or provider mutation performed |
 | Legacy remote repository access | Managed legacy Git repository | 2026-09-02 | UNREVOKED_EXTERNAL_RESIDUAL_RISK | Current runtime and configuration search | No current runtime, example, or local configuration consumer found | External owner and automation remain unverified without Manus account access |
+
+## SEC-CONTAIN-001 residual risk acceptance
+
+The canonical HOROS runtime does not use inaccessible historical credentials.
+This containment does not assert that either provider credential was revoked.
+
+```text
+MANUS_HISTORICAL_CREDENTIAL=UNREVOKED_ACCOUNT_ACCESS_UNAVAILABLE
+TIDB_HISTORICAL_CREDENTIAL=UNREVOKED_ACCOUNT_ACCESS_UNAVAILABLE
+CURRENT_RUNTIME_EXPOSURE=NONE_NO_DEPLOYED_RUNTIME
+LEGACY_FEATURE_DEFAULT_STATE=DISABLED
+LEGACY_REMOTE_ACCESS_CURRENT_CONSUMER=NONE_IDENTIFIED
+RISK_ACCEPTANCE_SCOPE=DEVELOPMENT_CONTINUITY_ONLY
+JWT_RUNTIME_ROTATION=NOT_APPLICABLE_NO_DEPLOYED_RUNTIME
+```
+
+Generating a new signing secret remains mandatory when staging or production
+is created. The future deployment procedure is recorded in
+`docs/security/DEPLOYMENT_SECURITY_CHECKLIST.md`.
