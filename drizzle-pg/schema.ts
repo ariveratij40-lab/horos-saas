@@ -1076,6 +1076,10 @@ export const branchSystems = pgTable(
       table.id,
     ),
 
+    tenantBranchIdUnique: unique(
+      "branch_systems_tenant_branch_id_uq",
+    ).on(table.tenantId, table.branchId, table.id),
+
     tenantIdx: index(
       "branch_systems_tenant_idx",
     ).on(table.tenantId),
@@ -1117,6 +1121,42 @@ export const branchSystems = pgTable(
   }),
 );
 
+export const systemSolutions = pgTable(
+  "system_solutions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    branchId: uuid("branch_id").notNull(),
+    branchSystemId: uuid("branch_system_id").notNull(),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    description: text("description"),
+    status: varchar("status", { length: 24 }).notNull().default("active"),
+    commissionedAt: date("commissioned_at", { mode: "date" }),
+    decommissionedAt: date("decommissioned_at", { mode: "date" }),
+    createdBy: varchar("created_by", { length: 255 }),
+    updatedBy: varchar("updated_by", { length: 255 }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  table => ({
+    tenantBranchCodeUnique: unique("system_solutions_tenant_branch_code_uq").on(table.tenantId, table.branchId, table.code),
+    tenantIdIdUnique: unique("system_solutions_tenant_id_id_uq").on(table.tenantId, table.id),
+    tenantBranchIdUnique: unique("system_solutions_tenant_branch_id_uq").on(table.tenantId, table.branchId, table.id),
+    branchSystemIdx: index("system_solutions_branch_system_idx").on(table.tenantId, table.branchId, table.branchSystemId, table.status),
+    branchTenantFk: foreignKey({
+      name: "system_solutions_tenant_branch_fk",
+      columns: [table.tenantId, table.branchId],
+      foreignColumns: [branches.tenantId, branches.id],
+    }).onDelete("restrict"),
+    branchSystemTenantFk: foreignKey({
+      name: "system_solutions_tenant_branch_system_fk",
+      columns: [table.tenantId, table.branchId, table.branchSystemId],
+      foreignColumns: [branchSystems.tenantId, branchSystems.branchId, branchSystems.id],
+    }).onDelete("restrict"),
+  }),
+);
+
 /* ============================================================================
  * HOROS CORE-001D
  * Canonical physical assets
@@ -1147,6 +1187,8 @@ export const assets = pgTable(
     telecomSpaceId: uuid("telecom_space_id"),
 
     rackId: uuid("rack_id"),
+
+    systemSolutionId: uuid("system_solution_id"),
 
     assetCode: varchar("asset_code", {
       length: 128,
@@ -1259,6 +1301,18 @@ export const assets = pgTable(
       "assets_serial_number_idx",
     ).on(table.serialNumber),
 
+    systemSolutionIdx: index("assets_system_solution_idx").on(
+      table.tenantId,
+      table.branchId,
+      table.systemSolutionId,
+    ),
+
+    systemSolutionTenantFk: foreignKey({
+      name: "assets_tenant_branch_solution_fk",
+      columns: [table.tenantId, table.branchId, table.systemSolutionId],
+      foreignColumns: [systemSolutions.tenantId, systemSolutions.branchId, systemSolutions.id],
+    }).onDelete("restrict"),
+
     branchTenantFk: foreignKey({
       name: "assets_tenant_branch_fk",
       columns: [
@@ -1316,6 +1370,27 @@ export const assets = pgTable(
       ],
     })
       .onDelete("restrict"),
+  }),
+);
+
+export const systemSolutionEvents = pgTable(
+  "system_solution_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    systemSolutionId: uuid("system_solution_id").notNull(),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorExternalSubject: varchar("actor_external_subject", { length: 255 }),
+    details: jsonb("details").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  table => ({
+    solutionIdx: index("system_solution_events_solution_idx").on(table.tenantId, table.systemSolutionId, table.createdAt),
+    solutionTenantFk: foreignKey({
+      name: "system_solution_events_tenant_solution_fk",
+      columns: [table.tenantId, table.systemSolutionId],
+      foreignColumns: [systemSolutions.tenantId, systemSolutions.id],
+    }).onDelete("restrict"),
   }),
 );
 
@@ -3208,4 +3283,3 @@ export const serviceRequestTicketLinks =
         }).onDelete("restrict"),
     }),
   );
-
