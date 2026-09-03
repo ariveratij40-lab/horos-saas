@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   check,
   date,
@@ -1656,6 +1657,81 @@ export const assetTopologyEvents = pgTable(
   { id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(), entityType: varchar("entity_type", { length: 24 }).notNull(), entityId: uuid("entity_id").notNull(), eventType: varchar("event_type", { length: 48 }).notNull(), actorExternalSubject: varchar("actor_external_subject", { length: 255 }), details: jsonb("details").notNull().default({}), createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow() },
   table => ({ entityIdx: index("asset_topology_events_entity_idx").on(table.tenantId, table.branchId, table.entityType, table.entityId, table.createdAt.desc()), typeCheck: check("asset_topology_events_type_ck", sql`${table.entityType} in ('PORT','LINK','RELATIONSHIP')`) }),
 );
+
+export const assetComponents = pgTable("asset_components", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(), assetId: uuid("asset_id").notNull(),
+  parentComponentId: uuid("parent_component_id").references((): AnyPgColumn => assetComponents.id, { onDelete: "restrict" }),
+  replacesComponentId: uuid("replaces_component_id").references((): AnyPgColumn => assetComponents.id, { onDelete: "restrict" }),
+  code: varchar("code", { length: 64 }).notNull(), name: varchar("name", { length: 255 }).notNull(), componentType: varchar("component_type", { length: 64 }).notNull(),
+  manufacturer: varchar("manufacturer", { length: 255 }), model: varchar("model", { length: 255 }), serialNumber: varchar("serial_number", { length: 255 }),
+  status: varchar("status", { length: 24 }).notNull().default("INSTALLED"), installedAt: timestamp("installed_at", { withTimezone: true, mode: "date" }),
+  replacedAt: timestamp("replaced_at", { withTimezone: true, mode: "date" }), replaceable: boolean("replaceable").notNull().default(true),
+  description: text("description"), active: boolean("active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(), createdBy: varchar("created_by", { length: 255 }), updatedBy: varchar("updated_by", { length: 255 }),
+}, table => ({
+  tenantBranchIdUnique: unique("asset_components_tenant_branch_id_uq").on(table.tenantId, table.branchId, table.id),
+  assetCodeUnique: unique("asset_components_asset_code_uq").on(table.tenantId, table.branchId, table.assetId, table.code),
+  assetIdx: index("asset_components_asset_idx").on(table.tenantId, table.branchId, table.assetId, table.active),
+  assetFk: foreignKey({ name: "asset_components_asset_fk", columns: [table.tenantId, table.branchId, table.assetId], foreignColumns: [assets.tenantId, assets.branchId, assets.id] }).onDelete("restrict"),
+}));
+
+export const inspectionTemplates = pgTable("inspection_templates", {
+  id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(),
+  code: varchar("code", { length: 64 }).notNull(), name: varchar("name", { length: 255 }).notNull(), description: text("description"), version: integer("version").notNull().default(1),
+  previousVersionId: uuid("previous_version_id").references((): AnyPgColumn => inspectionTemplates.id, { onDelete: "restrict" }), status: varchar("status", { length: 16 }).notNull().default("DRAFT"),
+  branchSystemId: uuid("branch_system_id"), systemSolutionId: uuid("system_solution_id"), assetTypeId: uuid("asset_type_id"), assetId: uuid("asset_id"),
+  publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }), retiredAt: timestamp("retired_at", { withTimezone: true, mode: "date" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  createdBy: varchar("created_by", { length: 255 }), updatedBy: varchar("updated_by", { length: 255 }),
+}, table => ({
+  tenantBranchIdUnique: unique("inspection_templates_tenant_branch_id_uq").on(table.tenantId, table.branchId, table.id),
+  codeVersionUnique: unique("inspection_templates_code_version_uq").on(table.tenantId, table.branchId, table.code, table.version),
+  statusCheck: check("inspection_templates_status_ck", sql`${table.status} in ('DRAFT','PUBLISHED','RETIRED')`),
+}));
+
+export const inspectionTemplateItems = pgTable("inspection_template_items", {
+  id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(), templateId: uuid("template_id").notNull(),
+  code: varchar("code", { length: 64 }).notNull(), title: varchar("title", { length: 500 }).notNull(), instructions: text("instructions"), responseType: varchar("response_type", { length: 32 }).notNull(),
+  required: boolean("required").notNull().default(true), allowNotApplicable: boolean("allow_not_applicable").notNull().default(false), requireNaExplanation: boolean("require_na_explanation").notNull().default(false),
+  options: jsonb("options"), expectedValue: jsonb("expected_value"), severityOnFailure: varchar("severity_on_failure", { length: 16 }), sequence: integer("sequence").notNull(), active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, table => ({
+  tenantBranchIdUnique: unique("inspection_template_items_tenant_branch_id_uq").on(table.tenantId, table.branchId, table.id),
+  codeUnique: unique("inspection_template_items_code_uq").on(table.tenantId, table.branchId, table.templateId, table.code),
+  sequenceUnique: unique("inspection_template_items_sequence_uq").on(table.tenantId, table.branchId, table.templateId, table.sequence),
+  templateFk: foreignKey({ name: "inspection_template_items_template_fk", columns: [table.tenantId, table.branchId, table.templateId], foreignColumns: [inspectionTemplates.tenantId, inspectionTemplates.branchId, inspectionTemplates.id] }).onDelete("restrict"),
+}));
+
+export const inspections = pgTable("inspections", {
+  id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(), templateId: uuid("template_id").notNull(), templateVersion: integer("template_version").notNull(),
+  branchSystemId: uuid("branch_system_id"), systemSolutionId: uuid("system_solution_id"), assetId: uuid("asset_id"), componentId: uuid("component_id"), maintenanceWorkOrderId: uuid("maintenance_work_order_id"),
+  inspectorUserId: uuid("inspector_user_id").notNull(), status: varchar("status", { length: 16 }).notNull().default("DRAFT"), startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
+  completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }), cancelledAt: timestamp("cancelled_at", { withTimezone: true, mode: "date" }), cancellationReason: text("cancellation_reason"), summary: text("summary"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, table => ({
+  tenantBranchIdUnique: unique("inspections_tenant_branch_id_uq").on(table.tenantId, table.branchId, table.id),
+  templateFk: foreignKey({ name: "inspections_template_fk", columns: [table.tenantId, table.branchId, table.templateId], foreignColumns: [inspectionTemplates.tenantId, inspectionTemplates.branchId, inspectionTemplates.id] }).onDelete("restrict"),
+}));
+
+export const inspectionResults = pgTable("inspection_results", {
+  id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(), inspectionId: uuid("inspection_id").notNull(), templateItemId: uuid("template_item_id").notNull(),
+  itemCodeSnapshot: varchar("item_code_snapshot", { length: 64 }).notNull(), titleSnapshot: varchar("title_snapshot", { length: 500 }).notNull(), instructionsSnapshot: text("instructions_snapshot"), responseTypeSnapshot: varchar("response_type_snapshot", { length: 32 }).notNull(),
+  expectedValueSnapshot: jsonb("expected_value_snapshot"), optionsSnapshot: jsonb("options_snapshot"), requiredSnapshot: boolean("required_snapshot").notNull(), allowNotApplicableSnapshot: boolean("allow_not_applicable_snapshot").notNull(), requireNaExplanationSnapshot: boolean("require_na_explanation_snapshot").notNull(),
+  severityOnFailureSnapshot: varchar("severity_on_failure_snapshot", { length: 16 }), sequenceSnapshot: integer("sequence_snapshot").notNull(), response: jsonb("response"), outcome: varchar("outcome", { length: 32 }).notNull().default("PENDING"), observation: text("observation"),
+  inspectedAt: timestamp("inspected_at", { withTimezone: true, mode: "date" }), inspectedBy: uuid("inspected_by"), maintenanceFindingId: uuid("maintenance_finding_id"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, table => ({
+  tenantBranchIdUnique: unique("inspection_results_tenant_branch_id_uq").on(table.tenantId, table.branchId, table.id),
+  itemUnique: unique("inspection_results_item_uq").on(table.tenantId, table.branchId, table.inspectionId, table.templateItemId),
+  inspectionIdx: index("inspection_results_inspection_idx").on(table.tenantId, table.branchId, table.inspectionId, table.sequenceSnapshot),
+  inspectionFk: foreignKey({ name: "inspection_results_inspection_fk", columns: [table.tenantId, table.branchId, table.inspectionId], foreignColumns: [inspections.tenantId, inspections.branchId, inspections.id] }).onDelete("restrict"),
+}));
+
+export const inspectionEvents = pgTable("inspection_events", {
+  id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(), entityType: varchar("entity_type", { length: 24 }).notNull(), entityId: uuid("entity_id").notNull(),
+  eventType: varchar("event_type", { length: 48 }).notNull(), actorExternalSubject: varchar("actor_external_subject", { length: 255 }), details: jsonb("details").notNull().default({}), createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, table => ({ entityIdx: index("inspection_events_entity_idx").on(table.tenantId, table.branchId, table.entityType, table.entityId, table.createdAt.desc()) }));
 
 export const systemSolutionEvents = pgTable(
   "system_solution_events",
