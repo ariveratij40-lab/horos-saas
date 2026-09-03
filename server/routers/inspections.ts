@@ -676,7 +676,7 @@ export const inspectionsRouter = router({
               message: "Required inspection results remain pending",
             });
           const photo =
-            await tx`SELECT count(*)::int count FROM inspection_results WHERE inspection_id=${input.id}::uuid AND response_type_snapshot='PHOTO_REQUIRED' AND required_snapshot AND response IS NULL AND outcome<>'NOT_APPLICABLE'`;
+            await tx`SELECT count(*)::int count FROM inspection_results WHERE inspection_id=${input.id}::uuid AND response_type_snapshot='PHOTO_REQUIRED' AND required_snapshot AND outcome<>'NOT_APPLICABLE' AND NOT horos_photo_required_satisfied(id)`;
           if (Number(photo[0]?.count) > 0)
             throw new TRPCError({
               code: "BAD_REQUEST",
