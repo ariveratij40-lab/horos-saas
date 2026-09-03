@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
+import { getSessionCookieOptions } from "./_core/cookies";
 import { COOKIE_NAME } from "../shared/const";
 import type { TrpcContext } from "./_core/context";
 
@@ -42,6 +43,14 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
 }
 
 describe("auth.logout", () => {
+  it("uses a browser-valid local cookie and secure cross-site production cookie", () => {
+    expect(getSessionCookieOptions({ protocol: "http", headers: {} } as never)).toMatchObject({
+      sameSite: "lax", secure: false,
+    });
+    expect(getSessionCookieOptions({ protocol: "https", headers: {} } as never)).toMatchObject({
+      sameSite: "none", secure: true,
+    });
+  });
   it("clears the session cookie and reports success", async () => {
     const { ctx, clearedCookies } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
