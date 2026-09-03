@@ -147,6 +147,7 @@ const menuGroups: NavGroup[] = [
   {
     label: "Administración",
     items: [
+      { icon: Package, label: "Soluciones", path: "/system-solutions" },
       { icon: Users, label: "Usuarios", path: "/users" },
     ],
   },
