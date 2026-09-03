@@ -1,0 +1,28 @@
+import { useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { trpc } from "@/lib/trpc";
+
+type Props={branchId:string;inspectionId?:string;inspectionResultId?:string;workOrderId?:string;assetId?:string;componentId?:string;readonly?:boolean};
+type Evidence={id:string;originalFilename:string;contentType:string|null;byteSize:number|null;status:string;capturedAt:string|null;uploadedAt:string;uploadedBy:string|null;description:string|null;supersedesEvidenceId:string|null};
+const message=(e:unknown)=>typeof e==="object"&&e&&"message"in e?String(e.message):"No fue posible procesar la evidencia";
+
+export function SecureEvidencePanel(props:Props){
+  const utils=trpc.useUtils(); const [progress,setProgress]=useState(0); const [preview,setPreview]=useState(""); const [replacementFor,setReplacementFor]=useState<string>();
+  const query=trpc.evidence.list.useQuery({branchId:props.branchId,workOrderId:props.workOrderId,inspectionId:props.inspectionId,inspectionResultId:props.inspectionResultId},{enabled:Boolean(props.branchId&&(props.workOrderId||props.inspectionId))});
+  const initiate=trpc.evidence.initiate.useMutation(); const upload=trpc.evidence.upload.useMutation(); const finalize=trpc.evidence.finalize.useMutation();
+  const evidence=(query.data??[])as Evidence[];
+  async function choose(file:File){try{setProgress(10);const start=await initiate.mutateAsync({branchId:props.branchId,workOrderId:props.workOrderId,inspectionId:props.inspectionId,inspectionResultId:props.inspectionResultId,assetId:props.assetId,componentId:props.componentId,evidenceType:file.type.startsWith("image/")?"PHOTO":"DOCUMENT",originalFilename:file.name,contentTypeDeclared:file.type,capturedAt:file.lastModified?new Date(file.lastModified):undefined,supersedesEvidenceId:replacementFor});setProgress(35);const base64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(reader.error);reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.readAsDataURL(file);});await upload.mutateAsync({branchId:props.branchId,id:start.id,fileBase64:base64});setProgress(75);await finalize.mutateAsync({branchId:props.branchId,id:start.id});setProgress(100);await utils.evidence.list.invalidate();toast.success("Evidencia verificada y disponible");setReplacementFor(undefined);}catch(e){toast.error(message(e));}finally{setTimeout(()=>setProgress(0),800);}}
+  async function access(item:Evidence,previewMode:boolean){try{const response=await fetch(`/api/evidence/${encodeURIComponent(item.id)}?branchId=${encodeURIComponent(props.branchId)}&preview=${previewMode?"1":"0"}`,{credentials:"same-origin",cache:"no-store"});if(!response.ok)throw new Error("La evidencia no está disponible");const url=URL.createObjectURL(await response.blob());if(previewMode)setPreview(url);else{const a=document.createElement("a");a.href=url;a.download=item.originalFilename;a.click();setTimeout(()=>URL.revokeObjectURL(url),0);} }catch(e){toast.error(message(e));}}
+  return <div className="min-w-0 space-y-3 rounded border p-3">
+    <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">Evidencia privada</strong>{!props.readonly&&<label><Input className="max-w-56" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/csv" onChange={e=>{const f=e.target.files?.[0];if(f)void choose(f);e.target.value="";}}/></label>}</div>
+    {progress>0&&<div aria-label="Progreso de carga" className="h-2 overflow-hidden rounded bg-muted"><div className="h-full bg-primary transition-all" style={{width:`${progress}%`}}/></div>}
+    {!query.isLoading&&!evidence.length&&<p className="text-sm text-muted-foreground">Sin evidencia asociada. La fotografía requerida continúa pendiente.</p>}
+    {query.isError&&<p role="alert" className="text-sm text-destructive">{message(query.error)}</p>}
+    {evidence.map(item=><div key={item.id} className="min-w-0 rounded bg-muted/50 p-2 text-sm"><div className="flex flex-wrap items-center gap-2"><span className="break-all font-medium">{item.originalFilename}</span><Badge variant={item.status==="AVAILABLE"?"default":item.status==="QUARANTINED"?"destructive":"secondary"}>{item.status}</Badge></div><p className="text-xs text-muted-foreground">{item.contentType??"Tipo no verificado"} · {item.byteSize==null?"Tamaño no verificado":`${item.byteSize} bytes`} · {new Date(item.uploadedAt).toLocaleString()}</p>{item.status==="LEGACY_UNVERIFIED"&&<p className="text-amber-700">Archivo histórico no verificado; no satisface requisitos nuevos.</p>}{item.status==="QUARANTINED"&&<p className="text-destructive">En cuarentena: vista previa y descarga bloqueadas.</p>}<div className="mt-2 flex flex-wrap gap-2">{item.status==="AVAILABLE"&&<><Button size="sm" variant="outline" onClick={()=>void access(item,true)}>Vista previa</Button><Button size="sm" variant="outline" onClick={()=>void access(item,false)}>Descargar</Button>{!props.readonly&&<Button size="sm" variant="outline" onClick={()=>setReplacementFor(item.id)}>Sustituir</Button>}</>}</div></div>)}
+    {replacementFor&&<p className="text-xs">Seleccione el archivo nuevo. El original se conservará y se marcará como sustituido tras verificación.</p>}
+    {preview&&<div className="rounded border p-2"><img src={preview} alt="Vista previa autorizada" className="max-h-72 max-w-full object-contain"/><Button size="sm" variant="ghost" onClick={()=>setPreview("")}>Cerrar vista previa</Button></div>}
+  </div>;
+}
