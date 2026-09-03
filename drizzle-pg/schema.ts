@@ -25,33 +25,33 @@ export const tenants = pgTable(
 
     legacyTenantId: integer("legacy_tenant_id"),
 
-    status: varchar("status", { length: 32 })
-      .notNull()
-      .default("active"),
+    status: varchar("status", { length: 32 }).notNull().default("active"),
 
-    isActive: boolean("is_active")
-      .notNull()
-      .default(true),
+    isActive: boolean("is_active").notNull().default(true),
 
     createdAt: timestamp("created_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
 
     updatedAt: timestamp("updated_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
   },
   table => ({
     codeUnique: uniqueIndex("tenants_code_uq").on(table.code),
 
-    legacyTenantIdUnique: uniqueIndex(
-      "tenants_legacy_tenant_id_uq",
-    ).on(table.legacyTenantId),
+    legacyTenantIdUnique: uniqueIndex("tenants_legacy_tenant_id_uq").on(
+      table.legacyTenantId
+    ),
 
     statusIdx: index("tenants_status_idx").on(table.status),
-  }),
+  })
 );
 
 export const users = pgTable(
@@ -73,29 +73,33 @@ export const users = pgTable(
 
     platformRole: varchar("platform_role", {
       length: 32,
-    }).notNull().default("user"),
-
-    isActive: boolean("is_active")
+    })
       .notNull()
-      .default(true),
+      .default("user"),
+
+    isActive: boolean("is_active").notNull().default(true),
 
     createdAt: timestamp("created_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
 
     updatedAt: timestamp("updated_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
   },
   table => ({
-    externalSubjectUnique: uniqueIndex(
-      "users_external_subject_uq",
-    ).on(table.externalSubject),
+    externalSubjectUnique: uniqueIndex("users_external_subject_uq").on(
+      table.externalSubject
+    ),
 
     emailIdx: index("users_email_idx").on(table.email),
-  }),
+  })
 );
 
 export const tenantUsers = pgTable(
@@ -117,38 +121,36 @@ export const tenantUsers = pgTable(
 
     role: varchar("role", {
       length: 32,
-    }).notNull().default("member"),
-
-    isActive: boolean("is_active")
+    })
       .notNull()
-      .default(true),
+      .default("member"),
+
+    isActive: boolean("is_active").notNull().default(true),
 
     createdAt: timestamp("created_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
 
     updatedAt: timestamp("updated_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
   },
   table => ({
-    tenantUserUnique: uniqueIndex(
-      "tenant_users_tenant_user_uq",
-    ).on(
+    tenantUserUnique: uniqueIndex("tenant_users_tenant_user_uq").on(
       table.tenantId,
-      table.userId,
+      table.userId
     ),
 
-    tenantIdx: index(
-      "tenant_users_tenant_idx",
-    ).on(table.tenantId),
+    tenantIdx: index("tenant_users_tenant_idx").on(table.tenantId),
 
-    userIdx: index(
-      "tenant_users_user_idx",
-    ).on(table.userId),
-  }),
+    userIdx: index("tenant_users_user_idx").on(table.userId),
+  })
 );
 
 /* ============================================================================
@@ -195,9 +197,7 @@ export const branches = pgTable(
       .notNull()
       .default("active"),
 
-    isActive: boolean("is_active")
-      .notNull()
-      .default(true),
+    isActive: boolean("is_active").notNull().default(true),
 
     createdAt: timestamp("created_at", {
       withTimezone: true,
@@ -214,24 +214,18 @@ export const branches = pgTable(
       .defaultNow(),
   },
   table => ({
-    tenantCodeUnique: uniqueIndex(
-      "branches_tenant_code_uq",
-    ).on(
+    tenantCodeUnique: uniqueIndex("branches_tenant_code_uq").on(
       table.tenantId,
-      table.code,
+      table.code
     ),
 
-    tenantIdIdUnique: unique(
-      "branches_tenant_id_id_uq",
-    ).on(
+    tenantIdIdUnique: unique("branches_tenant_id_id_uq").on(
       table.tenantId,
-      table.id,
+      table.id
     ),
 
-    tenantIdx: index(
-      "branches_tenant_idx",
-    ).on(table.tenantId),
-  }),
+    tenantIdx: index("branches_tenant_idx").on(table.tenantId),
+  })
 );
 
 export const locations = pgTable(
@@ -282,66 +276,40 @@ export const locations = pgTable(
       .defaultNow(),
   },
   table => ({
-    branchCodeUnique: uniqueIndex(
-      "locations_branch_code_uq",
-    ).on(
+    branchCodeUnique: uniqueIndex("locations_branch_code_uq").on(
       table.branchId,
-      table.code,
+      table.code
     ),
 
-    tenantIdIdUnique: unique(
-      "locations_tenant_id_id_uq",
-    ).on(
+    tenantIdIdUnique: unique("locations_tenant_id_id_uq").on(
       table.tenantId,
-      table.id,
+      table.id
     ),
 
-    tenantBranchIdUnique: unique(
-      "locations_tenant_branch_id_uq",
-    ).on(
+    tenantBranchIdUnique: unique("locations_tenant_branch_id_uq").on(
       table.tenantId,
       table.branchId,
-      table.id,
+      table.id
     ),
 
-    tenantIdx: index(
-      "locations_tenant_idx",
-    ).on(table.tenantId),
+    tenantIdx: index("locations_tenant_idx").on(table.tenantId),
 
-    branchIdx: index(
-      "locations_branch_idx",
-    ).on(table.branchId),
+    branchIdx: index("locations_branch_idx").on(table.branchId),
 
-    parentIdx: index(
-      "locations_parent_idx",
-    ).on(table.parentLocationId),
+    parentIdx: index("locations_parent_idx").on(table.parentLocationId),
 
     branchTenantFk: foreignKey({
       name: "locations_tenant_branch_fk",
-      columns: [
-        table.tenantId,
-        table.branchId,
-      ],
-      foreignColumns: [
-        branches.tenantId,
-        branches.id,
-      ],
-    })
-      .onDelete("cascade"),
+      columns: [table.tenantId, table.branchId],
+      foreignColumns: [branches.tenantId, branches.id],
+    }).onDelete("cascade"),
 
     parentTenantFk: foreignKey({
       name: "locations_tenant_parent_fk",
-      columns: [
-        table.tenantId,
-        table.parentLocationId,
-      ],
-      foreignColumns: [
-        table.tenantId,
-        table.id,
-      ],
-    })
-      .onDelete("restrict"),
-  }),
+      columns: [table.tenantId, table.parentLocationId],
+      foreignColumns: [table.tenantId, table.id],
+    }).onDelete("restrict"),
+  })
 );
 
 export const telecomSpaces = pgTable(
@@ -392,68 +360,40 @@ export const telecomSpaces = pgTable(
       .defaultNow(),
   },
   table => ({
-    branchCodeUnique: uniqueIndex(
-      "telecom_spaces_branch_code_uq",
-    ).on(
+    branchCodeUnique: uniqueIndex("telecom_spaces_branch_code_uq").on(
       table.branchId,
-      table.code,
+      table.code
     ),
 
-    tenantIdIdUnique: unique(
-      "telecom_spaces_tenant_id_id_uq",
-    ).on(
+    tenantIdIdUnique: unique("telecom_spaces_tenant_id_id_uq").on(
       table.tenantId,
-      table.id,
+      table.id
     ),
 
-    tenantBranchIdUnique: unique(
-      "telecom_spaces_tenant_branch_id_uq",
-    ).on(
+    tenantBranchIdUnique: unique("telecom_spaces_tenant_branch_id_uq").on(
       table.tenantId,
       table.branchId,
-      table.id,
+      table.id
     ),
 
-    tenantIdx: index(
-      "telecom_spaces_tenant_idx",
-    ).on(table.tenantId),
+    tenantIdx: index("telecom_spaces_tenant_idx").on(table.tenantId),
 
-    branchIdx: index(
-      "telecom_spaces_branch_idx",
-    ).on(table.branchId),
+    branchIdx: index("telecom_spaces_branch_idx").on(table.branchId),
 
-    locationIdx: index(
-      "telecom_spaces_location_idx",
-    ).on(table.locationId),
+    locationIdx: index("telecom_spaces_location_idx").on(table.locationId),
 
     branchTenantFk: foreignKey({
       name: "telecom_spaces_tenant_branch_fk",
-      columns: [
-        table.tenantId,
-        table.branchId,
-      ],
-      foreignColumns: [
-        branches.tenantId,
-        branches.id,
-      ],
-    })
-      .onDelete("cascade"),
+      columns: [table.tenantId, table.branchId],
+      foreignColumns: [branches.tenantId, branches.id],
+    }).onDelete("cascade"),
 
     locationTenantFk: foreignKey({
       name: "telecom_spaces_tenant_location_fk",
-      columns: [
-        table.tenantId,
-        table.branchId,
-        table.locationId,
-      ],
-      foreignColumns: [
-        locations.tenantId,
-        locations.branchId,
-        locations.id,
-      ],
-    })
-      .onDelete("restrict"),
-  }),
+      columns: [table.tenantId, table.branchId, table.locationId],
+      foreignColumns: [locations.tenantId, locations.branchId, locations.id],
+    }).onDelete("restrict"),
+  })
 );
 
 export const racks = pgTable(
@@ -469,8 +409,7 @@ export const racks = pgTable(
 
     branchId: uuid("branch_id").notNull(),
 
-    telecomSpaceId: uuid("telecom_space_id")
-      .notNull(),
+    telecomSpaceId: uuid("telecom_space_id").notNull(),
 
     code: varchar("code", {
       length: 64,
@@ -511,55 +450,38 @@ export const racks = pgTable(
       .defaultNow(),
   },
   table => ({
-    telecomSpaceCodeUnique: uniqueIndex(
-      "racks_space_code_uq",
-    ).on(
+    telecomSpaceCodeUnique: uniqueIndex("racks_space_code_uq").on(
       table.telecomSpaceId,
-      table.code,
+      table.code
     ),
 
-    tenantIdIdUnique: unique(
-      "racks_tenant_id_id_uq",
-    ).on(
+    tenantIdIdUnique: unique("racks_tenant_id_id_uq").on(
       table.tenantId,
-      table.id,
+      table.id
     ),
 
-    tenantBranchIdUnique: unique(
-      "racks_tenant_branch_id_uq",
-    ).on(
+    tenantBranchIdUnique: unique("racks_tenant_branch_id_uq").on(
       table.tenantId,
       table.branchId,
-      table.id,
+      table.id
     ),
 
-    tenantIdx: index(
-      "racks_tenant_idx",
-    ).on(table.tenantId),
+    tenantIdx: index("racks_tenant_idx").on(table.tenantId),
 
-    branchIdx: index(
-      "racks_branch_idx",
-    ).on(table.branchId),
+    branchIdx: index("racks_branch_idx").on(table.branchId),
 
-    telecomSpaceIdx: index(
-      "racks_telecom_space_idx",
-    ).on(table.telecomSpaceId),
+    telecomSpaceIdx: index("racks_telecom_space_idx").on(table.telecomSpaceId),
 
     telecomSpaceTenantFk: foreignKey({
       name: "racks_tenant_space_fk",
-      columns: [
-        table.tenantId,
-        table.branchId,
-        table.telecomSpaceId,
-      ],
+      columns: [table.tenantId, table.branchId, table.telecomSpaceId],
       foreignColumns: [
         telecomSpaces.tenantId,
         telecomSpaces.branchId,
         telecomSpaces.id,
       ],
-    })
-      .onDelete("cascade"),
-  }),
+    }).onDelete("cascade"),
+  })
 );
 
 /* ============================================================================
@@ -588,9 +510,7 @@ export const systemsCatalog = pgTable(
       .notNull()
       .default("active"),
 
-    sortOrder: integer("sort_order")
-      .notNull()
-      .default(0),
+    sortOrder: integer("sort_order").notNull().default(0),
 
     createdAt: timestamp("created_at", {
       withTimezone: true,
@@ -607,10 +527,8 @@ export const systemsCatalog = pgTable(
       .defaultNow(),
   },
   table => ({
-    codeUnique: unique(
-      "systems_catalog_code_uq",
-    ).on(table.code),
-  }),
+    codeUnique: unique("systems_catalog_code_uq").on(table.code),
+  })
 );
 
 export const assetTypes = pgTable(
@@ -632,17 +550,9 @@ export const assetTypes = pgTable(
 
     description: text("description"),
 
-    isInfrastructure: boolean(
-      "is_infrastructure",
-    )
-      .notNull()
-      .default(false),
+    isInfrastructure: boolean("is_infrastructure").notNull().default(false),
 
-    isPhysical: boolean(
-      "is_physical",
-    )
-      .notNull()
-      .default(true),
+    isPhysical: boolean("is_physical").notNull().default(true),
 
     status: varchar("status", {
       length: 32,
@@ -665,18 +575,14 @@ export const assetTypes = pgTable(
       .defaultNow(),
   },
   table => ({
-    codeUnique: unique(
-      "asset_types_code_uq",
-    ).on(table.code),
+    codeUnique: unique("asset_types_code_uq").on(table.code),
 
-    categoryIdx: index(
-      "asset_types_category_idx",
-    ).on(table.category),
+    categoryIdx: index("asset_types_category_idx").on(table.category),
 
-    infrastructureIdx: index(
-      "asset_types_infrastructure_idx",
-    ).on(table.isInfrastructure),
-  }),
+    infrastructureIdx: index("asset_types_infrastructure_idx").on(
+      table.isInfrastructure
+    ),
+  })
 );
 
 /* ============================================================================
@@ -699,14 +605,9 @@ export const subscriptionPlans = pgTable(
 
     description: text("description"),
 
-    includedSystemCount: integer(
-      "included_system_count",
-    ).notNull(),
+    includedSystemCount: integer("included_system_count").notNull(),
 
-    billingPeriod: varchar(
-      "billing_period",
-      { length: 32 },
-    )
+    billingPeriod: varchar("billing_period", { length: 32 })
       .notNull()
       .default("monthly"),
 
@@ -719,18 +620,20 @@ export const subscriptionPlans = pgTable(
     createdAt: timestamp("created_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
 
     updatedAt: timestamp("updated_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
   },
   table => ({
-    codeUnique: unique(
-      "subscription_plans_code_uq",
-    ).on(table.code),
-  }),
+    codeUnique: unique("subscription_plans_code_uq").on(table.code),
+  })
 );
 
 export const subscriptions = pgTable(
@@ -767,21 +670,15 @@ export const subscriptions = pgTable(
       mode: "date",
     }).notNull(),
 
-    currentPeriodStart: timestamp(
-      "current_period_start",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    currentPeriodStart: timestamp("current_period_start", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    currentPeriodEnd: timestamp(
-      "current_period_end",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    currentPeriodEnd: timestamp("current_period_end", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
     trialEndsAt: timestamp("trial_ends_at", {
       withTimezone: true,
@@ -796,29 +693,27 @@ export const subscriptions = pgTable(
     createdAt: timestamp("created_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
 
     updatedAt: timestamp("updated_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
   },
   table => ({
-    tenantIdIdUnique: unique(
-      "subscriptions_tenant_id_id_uq",
-    ).on(
+    tenantIdIdUnique: unique("subscriptions_tenant_id_id_uq").on(
       table.tenantId,
-      table.id,
+      table.id
     ),
 
-    tenantIdx: index(
-      "subscriptions_tenant_idx",
-    ).on(table.tenantId),
+    tenantIdx: index("subscriptions_tenant_idx").on(table.tenantId),
 
-    planIdx: index(
-      "subscriptions_plan_idx",
-    ).on(table.planId),
-  }),
+    planIdx: index("subscriptions_plan_idx").on(table.planId),
+  })
 );
 
 export const tenantSystemEntitlements = pgTable(
@@ -832,9 +727,7 @@ export const tenantSystemEntitlements = pgTable(
         onDelete: "cascade",
       }),
 
-    subscriptionId: uuid(
-      "subscription_id",
-    ).notNull(),
+    subscriptionId: uuid("subscription_id").notNull(),
 
     systemId: uuid("system_id")
       .notNull()
@@ -851,7 +744,9 @@ export const tenantSystemEntitlements = pgTable(
     enabledAt: timestamp("enabled_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
 
     disabledAt: timestamp("disabled_at", {
       withTimezone: true,
@@ -861,43 +756,36 @@ export const tenantSystemEntitlements = pgTable(
     createdAt: timestamp("created_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
 
     updatedAt: timestamp("updated_at", {
       withTimezone: true,
       mode: "date",
-    }).notNull().defaultNow(),
+    })
+      .notNull()
+      .defaultNow(),
   },
   table => ({
     tenantSubscriptionSystemUnique: unique(
-      "tenant_system_entitlements_tenant_subscription_system_uq",
-    ).on(
-      table.tenantId,
-      table.subscriptionId,
-      table.systemId,
+      "tenant_system_entitlements_tenant_subscription_system_uq"
+    ).on(table.tenantId, table.subscriptionId, table.systemId),
+
+    tenantIdx: index("tenant_system_entitlements_tenant_idx").on(
+      table.tenantId
     ),
 
-    tenantIdx: index(
-      "tenant_system_entitlements_tenant_idx",
-    ).on(table.tenantId),
-
-    systemIdx: index(
-      "tenant_system_entitlements_system_idx",
-    ).on(table.systemId),
+    systemIdx: index("tenant_system_entitlements_system_idx").on(
+      table.systemId
+    ),
 
     subscriptionTenantFk: foreignKey({
       name: "tenant_system_entitlements_subscription_tenant_fk",
-      columns: [
-        table.tenantId,
-        table.subscriptionId,
-      ],
-      foreignColumns: [
-        subscriptions.tenantId,
-        subscriptions.id,
-      ],
-    })
-      .onDelete("cascade"),
-  }),
+      columns: [table.tenantId, table.subscriptionId],
+      foreignColumns: [subscriptions.tenantId, subscriptions.id],
+    }).onDelete("cascade"),
+  })
 );
 
 /* ============================================================================
@@ -905,13 +793,10 @@ export const tenantSystemEntitlements = pgTable(
  * Operational system activation per branch
  * ========================================================================== */
 
-
 export const departments = pgTable(
   "departments",
   {
-    id: uuid("id")
-      .defaultRandom()
-      .primaryKey(),
+    id: uuid("id").defaultRandom().primaryKey(),
 
     tenantId: uuid("tenant_id")
       .notNull()
@@ -950,24 +835,18 @@ export const departments = pgTable(
       .defaultNow(),
   },
   table => ({
-    tenantCodeUnique: unique(
-      "departments_tenant_code_uq",
-    ).on(
+    tenantCodeUnique: unique("departments_tenant_code_uq").on(
       table.tenantId,
-      table.code,
+      table.code
     ),
 
-    tenantIdIdUnique: unique(
-      "departments_tenant_id_id_uq",
-    ).on(
+    tenantIdIdUnique: unique("departments_tenant_id_id_uq").on(
       table.tenantId,
-      table.id,
+      table.id
     ),
 
-    tenantIdx: index(
-      "departments_tenant_idx",
-    ).on(table.tenantId),
-  }),
+    tenantIdx: index("departments_tenant_idx").on(table.tenantId),
+  })
 );
 
 export const branchSystems = pgTable(
@@ -981,8 +860,7 @@ export const branchSystems = pgTable(
         onDelete: "cascade",
       }),
 
-    branchId: uuid("branch_id")
-      .notNull(),
+    branchId: uuid("branch_id").notNull(),
 
     systemId: uuid("system_id")
       .notNull()
@@ -990,38 +868,21 @@ export const branchSystems = pgTable(
         onDelete: "restrict",
       }),
 
-    departmentId: uuid(
-      "department_id",
-    ),
+    departmentId: uuid("department_id"),
 
-    departmentCode: varchar(
-      "department_code",
-      { length: 128 },
-    ),
+    departmentCode: varchar("department_code", { length: 128 }),
 
-    displayName: varchar(
-      "display_name",
-      { length: 255 },
-    ),
+    displayName: varchar("display_name", { length: 255 }),
 
-    functionalStatus: varchar(
-      "functional_status",
-      { length: 32 },
-    )
+    functionalStatus: varchar("functional_status", { length: 32 })
       .notNull()
       .default("unknown"),
 
-    normativeStatus: varchar(
-      "normative_status",
-      { length: 32 },
-    )
+    normativeStatus: varchar("normative_status", { length: 32 })
       .notNull()
       .default("pending_assessment"),
 
-    documentationLevel: varchar(
-      "documentation_level",
-      { length: 32 },
-    )
+    documentationLevel: varchar("documentation_level", { length: 32 })
       .notNull()
       .default("basic"),
 
@@ -1031,13 +892,10 @@ export const branchSystems = pgTable(
       .notNull()
       .default("not_started"),
 
-    onboardingStartedAt: timestamp(
-      "onboarding_started_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    onboardingStartedAt: timestamp("onboarding_started_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
     activatedAt: timestamp("activated_at", {
       withTimezone: true,
@@ -1062,70 +920,47 @@ export const branchSystems = pgTable(
   },
   table => ({
     tenantBranchSystemUnique: unique(
-      "branch_systems_tenant_branch_system_uq",
-    ).on(
+      "branch_systems_tenant_branch_system_uq"
+    ).on(table.tenantId, table.branchId, table.systemId),
+
+    tenantIdIdUnique: unique("branch_systems_tenant_id_id_uq").on(
+      table.tenantId,
+      table.id
+    ),
+
+    tenantBranchIdUnique: unique("branch_systems_tenant_branch_id_uq").on(
       table.tenantId,
       table.branchId,
-      table.systemId,
+      table.id
     ),
 
-    tenantIdIdUnique: unique(
-      "branch_systems_tenant_id_id_uq",
-    ).on(
-      table.tenantId,
-      table.id,
-    ),
+    tenantIdx: index("branch_systems_tenant_idx").on(table.tenantId),
 
-    tenantBranchIdUnique: unique(
-      "branch_systems_tenant_branch_id_uq",
-    ).on(table.tenantId, table.branchId, table.id),
+    branchIdx: index("branch_systems_branch_idx").on(table.branchId),
 
-    tenantIdx: index(
-      "branch_systems_tenant_idx",
-    ).on(table.tenantId),
-
-    branchIdx: index(
-      "branch_systems_branch_idx",
-    ).on(table.branchId),
-
-    systemIdx: index(
-      "branch_systems_system_idx",
-    ).on(table.systemId),
+    systemIdx: index("branch_systems_system_idx").on(table.systemId),
 
     departmentTenantFk: foreignKey({
-      name:
-        "branch_systems_tenant_department_fk",
-      columns: [
-        table.tenantId,
-        table.departmentId,
-      ],
-      foreignColumns: [
-        departments.tenantId,
-        departments.id,
-      ],
-    })
-      .onDelete("restrict"),
+      name: "branch_systems_tenant_department_fk",
+      columns: [table.tenantId, table.departmentId],
+      foreignColumns: [departments.tenantId, departments.id],
+    }).onDelete("restrict"),
 
     branchTenantFk: foreignKey({
       name: "branch_systems_tenant_branch_fk",
-      columns: [
-        table.tenantId,
-        table.branchId,
-      ],
-      foreignColumns: [
-        branches.tenantId,
-        branches.id,
-      ],
-    })
-      .onDelete("cascade"),
-  }),
+      columns: [table.tenantId, table.branchId],
+      foreignColumns: [branches.tenantId, branches.id],
+    }).onDelete("cascade"),
+  })
 );
 
 export const systemSolutions = pgTable(
   "system_solutions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
     branchId: uuid("branch_id").notNull(),
     branchSystemId: uuid("branch_system_id").notNull(),
     code: varchar("code", { length: 64 }).notNull(),
@@ -1136,14 +971,34 @@ export const systemSolutions = pgTable(
     decommissionedAt: date("decommissioned_at", { mode: "date" }),
     createdBy: varchar("created_by", { length: 255 }),
     updatedBy: varchar("updated_by", { length: 255 }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
   },
   table => ({
-    tenantBranchCodeUnique: unique("system_solutions_tenant_branch_code_uq").on(table.tenantId, table.branchId, table.code),
-    tenantIdIdUnique: unique("system_solutions_tenant_id_id_uq").on(table.tenantId, table.id),
-    tenantBranchIdUnique: unique("system_solutions_tenant_branch_id_uq").on(table.tenantId, table.branchId, table.id),
-    branchSystemIdx: index("system_solutions_branch_system_idx").on(table.tenantId, table.branchId, table.branchSystemId, table.status),
+    tenantBranchCodeUnique: unique("system_solutions_tenant_branch_code_uq").on(
+      table.tenantId,
+      table.branchId,
+      table.code
+    ),
+    tenantIdIdUnique: unique("system_solutions_tenant_id_id_uq").on(
+      table.tenantId,
+      table.id
+    ),
+    tenantBranchIdUnique: unique("system_solutions_tenant_branch_id_uq").on(
+      table.tenantId,
+      table.branchId,
+      table.id
+    ),
+    branchSystemIdx: index("system_solutions_branch_system_idx").on(
+      table.tenantId,
+      table.branchId,
+      table.branchSystemId,
+      table.status
+    ),
     branchTenantFk: foreignKey({
       name: "system_solutions_tenant_branch_fk",
       columns: [table.tenantId, table.branchId],
@@ -1152,9 +1007,13 @@ export const systemSolutions = pgTable(
     branchSystemTenantFk: foreignKey({
       name: "system_solutions_tenant_branch_system_fk",
       columns: [table.tenantId, table.branchId, table.branchSystemId],
-      foreignColumns: [branchSystems.tenantId, branchSystems.branchId, branchSystems.id],
+      foreignColumns: [
+        branchSystems.tenantId,
+        branchSystems.branchId,
+        branchSystems.id,
+      ],
     }).onDelete("restrict"),
-  }),
+  })
 );
 
 /* ============================================================================
@@ -1173,8 +1032,7 @@ export const assets = pgTable(
         onDelete: "cascade",
       }),
 
-    branchId: uuid("branch_id")
-      .notNull(),
+    branchId: uuid("branch_id").notNull(),
 
     assetTypeId: uuid("asset_type_id")
       .notNull()
@@ -1214,24 +1072,15 @@ export const assets = pgTable(
       length: 255,
     }),
 
-    lifecycleStatus: varchar(
-      "lifecycle_status",
-      { length: 32 },
-    )
+    lifecycleStatus: varchar("lifecycle_status", { length: 32 })
       .notNull()
       .default("active"),
 
-    operationalStatus: varchar(
-      "operational_status",
-      { length: 32 },
-    )
+    operationalStatus: varchar("operational_status", { length: 32 })
       .notNull()
       .default("unknown"),
 
-    normativeStatus: varchar(
-      "normative_status",
-      { length: 32 },
-    )
+    normativeStatus: varchar("normative_status", { length: 32 })
       .notNull()
       .default("pending_assessment"),
 
@@ -1258,120 +1107,172 @@ export const assets = pgTable(
       .defaultNow(),
   },
   table => ({
-    tenantAssetCodeUnique: unique(
-      "assets_tenant_asset_code_uq",
-    ).on(
+    tenantAssetCodeUnique: unique("assets_tenant_asset_code_uq").on(
       table.tenantId,
-      table.assetCode,
+      table.assetCode
     ),
 
-    tenantIdIdUnique: unique(
-      "assets_tenant_id_id_uq",
-    ).on(
+    tenantIdIdUnique: unique("assets_tenant_id_id_uq").on(
       table.tenantId,
-      table.id,
+      table.id
     ),
 
-    rfidUnique: unique(
-      "assets_rfid_epc_uq",
-    ).on(
-      table.rfidEpc,
-    ),
+    rfidUnique: unique("assets_rfid_epc_uq").on(table.rfidEpc),
 
-    tenantAssetTagUnique: unique(
-      "assets_tenant_asset_tag_uq",
-    ).on(
+    tenantAssetTagUnique: unique("assets_tenant_asset_tag_uq").on(
       table.tenantId,
-      table.assetTag,
+      table.assetTag
     ),
 
-    tenantIdx: index(
-      "assets_tenant_idx",
-    ).on(table.tenantId),
+    tenantIdx: index("assets_tenant_idx").on(table.tenantId),
 
-    branchIdx: index(
-      "assets_branch_idx",
-    ).on(table.branchId),
+    branchIdx: index("assets_branch_idx").on(table.branchId),
 
-    assetTypeIdx: index(
-      "assets_asset_type_idx",
-    ).on(table.assetTypeId),
+    assetTypeIdx: index("assets_asset_type_idx").on(table.assetTypeId),
 
-    serialIdx: index(
-      "assets_serial_number_idx",
-    ).on(table.serialNumber),
+    serialIdx: index("assets_serial_number_idx").on(table.serialNumber),
 
     systemSolutionIdx: index("assets_system_solution_idx").on(
       table.tenantId,
       table.branchId,
-      table.systemSolutionId,
+      table.systemSolutionId
     ),
 
     systemSolutionTenantFk: foreignKey({
       name: "assets_tenant_branch_solution_fk",
       columns: [table.tenantId, table.branchId, table.systemSolutionId],
-      foreignColumns: [systemSolutions.tenantId, systemSolutions.branchId, systemSolutions.id],
+      foreignColumns: [
+        systemSolutions.tenantId,
+        systemSolutions.branchId,
+        systemSolutions.id,
+      ],
     }).onDelete("restrict"),
 
     branchTenantFk: foreignKey({
       name: "assets_tenant_branch_fk",
-      columns: [
-        table.tenantId,
-        table.branchId,
-      ],
-      foreignColumns: [
-        branches.tenantId,
-        branches.id,
-      ],
-    })
-      .onDelete("cascade"),
+      columns: [table.tenantId, table.branchId],
+      foreignColumns: [branches.tenantId, branches.id],
+    }).onDelete("cascade"),
 
     locationTenantFk: foreignKey({
       name: "assets_tenant_location_fk",
-      columns: [
-        table.tenantId,
-        table.branchId,
-        table.locationId,
-      ],
-      foreignColumns: [
-        locations.tenantId,
-        locations.branchId,
-        locations.id,
-      ],
-    })
-      .onDelete("restrict"),
+      columns: [table.tenantId, table.branchId, table.locationId],
+      foreignColumns: [locations.tenantId, locations.branchId, locations.id],
+    }).onDelete("restrict"),
 
     telecomSpaceTenantFk: foreignKey({
       name: "assets_tenant_telecom_space_fk",
-      columns: [
-        table.tenantId,
-        table.branchId,
-        table.telecomSpaceId,
-      ],
+      columns: [table.tenantId, table.branchId, table.telecomSpaceId],
       foreignColumns: [
         telecomSpaces.tenantId,
         telecomSpaces.branchId,
         telecomSpaces.id,
       ],
-    })
-      .onDelete("restrict"),
+    }).onDelete("restrict"),
 
     rackTenantFk: foreignKey({
       name: "assets_tenant_rack_fk",
-      columns: [
-        table.tenantId,
-        table.branchId,
-        table.rackId,
-      ],
-      foreignColumns: [
-        racks.tenantId,
-        racks.branchId,
-        racks.id,
-      ],
-    })
-      .onDelete("restrict"),
-  }),
+      columns: [table.tenantId, table.branchId, table.rackId],
+      foreignColumns: [racks.tenantId, racks.branchId, racks.id],
+    }).onDelete("restrict"),
+  })
 );
+
+export const systemSolutionAliases = pgTable(
+  "system_solution_aliases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    systemSolutionId: uuid("system_solution_id").notNull(),
+    aliasType: varchar("alias_type", { length: 32 }).notNull(),
+    aliasValue: varchar("alias_value", { length: 255 }).notNull(),
+    normalizedValue: varchar("normalized_value", { length: 255 }).notNull(),
+    source: varchar("source", { length: 128 }).notNull(),
+    active: boolean("active").notNull().default(true),
+    validFrom: timestamp("valid_from", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    validUntil: timestamp("valid_until", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdBy: varchar("created_by", { length: 255 }),
+    updatedBy: varchar("updated_by", { length: 255 }),
+  },
+  table => ({
+    entityIdx: index("system_solution_aliases_entity_idx").on(
+      table.tenantId,
+      table.branchId,
+      table.systemSolutionId,
+      table.active
+    ),
+    entityFk: foreignKey({
+      name: "system_solution_aliases_entity_fk",
+      columns: [table.tenantId, table.branchId, table.systemSolutionId],
+      foreignColumns: [
+        systemSolutions.tenantId,
+        systemSolutions.branchId,
+        systemSolutions.id,
+      ],
+    }).onDelete("restrict"),
+  })
+);
+
+export const assetAliases = pgTable(
+  "asset_aliases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    assetId: uuid("asset_id").notNull(),
+    aliasType: varchar("alias_type", { length: 32 }).notNull(),
+    aliasValue: varchar("alias_value", { length: 255 }).notNull(),
+    normalizedValue: varchar("normalized_value", { length: 255 }).notNull(),
+    source: varchar("source", { length: 128 }).notNull(),
+    active: boolean("active").notNull().default(true),
+    validFrom: timestamp("valid_from", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    validUntil: timestamp("valid_until", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdBy: varchar("created_by", { length: 255 }),
+    updatedBy: varchar("updated_by", { length: 255 }),
+  },
+  table => ({
+    entityIdx: index("asset_aliases_entity_idx").on(
+      table.tenantId,
+      table.branchId,
+      table.assetId,
+      table.active
+    ),
+    entityFk: foreignKey({
+      name: "asset_aliases_entity_fk",
+      columns: [table.tenantId, table.branchId, table.assetId],
+      foreignColumns: [assets.tenantId, assets.branchId, assets.id],
+    }).onDelete("restrict"),
+  })
+);
+
+export const assetAliasEvents = pgTable("asset_alias_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  assetAliasId: uuid("asset_alias_id").notNull(),
+  eventType: varchar("event_type", { length: 32 }).notNull(),
+  actorExternalSubject: varchar("actor_external_subject", { length: 255 }),
+  details: jsonb("details").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 export const systemSolutionEvents = pgTable(
   "system_solution_events",
@@ -1382,18 +1283,23 @@ export const systemSolutionEvents = pgTable(
     eventType: varchar("event_type", { length: 32 }).notNull(),
     actorExternalSubject: varchar("actor_external_subject", { length: 255 }),
     details: jsonb("details").notNull().default({}),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
   },
   table => ({
-    solutionIdx: index("system_solution_events_solution_idx").on(table.tenantId, table.systemSolutionId, table.createdAt),
+    solutionIdx: index("system_solution_events_solution_idx").on(
+      table.tenantId,
+      table.systemSolutionId,
+      table.createdAt
+    ),
     solutionTenantFk: foreignKey({
       name: "system_solution_events_tenant_solution_fk",
       columns: [table.tenantId, table.systemSolutionId],
       foreignColumns: [systemSolutions.tenantId, systemSolutions.id],
     }).onDelete("restrict"),
-  }),
+  })
 );
-
 
 export const assetSystemMemberships = pgTable(
   "asset_system_memberships",
@@ -1406,12 +1312,9 @@ export const assetSystemMemberships = pgTable(
         onDelete: "cascade",
       }),
 
-    assetId: uuid("asset_id")
-      .notNull(),
+    assetId: uuid("asset_id").notNull(),
 
-    branchSystemId: uuid(
-      "branch_system_id",
-    ).notNull(),
+    branchSystemId: uuid("branch_system_id").notNull(),
 
     role: varchar("role", {
       length: 64,
@@ -1419,9 +1322,7 @@ export const assetSystemMemberships = pgTable(
       .notNull()
       .default("member"),
 
-    isPrimary: boolean("is_primary")
-      .notNull()
-      .default(false),
+    isPrimary: boolean("is_primary").notNull().default(false),
 
     createdAt: timestamp("created_at", {
       withTimezone: true,
@@ -1432,51 +1333,29 @@ export const assetSystemMemberships = pgTable(
   },
   table => ({
     tenantAssetSystemUnique: unique(
-      "asset_system_memberships_tenant_asset_system_uq",
-    ).on(
-      table.tenantId,
-      table.assetId,
-      table.branchSystemId,
+      "asset_system_memberships_tenant_asset_system_uq"
+    ).on(table.tenantId, table.assetId, table.branchSystemId),
+
+    tenantIdx: index("asset_system_memberships_tenant_idx").on(table.tenantId),
+
+    assetIdx: index("asset_system_memberships_asset_idx").on(table.assetId),
+
+    branchSystemIdx: index("asset_system_memberships_branch_system_idx").on(
+      table.branchSystemId
     ),
-
-    tenantIdx: index(
-      "asset_system_memberships_tenant_idx",
-    ).on(table.tenantId),
-
-    assetIdx: index(
-      "asset_system_memberships_asset_idx",
-    ).on(table.assetId),
-
-    branchSystemIdx: index(
-      "asset_system_memberships_branch_system_idx",
-    ).on(table.branchSystemId),
 
     assetTenantFk: foreignKey({
       name: "asset_system_memberships_tenant_asset_fk",
-      columns: [
-        table.tenantId,
-        table.assetId,
-      ],
-      foreignColumns: [
-        assets.tenantId,
-        assets.id,
-      ],
-    })
-      .onDelete("cascade"),
+      columns: [table.tenantId, table.assetId],
+      foreignColumns: [assets.tenantId, assets.id],
+    }).onDelete("cascade"),
 
     branchSystemTenantFk: foreignKey({
       name: "asset_system_memberships_tenant_branch_system_fk",
-      columns: [
-        table.tenantId,
-        table.branchSystemId,
-      ],
-      foreignColumns: [
-        branchSystems.tenantId,
-        branchSystems.id,
-      ],
-    })
-      .onDelete("cascade"),
-  }),
+      columns: [table.tenantId, table.branchSystemId],
+      foreignColumns: [branchSystems.tenantId, branchSystems.id],
+    }).onDelete("cascade"),
+  })
 );
 
 /* ============================================================================
@@ -1484,148 +1363,86 @@ export const assetSystemMemberships = pgTable(
  * Shared staging layer for Wizard / Excel / PDF onboarding
  * ========================================================================== */
 
+export const systemInfrastructureDependencies = pgTable(
+  "system_infrastructure_dependencies",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
 
-export const systemInfrastructureDependencies =
-  pgTable(
-    "system_infrastructure_dependencies",
-    {
-      id: uuid("id")
-        .defaultRandom()
-        .primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, {
+        onDelete: "cascade",
+      }),
 
-      tenantId: uuid("tenant_id")
-        .notNull()
-        .references(() => tenants.id, {
-          onDelete: "cascade",
-        }),
+    branchSystemId: uuid("branch_system_id").notNull(),
 
-      branchSystemId: uuid(
-        "branch_system_id",
-      ).notNull(),
+    locationId: uuid("location_id"),
 
-      locationId: uuid("location_id"),
+    telecomSpaceId: uuid("telecom_space_id"),
 
-      telecomSpaceId: uuid(
-        "telecom_space_id",
-      ),
+    rackId: uuid("rack_id"),
 
-      rackId: uuid("rack_id"),
+    assetId: uuid("asset_id"),
 
-      assetId: uuid("asset_id"),
+    dependencyRole: varchar("dependency_role", { length: 64 })
+      .notNull()
+      .default("supporting"),
 
-      dependencyRole: varchar(
-        "dependency_role",
-        { length: 64 },
-      )
-        .notNull()
-        .default("supporting"),
+    isCritical: boolean("is_critical").notNull().default(false),
 
-      isCritical: boolean(
-        "is_critical",
-      )
-        .notNull()
-        .default(false),
+    notes: text("notes"),
 
-      notes: text("notes"),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantIdIdUnique: unique(
+      "system_infrastructure_dependencies_tenant_id_id_uq"
+    ).on(table.tenantId, table.id),
 
-      createdAt: timestamp(
-        "created_at",
-        {
-          withTimezone: true,
-          mode: "date",
-        },
-      )
-        .notNull()
-        .defaultNow(),
-    },
-    table => ({
-      tenantIdIdUnique: unique(
-        "system_infrastructure_dependencies_tenant_id_id_uq",
-      ).on(
-        table.tenantId,
-        table.id,
-      ),
+    tenantIdx: index("system_infrastructure_dependencies_tenant_idx").on(
+      table.tenantId
+    ),
 
-      tenantIdx: index(
-        "system_infrastructure_dependencies_tenant_idx",
-      ).on(table.tenantId),
+    branchSystemIdx: index(
+      "system_infrastructure_dependencies_branch_system_idx"
+    ).on(table.branchSystemId),
 
-      branchSystemIdx: index(
-        "system_infrastructure_dependencies_branch_system_idx",
-      ).on(table.branchSystemId),
+    branchSystemTenantFk: foreignKey({
+      name: "system_infrastructure_dependencies_tenant_system_fk",
+      columns: [table.tenantId, table.branchSystemId],
+      foreignColumns: [branchSystems.tenantId, branchSystems.id],
+    }).onDelete("cascade"),
 
-      branchSystemTenantFk: foreignKey({
-        name:
-          "system_infrastructure_dependencies_tenant_system_fk",
-        columns: [
-          table.tenantId,
-          table.branchSystemId,
-        ],
-        foreignColumns: [
-          branchSystems.tenantId,
-          branchSystems.id,
-        ],
-      })
-        .onDelete("cascade"),
+    locationTenantFk: foreignKey({
+      name: "system_infrastructure_dependencies_tenant_location_fk",
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [locations.tenantId, locations.id],
+    }).onDelete("restrict"),
 
-      locationTenantFk: foreignKey({
-        name:
-          "system_infrastructure_dependencies_tenant_location_fk",
-        columns: [
-          table.tenantId,
-          table.locationId,
-        ],
-        foreignColumns: [
-          locations.tenantId,
-          locations.id,
-        ],
-      })
-        .onDelete("restrict"),
+    telecomSpaceTenantFk: foreignKey({
+      name: "system_infrastructure_dependencies_tenant_space_fk",
+      columns: [table.tenantId, table.telecomSpaceId],
+      foreignColumns: [telecomSpaces.tenantId, telecomSpaces.id],
+    }).onDelete("restrict"),
 
-      telecomSpaceTenantFk: foreignKey({
-        name:
-          "system_infrastructure_dependencies_tenant_space_fk",
-        columns: [
-          table.tenantId,
-          table.telecomSpaceId,
-        ],
-        foreignColumns: [
-          telecomSpaces.tenantId,
-          telecomSpaces.id,
-        ],
-      })
-        .onDelete("restrict"),
+    rackTenantFk: foreignKey({
+      name: "system_infrastructure_dependencies_tenant_rack_fk",
+      columns: [table.tenantId, table.rackId],
+      foreignColumns: [racks.tenantId, racks.id],
+    }).onDelete("restrict"),
 
-      rackTenantFk: foreignKey({
-        name:
-          "system_infrastructure_dependencies_tenant_rack_fk",
-        columns: [
-          table.tenantId,
-          table.rackId,
-        ],
-        foreignColumns: [
-          racks.tenantId,
-          racks.id,
-        ],
-      })
-        .onDelete("restrict"),
-
-      assetTenantFk: foreignKey({
-        name:
-          "system_infrastructure_dependencies_tenant_asset_fk",
-        columns: [
-          table.tenantId,
-          table.assetId,
-        ],
-        foreignColumns: [
-          assets.tenantId,
-          assets.id,
-        ],
-      })
-        .onDelete("restrict"),
-    }),
-  );
-
+    assetTenantFk: foreignKey({
+      name: "system_infrastructure_dependencies_tenant_asset_fk",
+      columns: [table.tenantId, table.assetId],
+      foreignColumns: [assets.tenantId, assets.id],
+    }).onDelete("restrict"),
+  })
+);
 
 export const onboardingSessions = pgTable(
   "onboarding_sessions",
@@ -1650,87 +1467,52 @@ export const onboardingSessions = pgTable(
       .notNull()
       .default("draft"),
 
-    originalFilename: varchar(
-      "original_filename",
-      { length: 512 },
-    ),
+    originalFilename: varchar("original_filename", { length: 512 }),
 
-    contentType: varchar(
-      "content_type",
-      { length: 128 },
-    ),
+    contentType: varchar("content_type", { length: 128 }),
 
-    sourceChecksum: varchar(
-      "source_checksum",
-      { length: 128 },
-    ),
+    sourceChecksum: varchar("source_checksum", { length: 128 }),
 
-    totalItems: integer("total_items")
-      .notNull()
-      .default(0),
+    totalItems: integer("total_items").notNull().default(0),
 
-    validItems: integer("valid_items")
-      .notNull()
-      .default(0),
+    validItems: integer("valid_items").notNull().default(0),
 
-    warningItems: integer("warning_items")
-      .notNull()
-      .default(0),
+    warningItems: integer("warning_items").notNull().default(0),
 
-    errorItems: integer("error_items")
-      .notNull()
-      .default(0),
+    errorItems: integer("error_items").notNull().default(0),
 
-    createdByUserId: uuid(
-      "created_by_user_id",
-    ),
+    createdByUserId: uuid("created_by_user_id"),
 
-    committedByUserId: uuid(
-      "committed_by_user_id",
-    ),
+    committedByUserId: uuid("committed_by_user_id"),
 
     startedAt: timestamp("started_at", {
       withTimezone: true,
       mode: "date",
     }),
 
-    validatedAt: timestamp(
-      "validated_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    validatedAt: timestamp("validated_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    committedAt: timestamp(
-      "committed_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    committedAt: timestamp("committed_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
     failedAt: timestamp("failed_at", {
       withTimezone: true,
       mode: "date",
     }),
 
-    cancelledAt: timestamp(
-      "cancelled_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    cancelledAt: timestamp("cancelled_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    failureCode: varchar(
-      "failure_code",
-      { length: 64 },
-    ),
+    failureCode: varchar("failure_code", { length: 64 }),
 
-    failureMessage: text(
-      "failure_message",
-    ),
+    failureMessage: text("failure_message"),
 
     metadata: jsonb("metadata")
       .$type<Record<string, unknown>>()
@@ -1752,43 +1534,29 @@ export const onboardingSessions = pgTable(
       .defaultNow(),
   },
   table => ({
-    tenantIdIdUnique: unique(
-      "onboarding_sessions_tenant_id_id_uq",
-    ).on(
+    tenantIdIdUnique: unique("onboarding_sessions_tenant_id_id_uq").on(
       table.tenantId,
-      table.id,
+      table.id
     ),
 
-    tenantIdx: index(
-      "onboarding_sessions_tenant_idx",
-    ).on(table.tenantId),
+    tenantIdx: index("onboarding_sessions_tenant_idx").on(table.tenantId),
 
-    tenantStatusIdx: index(
-      "onboarding_sessions_tenant_status_idx",
-    ).on(
+    tenantStatusIdx: index("onboarding_sessions_tenant_status_idx").on(
       table.tenantId,
-      table.status,
+      table.status
     ),
 
-    sourceChecksumIdx: index(
-      "onboarding_sessions_source_checksum_idx",
-    ).on(table.sourceChecksum),
+    sourceChecksumIdx: index("onboarding_sessions_source_checksum_idx").on(
+      table.sourceChecksum
+    ),
 
     branchTenantFk: foreignKey({
       name: "onboarding_sessions_tenant_branch_fk",
-      columns: [
-        table.tenantId,
-        table.branchId,
-      ],
-      foreignColumns: [
-        branches.tenantId,
-        branches.id,
-      ],
-    })
-      .onDelete("restrict"),
-  }),
+      columns: [table.tenantId, table.branchId],
+      foreignColumns: [branches.tenantId, branches.id],
+    }).onDelete("restrict"),
+  })
 );
-
 
 export const onboardingItems = pgTable(
   "onboarding_items",
@@ -1801,11 +1569,9 @@ export const onboardingItems = pgTable(
         onDelete: "cascade",
       }),
 
-    sessionId: uuid("session_id")
-      .notNull(),
+    sessionId: uuid("session_id").notNull(),
 
-    sequence: integer("sequence")
-      .notNull(),
+    sequence: integer("sequence").notNull(),
 
     entityType: varchar("entity_type", {
       length: 64,
@@ -1823,10 +1589,7 @@ export const onboardingItems = pgTable(
       .notNull()
       .default("pending"),
 
-    sourceSheet: varchar(
-      "source_sheet",
-      { length: 255 },
-    ),
+    sourceSheet: varchar("source_sheet", { length: 255 }),
 
     sourcePage: integer("source_page"),
 
@@ -1837,27 +1600,17 @@ export const onboardingItems = pgTable(
       .notNull()
       .default({}),
 
-    normalizedPayload: jsonb(
-      "normalized_payload",
-    )
-      .$type<Record<string, unknown>>(),
+    normalizedPayload:
+      jsonb("normalized_payload").$type<Record<string, unknown>>(),
 
-    fingerprint: varchar(
-      "fingerprint",
-      { length: 128 },
-    ),
+    fingerprint: varchar("fingerprint", { length: 128 }),
 
-    targetEntityId: uuid(
-      "target_entity_id",
-    ),
+    targetEntityId: uuid("target_entity_id"),
 
-    committedAt: timestamp(
-      "committed_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    committedAt: timestamp("committed_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
     createdAt: timestamp("created_at", {
       withTimezone: true,
@@ -1875,46 +1628,30 @@ export const onboardingItems = pgTable(
   },
   table => ({
     tenantSessionSequenceUnique: unique(
-      "onboarding_items_tenant_session_sequence_uq",
-    ).on(
+      "onboarding_items_tenant_session_sequence_uq"
+    ).on(table.tenantId, table.sessionId, table.sequence),
+
+    tenantIdIdUnique: unique("onboarding_items_tenant_id_id_uq").on(
       table.tenantId,
-      table.sessionId,
-      table.sequence,
+      table.id
     ),
 
-    tenantIdIdUnique: unique(
-      "onboarding_items_tenant_id_id_uq",
-    ).on(
+    tenantSessionIdx: index("onboarding_items_tenant_session_idx").on(
       table.tenantId,
-      table.id,
+      table.sessionId
     ),
 
-    tenantSessionIdx: index(
-      "onboarding_items_tenant_session_idx",
-    ).on(
-      table.tenantId,
-      table.sessionId,
+    fingerprintIdx: index("onboarding_items_fingerprint_idx").on(
+      table.fingerprint
     ),
-
-    fingerprintIdx: index(
-      "onboarding_items_fingerprint_idx",
-    ).on(table.fingerprint),
 
     sessionTenantFk: foreignKey({
       name: "onboarding_items_tenant_session_fk",
-      columns: [
-        table.tenantId,
-        table.sessionId,
-      ],
-      foreignColumns: [
-        onboardingSessions.tenantId,
-        onboardingSessions.id,
-      ],
-    })
-      .onDelete("cascade"),
-  }),
+      columns: [table.tenantId, table.sessionId],
+      foreignColumns: [onboardingSessions.tenantId, onboardingSessions.id],
+    }).onDelete("cascade"),
+  })
 );
-
 
 export const onboardingIssues = pgTable(
   "onboarding_issues",
@@ -1927,8 +1664,7 @@ export const onboardingIssues = pgTable(
         onDelete: "cascade",
       }),
 
-    sessionId: uuid("session_id")
-      .notNull(),
+    sessionId: uuid("session_id").notNull(),
 
     itemId: uuid("item_id"),
 
@@ -1944,8 +1680,7 @@ export const onboardingIssues = pgTable(
       length: 128,
     }),
 
-    message: text("message")
-      .notNull(),
+    message: text("message").notNull(),
 
     details: jsonb("details")
       .$type<Record<string, unknown>>()
@@ -1960,13 +1695,10 @@ export const onboardingIssues = pgTable(
 
     resolution: text("resolution"),
 
-    resolvedAt: timestamp(
-      "resolved_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    resolvedAt: timestamp("resolved_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
     createdAt: timestamp("created_at", {
       withTimezone: true,
@@ -1976,54 +1708,32 @@ export const onboardingIssues = pgTable(
       .defaultNow(),
   },
   table => ({
-    tenantIdx: index(
-      "onboarding_issues_tenant_idx",
-    ).on(table.tenantId),
+    tenantIdx: index("onboarding_issues_tenant_idx").on(table.tenantId),
 
-    sessionIdx: index(
-      "onboarding_issues_session_idx",
-    ).on(
+    sessionIdx: index("onboarding_issues_session_idx").on(
       table.tenantId,
-      table.sessionId,
+      table.sessionId
     ),
 
-    itemIdx: index(
-      "onboarding_issues_item_idx",
-    ).on(
+    itemIdx: index("onboarding_issues_item_idx").on(
       table.tenantId,
-      table.itemId,
+      table.itemId
     ),
 
-    severityIdx: index(
-      "onboarding_issues_severity_idx",
-    ).on(table.severity),
+    severityIdx: index("onboarding_issues_severity_idx").on(table.severity),
 
     sessionTenantFk: foreignKey({
       name: "onboarding_issues_tenant_session_fk",
-      columns: [
-        table.tenantId,
-        table.sessionId,
-      ],
-      foreignColumns: [
-        onboardingSessions.tenantId,
-        onboardingSessions.id,
-      ],
-    })
-      .onDelete("cascade"),
+      columns: [table.tenantId, table.sessionId],
+      foreignColumns: [onboardingSessions.tenantId, onboardingSessions.id],
+    }).onDelete("cascade"),
 
     itemTenantFk: foreignKey({
       name: "onboarding_issues_tenant_item_fk",
-      columns: [
-        table.tenantId,
-        table.itemId,
-      ],
-      foreignColumns: [
-        onboardingItems.tenantId,
-        onboardingItems.id,
-      ],
-    })
-      .onDelete("cascade"),
-  }),
+      columns: [table.tenantId, table.itemId],
+      foreignColumns: [onboardingItems.tenantId, onboardingItems.id],
+    }).onDelete("cascade"),
+  })
 );
 
 /* ============================================================================
@@ -2042,12 +1752,9 @@ export const onboardingProvisioningRuns = pgTable(
         onDelete: "cascade",
       }),
 
-    sessionId: uuid("session_id")
-      .notNull(),
+    sessionId: uuid("session_id").notNull(),
 
-    attemptNumber: integer(
-      "attempt_number",
-    ).notNull(),
+    attemptNumber: integer("attempt_number").notNull(),
 
     status: varchar("status", {
       length: 32,
@@ -2055,39 +1762,17 @@ export const onboardingProvisioningRuns = pgTable(
       .notNull()
       .default("pending"),
 
-    totalItems: integer("total_items")
-      .notNull()
-      .default(0),
+    totalItems: integer("total_items").notNull().default(0),
 
-    processedItems: integer(
-      "processed_items",
-    )
-      .notNull()
-      .default(0),
+    processedItems: integer("processed_items").notNull().default(0),
 
-    createdItems: integer(
-      "created_items",
-    )
-      .notNull()
-      .default(0),
+    createdItems: integer("created_items").notNull().default(0),
 
-    updatedItems: integer(
-      "updated_items",
-    )
-      .notNull()
-      .default(0),
+    updatedItems: integer("updated_items").notNull().default(0),
 
-    skippedItems: integer(
-      "skipped_items",
-    )
-      .notNull()
-      .default(0),
+    skippedItems: integer("skipped_items").notNull().default(0),
 
-    failedItems: integer(
-      "failed_items",
-    )
-      .notNull()
-      .default(0),
+    failedItems: integer("failed_items").notNull().default(0),
 
     startedAt: timestamp("started_at", {
       withTimezone: true,
@@ -2099,14 +1784,9 @@ export const onboardingProvisioningRuns = pgTable(
       mode: "date",
     }),
 
-    failureCode: varchar(
-      "failure_code",
-      { length: 64 },
-    ),
+    failureCode: varchar("failure_code", { length: 64 }),
 
-    failureMessage: text(
-      "failure_message",
-    ),
+    failureMessage: text("failure_message"),
 
     metadata: jsonb("metadata")
       .$type<Record<string, unknown>>()
@@ -2121,48 +1801,30 @@ export const onboardingProvisioningRuns = pgTable(
       .defaultNow(),
   },
   table => ({
-    tenantIdIdUnique: unique(
-      "onboarding_provisioning_runs_tenant_id_id_uq",
-    ).on(
+    tenantIdIdUnique: unique("onboarding_provisioning_runs_tenant_id_id_uq").on(
       table.tenantId,
-      table.id,
+      table.id
     ),
 
     tenantSessionAttemptUnique: unique(
-      "onboarding_provisioning_runs_tenant_session_attempt_uq",
-    ).on(
-      table.tenantId,
-      table.sessionId,
-      table.attemptNumber,
-    ),
+      "onboarding_provisioning_runs_tenant_session_attempt_uq"
+    ).on(table.tenantId, table.sessionId, table.attemptNumber),
 
     tenantSessionIdx: index(
-      "onboarding_provisioning_runs_tenant_session_idx",
-    ).on(
-      table.tenantId,
-      table.sessionId,
-    ),
+      "onboarding_provisioning_runs_tenant_session_idx"
+    ).on(table.tenantId, table.sessionId),
 
-    tenantStatusIdx: index(
-      "onboarding_provisioning_runs_tenant_status_idx",
-    ).on(
+    tenantStatusIdx: index("onboarding_provisioning_runs_tenant_status_idx").on(
       table.tenantId,
-      table.status,
+      table.status
     ),
 
     sessionTenantFk: foreignKey({
       name: "onboarding_provisioning_runs_tenant_session_fk",
-      columns: [
-        table.tenantId,
-        table.sessionId,
-      ],
-      foreignColumns: [
-        onboardingSessions.tenantId,
-        onboardingSessions.id,
-      ],
-    })
-      .onDelete("cascade"),
-  }),
+      columns: [table.tenantId, table.sessionId],
+      foreignColumns: [onboardingSessions.tenantId, onboardingSessions.id],
+    }).onDelete("cascade"),
+  })
 );
 
 /*
@@ -2174,9 +1836,7 @@ export const onboardingProvisioningRuns = pgTable(
 export const assetLifecycleProfiles = pgTable(
   "asset_lifecycle_profiles",
   {
-    id: uuid("id")
-      .defaultRandom()
-      .primaryKey(),
+    id: uuid("id").defaultRandom().primaryKey(),
 
     tenantId: uuid("tenant_id")
       .notNull()
@@ -2184,82 +1844,48 @@ export const assetLifecycleProfiles = pgTable(
         onDelete: "cascade",
       }),
 
-    assetId: uuid("asset_id")
-      .notNull(),
+    assetId: uuid("asset_id").notNull(),
 
-    criticality: varchar(
-      "criticality",
-      { length: 16 },
-    ),
+    criticality: varchar("criticality", { length: 16 }),
 
-    installDate: date(
-      "install_date",
-    ),
+    installDate: date("install_date"),
 
-    warrantyExpiry: date(
-      "warranty_expiry",
-    ),
+    warrantyExpiry: date("warranty_expiry"),
 
-    usefulLifeYears: integer(
-      "useful_life_years",
-    ),
+    usefulLifeYears: integer("useful_life_years"),
 
-    createdAt: timestamp(
-      "created_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    )
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
       .notNull()
       .defaultNow(),
 
-    updatedAt: timestamp(
-      "updated_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    )
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
       .notNull()
       .defaultNow(),
   },
 
   table => ({
-    tenantAssetUnique: unique(
-      "asset_lifecycle_profiles_tenant_asset_uq",
-    ).on(
+    tenantAssetUnique: unique("asset_lifecycle_profiles_tenant_asset_uq").on(
       table.tenantId,
-      table.assetId,
+      table.assetId
     ),
 
-    tenantIdx: index(
-      "asset_lifecycle_profiles_tenant_idx",
-    ).on(
-      table.tenantId,
-    ),
+    tenantIdx: index("asset_lifecycle_profiles_tenant_idx").on(table.tenantId),
 
-    assetIdx: index(
-      "asset_lifecycle_profiles_asset_idx",
-    ).on(
-      table.assetId,
-    ),
+    assetIdx: index("asset_lifecycle_profiles_asset_idx").on(table.assetId),
 
     tenantAssetFk: foreignKey({
-      columns: [
-        table.tenantId,
-        table.assetId,
-      ],
-      foreignColumns: [
-        assets.tenantId,
-        assets.id,
-      ],
-      name:
-        "asset_lifecycle_profiles_tenant_asset_fk",
+      columns: [table.tenantId, table.assetId],
+      foreignColumns: [assets.tenantId, assets.id],
+      name: "asset_lifecycle_profiles_tenant_asset_fk",
     }).onDelete("cascade"),
-  }),
+  })
 );
-
 
 /*
  * Asset financial facts.
@@ -2271,9 +1897,7 @@ export const assetLifecycleProfiles = pgTable(
 export const assetFinancialProfiles = pgTable(
   "asset_financial_profiles",
   {
-    id: uuid("id")
-      .defaultRandom()
-      .primaryKey(),
+    id: uuid("id").defaultRandom().primaryKey(),
 
     tenantId: uuid("tenant_id")
       .notNull()
@@ -2281,112 +1905,68 @@ export const assetFinancialProfiles = pgTable(
         onDelete: "cascade",
       }),
 
-    assetId: uuid("asset_id")
-      .notNull(),
+    assetId: uuid("asset_id").notNull(),
 
-    purchaseDate: date(
-      "purchase_date",
-    ),
+    purchaseDate: date("purchase_date"),
 
-    purchaseCost: numeric(
-      "purchase_cost",
-      {
-        precision: 14,
-        scale: 2,
-      },
-    ),
+    purchaseCost: numeric("purchase_cost", {
+      precision: 14,
+      scale: 2,
+    }),
 
-    currentValue: numeric(
-      "current_value",
-      {
-        precision: 14,
-        scale: 2,
-      },
-    ),
+    currentValue: numeric("current_value", {
+      precision: 14,
+      scale: 2,
+    }),
 
-    depreciationRate: numeric(
-      "depreciation_rate",
-      {
-        precision: 7,
-        scale: 4,
-      },
-    ),
+    depreciationRate: numeric("depreciation_rate", {
+      precision: 7,
+      scale: 4,
+    }),
 
-    depreciationMethod: varchar(
-      "depreciation_method",
-      { length: 32 },
-    ),
+    depreciationMethod: varchar("depreciation_method", { length: 32 }),
 
-    replacementCost: numeric(
-      "replacement_cost",
-      {
-        precision: 14,
-        scale: 2,
-      },
-    ),
+    replacementCost: numeric("replacement_cost", {
+      precision: 14,
+      scale: 2,
+    }),
 
-    maintenanceCostYearly: numeric(
-      "maintenance_cost_yearly",
-      {
-        precision: 14,
-        scale: 2,
-      },
-    ),
+    maintenanceCostYearly: numeric("maintenance_cost_yearly", {
+      precision: 14,
+      scale: 2,
+    }),
 
-    createdAt: timestamp(
-      "created_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    )
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
       .notNull()
       .defaultNow(),
 
-    updatedAt: timestamp(
-      "updated_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    )
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
       .notNull()
       .defaultNow(),
   },
 
   table => ({
-    tenantAssetUnique: unique(
-      "asset_financial_profiles_tenant_asset_uq",
-    ).on(
+    tenantAssetUnique: unique("asset_financial_profiles_tenant_asset_uq").on(
       table.tenantId,
-      table.assetId,
+      table.assetId
     ),
 
-    tenantIdx: index(
-      "asset_financial_profiles_tenant_idx",
-    ).on(
-      table.tenantId,
-    ),
+    tenantIdx: index("asset_financial_profiles_tenant_idx").on(table.tenantId),
 
-    assetIdx: index(
-      "asset_financial_profiles_asset_idx",
-    ).on(
-      table.assetId,
-    ),
+    assetIdx: index("asset_financial_profiles_asset_idx").on(table.assetId),
 
     tenantAssetFk: foreignKey({
-      columns: [
-        table.tenantId,
-        table.assetId,
-      ],
-      foreignColumns: [
-        assets.tenantId,
-        assets.id,
-      ],
-      name:
-        "asset_financial_profiles_tenant_asset_fk",
+      columns: [table.tenantId, table.assetId],
+      foreignColumns: [assets.tenantId, assets.id],
+      name: "asset_financial_profiles_tenant_asset_fk",
     }).onDelete("cascade"),
-  }),
+  })
 );
 
 /**
@@ -2398,263 +1978,148 @@ export const assetFinancialProfiles = pgTable(
 export const serviceTickets = pgTable(
   "service_tickets",
   {
-    id: uuid("id")
-      .defaultRandom()
-      .primaryKey(),
+    id: uuid("id").defaultRandom().primaryKey(),
 
     tenantId: uuid("tenant_id")
       .notNull()
-      .references(
-        () => tenants.id,
-        { onDelete: "cascade" },
-      ),
+      .references(() => tenants.id, { onDelete: "cascade" }),
 
-    branchId: uuid("branch_id")
-      .notNull(),
+    branchId: uuid("branch_id").notNull(),
 
     assetId: uuid("asset_id"),
 
-    ticketNumber: varchar(
-      "ticket_number",
-      { length: 64 },
-    ).notNull(),
+    ticketNumber: varchar("ticket_number", { length: 64 }).notNull(),
 
-    title: varchar(
-      "title",
-      { length: 500 },
-    ).notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
 
     description: text("description"),
 
-    operationalStatus: varchar(
-      "operational_status",
-      { length: 32 },
-    )
+    operationalStatus: varchar("operational_status", { length: 32 })
       .notNull()
       .default("open"),
 
-    contractualStatus: varchar(
-      "contractual_status",
-      { length: 32 },
-    )
+    contractualStatus: varchar("contractual_status", { length: 32 })
       .notNull()
       .default("pending_approval"),
 
-    priority: varchar(
-      "priority",
-      { length: 16 },
-    )
-      .notNull()
-      .default("medium"),
+    priority: varchar("priority", { length: 16 }).notNull().default("medium"),
 
-    category: varchar(
-      "category",
-      { length: 32 },
-    )
+    category: varchar("category", { length: 32 })
       .notNull()
       .default("corrective"),
 
-    responseDeadline: timestamp(
-      "response_deadline",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    responseDeadline: timestamp("response_deadline", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    resolutionDeadline: timestamp(
-      "resolution_deadline",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    resolutionDeadline: timestamp("resolution_deadline", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    respondedAt: timestamp(
-      "responded_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    respondedAt: timestamp("responded_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    resolvedAt: timestamp(
-      "resolved_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    resolvedAt: timestamp("resolved_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    closedAt: timestamp(
-      "closed_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    closedAt: timestamp("closed_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    estimatedCost: numeric(
-      "estimated_cost",
-      {
-        precision: 14,
-        scale: 2,
-      },
-    ),
+    estimatedCost: numeric("estimated_cost", {
+      precision: 14,
+      scale: 2,
+    }),
 
-    actualCost: numeric(
-      "actual_cost",
-      {
-        precision: 14,
-        scale: 2,
-      },
-    ),
+    actualCost: numeric("actual_cost", {
+      precision: 14,
+      scale: 2,
+    }),
 
-    isBillable: boolean(
-      "is_billable",
-    )
-      .notNull()
-      .default(false),
+    isBillable: boolean("is_billable").notNull().default(false),
 
     notes: text("notes"),
 
-    slaTier: varchar(
-      "sla_tier",
-      { length: 16 },
-    ),
+    slaTier: varchar("sla_tier", { length: 16 }),
 
-    slaDeadlineHours: integer(
-      "sla_deadline_hours",
-    ),
+    slaDeadlineHours: integer("sla_deadline_hours"),
 
-    evidenceImageUrl: text(
-      "evidence_image_url",
-    ),
+    evidenceImageUrl: text("evidence_image_url"),
 
-    evidenceImageKey: varchar(
-      "evidence_image_key",
-      { length: 500 },
-    ),
+    evidenceImageKey: varchar("evidence_image_key", { length: 500 }),
 
-    resolutionNotes: text(
-      "resolution_notes",
-    ),
+    resolutionNotes: text("resolution_notes"),
 
-    resolutionEvidenceUrls: jsonb(
-      "resolution_evidence_urls",
-    ).$type<string[]>(),
+    resolutionEvidenceUrls: jsonb("resolution_evidence_urls").$type<string[]>(),
 
-    resolutionSignatureUrl: text(
-      "resolution_signature_url",
-    ),
+    resolutionSignatureUrl: text("resolution_signature_url"),
 
-    resolutionReportUrl: text(
-      "resolution_report_url",
-    ),
+    resolutionReportUrl: text("resolution_report_url"),
 
-    resolutionReportKey: varchar(
-      "resolution_report_key",
-      { length: 500 },
-    ),
+    resolutionReportKey: varchar("resolution_report_key", { length: 500 }),
 
-    resolvedByName: varchar(
-      "resolved_by_name",
-      { length: 255 },
-    ),
+    resolvedByName: varchar("resolved_by_name", { length: 255 }),
 
-    notificationSentAt: timestamp(
-      "notification_sent_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    notificationSentAt: timestamp("notification_sent_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    createdAt: timestamp(
-      "created_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    )
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
       .notNull()
       .defaultNow(),
 
-    updatedAt: timestamp(
-      "updated_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    )
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
       .notNull()
       .defaultNow(),
   },
   table => ({
-    tenantTicketNumberUnique:
-      uniqueIndex(
-        "service_tickets_tenant_ticket_number_uq",
-      ).on(
-        table.tenantId,
-        table.ticketNumber,
-      ),
+    tenantTicketNumberUnique: uniqueIndex(
+      "service_tickets_tenant_ticket_number_uq"
+    ).on(table.tenantId, table.ticketNumber),
 
-    tenantIdIdUnique:
-      unique(
-        "service_tickets_tenant_id_id_uq",
-      ).on(
-        table.tenantId,
-        table.id,
-      ),
+    tenantIdIdUnique: unique("service_tickets_tenant_id_id_uq").on(
+      table.tenantId,
+      table.id
+    ),
 
-    tenantBranchFk:
-      foreignKey({
-        name:
-          "service_tickets_tenant_branch_fk",
-        columns: [
-          table.tenantId,
-          table.branchId,
-        ],
-        foreignColumns: [
-          branches.tenantId,
-          branches.id,
-        ],
-      }).onDelete("cascade"),
+    tenantBranchFk: foreignKey({
+      name: "service_tickets_tenant_branch_fk",
+      columns: [table.tenantId, table.branchId],
+      foreignColumns: [branches.tenantId, branches.id],
+    }).onDelete("cascade"),
 
-    tenantAssetFk:
-      foreignKey({
-        name:
-          "service_tickets_tenant_asset_fk",
-        columns: [
-          table.tenantId,
-          table.assetId,
-        ],
-        foreignColumns: [
-          assets.tenantId,
-          assets.id,
-        ],
-      }).onDelete("restrict"),
+    tenantAssetFk: foreignKey({
+      name: "service_tickets_tenant_asset_fk",
+      columns: [table.tenantId, table.assetId],
+      foreignColumns: [assets.tenantId, assets.id],
+    }).onDelete("restrict"),
 
-    tenantIdx: index(
-      "service_tickets_tenant_idx",
-    ).on(table.tenantId),
+    tenantIdx: index("service_tickets_tenant_idx").on(table.tenantId),
 
-    branchIdx: index(
-      "service_tickets_branch_idx",
-    ).on(table.branchId),
+    branchIdx: index("service_tickets_branch_idx").on(table.branchId),
 
-    assetIdx: index(
-      "service_tickets_asset_idx",
-    ).on(table.assetId),
+    assetIdx: index("service_tickets_asset_idx").on(table.assetId),
 
-    statusIdx: index(
-      "service_tickets_operational_status_idx",
-    ).on(table.operationalStatus),
+    statusIdx: index("service_tickets_operational_status_idx").on(
+      table.operationalStatus
+    ),
 
-    createdAtIdx: index(
-      "service_tickets_created_at_idx",
-    ).on(table.createdAt),
-  }),
+    createdAtIdx: index("service_tickets_created_at_idx").on(table.createdAt),
+  })
 );
 
 // ============================================================================
@@ -2664,622 +2129,347 @@ export const serviceTickets = pgTable(
 export const serviceRequests = pgTable(
   "service_requests",
   {
-    id: uuid("id")
-      .defaultRandom()
-      .primaryKey(),
+    id: uuid("id").defaultRandom().primaryKey(),
 
     tenantId: uuid("tenant_id")
       .notNull()
-      .references(
-        () => tenants.id,
-        { onDelete: "cascade" },
-      ),
+      .references(() => tenants.id, { onDelete: "cascade" }),
 
-    requestNumber: varchar(
-      "request_number",
-      { length: 64 },
-    ).notNull(),
+    requestNumber: varchar("request_number", { length: 64 }).notNull(),
 
-    requestType: varchar(
-      "request_type",
-      { length: 40 },
-    ).notNull(),
+    requestType: varchar("request_type", { length: 40 }).notNull(),
 
-    status: varchar(
-      "status",
-      { length: 32 },
-    )
-      .notNull()
-      .default("draft"),
+    status: varchar("status", { length: 32 }).notNull().default("draft"),
 
-    requestedByUserId: uuid(
-      "requested_by_user_id",
-    ).references(
-      () => users.id,
-      { onDelete: "set null" },
-    ),
+    requestedByUserId: uuid("requested_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
 
-    requesterName: varchar(
-      "requester_name",
-      { length: 255 },
-    ).notNull(),
+    requesterName: varchar("requester_name", { length: 255 }).notNull(),
 
-    requesterEmail: varchar(
-      "requester_email",
-      { length: 320 },
-    ),
+    requesterEmail: varchar("requester_email", { length: 320 }),
 
-    requesterPhone: varchar(
-      "requester_phone",
-      { length: 64 },
-    ),
+    requesterPhone: varchar("requester_phone", { length: 64 }),
 
-    branchId: uuid(
-      "branch_id",
-    ),
+    branchId: uuid("branch_id"),
 
-    branchSystemId: uuid(
-      "branch_system_id",
-    ),
+    branchSystemId: uuid("branch_system_id"),
 
-    assetId: uuid(
-      "asset_id",
-    ),
+    assetId: uuid("asset_id"),
 
-    departmentId: uuid(
-      "department_id",
-    ),
+    departmentId: uuid("department_id"),
 
-    title: varchar(
-      "title",
-      { length: 255 },
-    ).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
 
-    description: text(
-      "description",
-    ),
+    description: text("description"),
 
-    desiredDate: date(
-      "desired_date",
-    ),
+    desiredDate: date("desired_date"),
 
-    desiredStartTime: time(
-      "desired_start_time",
-    ),
+    desiredStartTime: time("desired_start_time"),
 
-    desiredEndTime: time(
-      "desired_end_time",
-    ),
+    desiredEndTime: time("desired_end_time"),
 
-    remoteAllowed: boolean(
-      "remote_allowed",
-    ),
+    remoteAllowed: boolean("remote_allowed"),
 
-    accessRequirements: text(
-      "access_requirements",
-    ),
+    accessRequirements: text("access_requirements"),
 
-    safetyRequirements: text(
-      "safety_requirements",
-    ),
+    safetyRequirements: text("safety_requirements"),
 
-    personnelRequirements: text(
-      "personnel_requirements",
-    ),
+    personnelRequirements: text("personnel_requirements"),
 
-    certificationRequirements: text(
-      "certification_requirements",
-    ),
+    certificationRequirements: text("certification_requirements"),
 
-    equipmentRequirements: text(
-      "equipment_requirements",
-    ),
+    equipmentRequirements: text("equipment_requirements"),
 
-    toolRequirements: text(
-      "tool_requirements",
-    ),
+    toolRequirements: text("tool_requirements"),
 
-    clarityStatus: varchar(
-      "clarity_status",
-      { length: 32 },
-    )
+    clarityStatus: varchar("clarity_status", { length: 32 })
       .notNull()
       .default("not_evaluated"),
 
-    clarityScore: integer(
-      "clarity_score",
-    ),
+    clarityScore: integer("clarity_score"),
 
-    claritySummary: text(
-      "clarity_summary",
-    ),
+    claritySummary: text("clarity_summary"),
 
-    missingInformation: jsonb(
-      "missing_information",
-    )
+    missingInformation: jsonb("missing_information")
       .$type<string[]>()
       .notNull()
       .default([]),
 
-    requesterConfirmedAt:
-      timestamp(
-        "requester_confirmed_at",
-        {
-          withTimezone: true,
-          mode: "date",
-        },
-      ),
+    requesterConfirmedAt: timestamp("requester_confirmed_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    commercialStatus: varchar(
-      "commercial_status",
-      { length: 32 },
-    )
+    commercialStatus: varchar("commercial_status", { length: 32 })
       .notNull()
       .default("not_required"),
 
-    estimatedAmount: numeric(
-      "estimated_amount",
-      {
-        precision: 14,
-        scale: 2,
-      },
-    ),
+    estimatedAmount: numeric("estimated_amount", {
+      precision: 14,
+      scale: 2,
+    }),
 
-    quotedAt: timestamp(
-      "quoted_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    quotedAt: timestamp("quoted_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    authorizedAt: timestamp(
-      "authorized_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    authorizedAt: timestamp("authorized_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    rejectedAt: timestamp(
-      "rejected_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    rejectedAt: timestamp("rejected_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    rejectionReason: text(
-      "rejection_reason",
-    ),
+    rejectionReason: text("rejection_reason"),
 
-    submittedAt: timestamp(
-      "submitted_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    submittedAt: timestamp("submitted_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    completedAt: timestamp(
-      "completed_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    cancelledAt: timestamp(
-      "cancelled_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    ),
+    cancelledAt: timestamp("cancelled_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
-    createdAt: timestamp(
-      "created_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    )
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
       .notNull()
       .defaultNow(),
 
-    updatedAt: timestamp(
-      "updated_at",
-      {
-        withTimezone: true,
-        mode: "date",
-      },
-    )
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    })
       .notNull()
       .defaultNow(),
   },
   table => ({
-    tenantRequestNumberUnique:
-      uniqueIndex(
-        "service_requests_tenant_number_uq",
-      ).on(
-        table.tenantId,
-        table.requestNumber,
-      ),
+    tenantRequestNumberUnique: uniqueIndex(
+      "service_requests_tenant_number_uq"
+    ).on(table.tenantId, table.requestNumber),
 
-    tenantIdIdUnique:
-      unique(
-        "service_requests_tenant_id_id_uq",
-      ).on(
-        table.tenantId,
-        table.id,
-      ),
-
-    tenantBranchFk:
-      foreignKey({
-        name:
-          "service_requests_tenant_branch_fk",
-        columns: [
-          table.tenantId,
-          table.branchId,
-        ],
-        foreignColumns: [
-          branches.tenantId,
-          branches.id,
-        ],
-      }).onDelete("restrict"),
-
-    tenantSystemFk:
-      foreignKey({
-        name:
-          "service_requests_tenant_system_fk",
-        columns: [
-          table.tenantId,
-          table.branchSystemId,
-        ],
-        foreignColumns: [
-          branchSystems.tenantId,
-          branchSystems.id,
-        ],
-      }).onDelete("restrict"),
-
-    tenantAssetFk:
-      foreignKey({
-        name:
-          "service_requests_tenant_asset_fk",
-        columns: [
-          table.tenantId,
-          table.assetId,
-        ],
-        foreignColumns: [
-          assets.tenantId,
-          assets.id,
-        ],
-      }).onDelete("restrict"),
-
-    tenantDepartmentFk:
-      foreignKey({
-        name:
-          "service_requests_tenant_department_fk",
-        columns: [
-          table.tenantId,
-          table.departmentId,
-        ],
-        foreignColumns: [
-          departments.tenantId,
-          departments.id,
-        ],
-      }).onDelete("restrict"),
-
-    tenantStatusIdx: index(
-      "service_requests_tenant_status_idx",
-    ).on(
+    tenantIdIdUnique: unique("service_requests_tenant_id_id_uq").on(
       table.tenantId,
-      table.status,
+      table.id
     ),
 
-    tenantTypeIdx: index(
-      "service_requests_tenant_type_idx",
-    ).on(
+    tenantBranchFk: foreignKey({
+      name: "service_requests_tenant_branch_fk",
+      columns: [table.tenantId, table.branchId],
+      foreignColumns: [branches.tenantId, branches.id],
+    }).onDelete("restrict"),
+
+    tenantSystemFk: foreignKey({
+      name: "service_requests_tenant_system_fk",
+      columns: [table.tenantId, table.branchSystemId],
+      foreignColumns: [branchSystems.tenantId, branchSystems.id],
+    }).onDelete("restrict"),
+
+    tenantAssetFk: foreignKey({
+      name: "service_requests_tenant_asset_fk",
+      columns: [table.tenantId, table.assetId],
+      foreignColumns: [assets.tenantId, assets.id],
+    }).onDelete("restrict"),
+
+    tenantDepartmentFk: foreignKey({
+      name: "service_requests_tenant_department_fk",
+      columns: [table.tenantId, table.departmentId],
+      foreignColumns: [departments.tenantId, departments.id],
+    }).onDelete("restrict"),
+
+    tenantStatusIdx: index("service_requests_tenant_status_idx").on(
       table.tenantId,
-      table.requestType,
+      table.status
     ),
 
-    tenantBranchIdx: index(
-      "service_requests_tenant_branch_idx",
-    ).on(
+    tenantTypeIdx: index("service_requests_tenant_type_idx").on(
       table.tenantId,
-      table.branchId,
+      table.requestType
     ),
 
-    createdAtIdx: index(
-      "service_requests_created_at_idx",
-    ).on(
+    tenantBranchIdx: index("service_requests_tenant_branch_idx").on(
       table.tenantId,
-      table.createdAt,
+      table.branchId
     ),
-  }),
+
+    createdAtIdx: index("service_requests_created_at_idx").on(
+      table.tenantId,
+      table.createdAt
+    ),
+  })
 );
 
-export const serviceRequestAttachments =
-  pgTable(
-    "service_request_attachments",
-    {
-      id: uuid("id")
-        .defaultRandom()
-        .primaryKey(),
+export const serviceRequestAttachments = pgTable(
+  "service_request_attachments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
 
-      tenantId: uuid("tenant_id")
-        .notNull()
-        .references(
-          () => tenants.id,
-          { onDelete: "cascade" },
-        ),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
 
-      serviceRequestId: uuid(
-        "service_request_id",
-      ).notNull(),
+    serviceRequestId: uuid("service_request_id").notNull(),
 
-      attachmentType: varchar(
-        "attachment_type",
-        { length: 32 },
-      )
-        .notNull()
-        .default("document"),
+    attachmentType: varchar("attachment_type", { length: 32 })
+      .notNull()
+      .default("document"),
 
-      fileName: varchar(
-        "file_name",
-        { length: 255 },
-      ).notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
 
-      mimeType: varchar(
-        "mime_type",
-        { length: 128 },
-      ),
+    mimeType: varchar("mime_type", { length: 128 }),
 
-      fileSize: integer(
-        "file_size",
-      ),
+    fileSize: integer("file_size"),
 
-      storageKey: varchar(
-        "storage_key",
-        { length: 1024 },
-      ).notNull(),
+    storageKey: varchar("storage_key", { length: 1024 }).notNull(),
 
-      fileUrl: text(
-        "file_url",
-      ),
+    fileUrl: text("file_url"),
 
-      description: text(
-        "description",
-      ),
+    description: text("description"),
 
-      uploadedByUserId: uuid(
-        "uploaded_by_user_id",
-      ).references(
-        () => users.id,
-        { onDelete: "set null" },
-      ),
-
-      createdAt: timestamp(
-        "created_at",
-        {
-          withTimezone: true,
-          mode: "date",
-        },
-      )
-        .notNull()
-        .defaultNow(),
-    },
-    table => ({
-      requestIdx: index(
-        "service_request_attachments_request_idx",
-      ).on(
-        table.tenantId,
-        table.serviceRequestId,
-      ),
-
-      tenantRequestFk:
-        foreignKey({
-          name:
-            "service_request_attachments_tenant_request_fk",
-          columns: [
-            table.tenantId,
-            table.serviceRequestId,
-          ],
-          foreignColumns: [
-            serviceRequests.tenantId,
-            serviceRequests.id,
-          ],
-        }).onDelete("cascade"),
+    uploadedByUserId: uuid("uploaded_by_user_id").references(() => users.id, {
+      onDelete: "set null",
     }),
-  );
 
-export const serviceRequestEvents =
-  pgTable(
-    "service_request_events",
-    {
-      id: uuid("id")
-        .defaultRandom()
-        .primaryKey(),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    requestIdx: index("service_request_attachments_request_idx").on(
+      table.tenantId,
+      table.serviceRequestId
+    ),
 
-      tenantId: uuid("tenant_id")
-        .notNull()
-        .references(
-          () => tenants.id,
-          { onDelete: "cascade" },
-        ),
+    tenantRequestFk: foreignKey({
+      name: "service_request_attachments_tenant_request_fk",
+      columns: [table.tenantId, table.serviceRequestId],
+      foreignColumns: [serviceRequests.tenantId, serviceRequests.id],
+    }).onDelete("cascade"),
+  })
+);
 
-      serviceRequestId: uuid(
-        "service_request_id",
-      ).notNull(),
+export const serviceRequestEvents = pgTable(
+  "service_request_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
 
-      eventType: varchar(
-        "event_type",
-        { length: 48 },
-      ).notNull(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
 
-      actorUserId: uuid(
-        "actor_user_id",
-      ).references(
-        () => users.id,
-        { onDelete: "set null" },
-      ),
+    serviceRequestId: uuid("service_request_id").notNull(),
 
-      actorName: varchar(
-        "actor_name",
-        { length: 255 },
-      ),
+    eventType: varchar("event_type", { length: 48 }).notNull(),
 
-      message: text(
-        "message",
-      ),
-
-      metadata: jsonb(
-        "metadata",
-      )
-        .$type<Record<string, unknown>>()
-        .notNull()
-        .default({}),
-
-      createdAt: timestamp(
-        "created_at",
-        {
-          withTimezone: true,
-          mode: "date",
-        },
-      )
-        .notNull()
-        .defaultNow(),
-    },
-    table => ({
-      requestCreatedIdx: index(
-        "service_request_events_request_created_idx",
-      ).on(
-        table.tenantId,
-        table.serviceRequestId,
-        table.createdAt,
-      ),
-
-      eventTypeIdx: index(
-        "service_request_events_type_idx",
-      ).on(
-        table.tenantId,
-        table.eventType,
-      ),
-
-      tenantRequestFk:
-        foreignKey({
-          name:
-            "service_request_events_tenant_request_fk",
-          columns: [
-            table.tenantId,
-            table.serviceRequestId,
-          ],
-          foreignColumns: [
-            serviceRequests.tenantId,
-            serviceRequests.id,
-          ],
-        }).onDelete("cascade"),
+    actorUserId: uuid("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
     }),
-  );
 
-export const serviceRequestTicketLinks =
-  pgTable(
-    "service_request_ticket_links",
-    {
-      id: uuid("id")
-        .defaultRandom()
-        .primaryKey(),
+    actorName: varchar("actor_name", { length: 255 }),
 
-      tenantId: uuid("tenant_id")
-        .notNull()
-        .references(
-          () => tenants.id,
-          { onDelete: "cascade" },
-        ),
+    message: text("message"),
 
-      serviceRequestId: uuid(
-        "service_request_id",
-      ).notNull(),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
 
-      serviceTicketId: uuid(
-        "service_ticket_id",
-      ).notNull(),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    requestCreatedIdx: index("service_request_events_request_created_idx").on(
+      table.tenantId,
+      table.serviceRequestId,
+      table.createdAt
+    ),
 
-      relationType: varchar(
-        "relation_type",
-        { length: 32 },
-      )
-        .notNull()
-        .default("converted"),
+    eventTypeIdx: index("service_request_events_type_idx").on(
+      table.tenantId,
+      table.eventType
+    ),
 
-      createdByUserId: uuid(
-        "created_by_user_id",
-      ).references(
-        () => users.id,
-        { onDelete: "set null" },
-      ),
+    tenantRequestFk: foreignKey({
+      name: "service_request_events_tenant_request_fk",
+      columns: [table.tenantId, table.serviceRequestId],
+      foreignColumns: [serviceRequests.tenantId, serviceRequests.id],
+    }).onDelete("cascade"),
+  })
+);
 
-      createdAt: timestamp(
-        "created_at",
-        {
-          withTimezone: true,
-          mode: "date",
-        },
-      )
-        .notNull()
-        .defaultNow(),
-    },
-    table => ({
-      tenantRequestTicketUnique:
-        uniqueIndex(
-          "service_request_ticket_links_request_ticket_uq",
-        ).on(
-          table.tenantId,
-          table.serviceRequestId,
-          table.serviceTicketId,
-        ),
+export const serviceRequestTicketLinks = pgTable(
+  "service_request_ticket_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
 
-      requestIdx: index(
-        "service_request_ticket_links_request_idx",
-      ).on(
-        table.tenantId,
-        table.serviceRequestId,
-      ),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
 
-      ticketIdx: index(
-        "service_request_ticket_links_ticket_idx",
-      ).on(
-        table.tenantId,
-        table.serviceTicketId,
-      ),
+    serviceRequestId: uuid("service_request_id").notNull(),
 
-      tenantRequestFk:
-        foreignKey({
-          name:
-            "service_request_ticket_links_tenant_request_fk",
-          columns: [
-            table.tenantId,
-            table.serviceRequestId,
-          ],
-          foreignColumns: [
-            serviceRequests.tenantId,
-            serviceRequests.id,
-          ],
-        }).onDelete("cascade"),
+    serviceTicketId: uuid("service_ticket_id").notNull(),
 
-      tenantTicketFk:
-        foreignKey({
-          name:
-            "service_request_ticket_links_tenant_ticket_fk",
-          columns: [
-            table.tenantId,
-            table.serviceTicketId,
-          ],
-          foreignColumns: [
-            serviceTickets.tenantId,
-            serviceTickets.id,
-          ],
-        }).onDelete("restrict"),
+    relationType: varchar("relation_type", { length: 32 })
+      .notNull()
+      .default("converted"),
+
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
     }),
-  );
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    tenantRequestTicketUnique: uniqueIndex(
+      "service_request_ticket_links_request_ticket_uq"
+    ).on(table.tenantId, table.serviceRequestId, table.serviceTicketId),
+
+    requestIdx: index("service_request_ticket_links_request_idx").on(
+      table.tenantId,
+      table.serviceRequestId
+    ),
+
+    ticketIdx: index("service_request_ticket_links_ticket_idx").on(
+      table.tenantId,
+      table.serviceTicketId
+    ),
+
+    tenantRequestFk: foreignKey({
+      name: "service_request_ticket_links_tenant_request_fk",
+      columns: [table.tenantId, table.serviceRequestId],
+      foreignColumns: [serviceRequests.tenantId, serviceRequests.id],
+    }).onDelete("cascade"),
+
+    tenantTicketFk: foreignKey({
+      name: "service_request_ticket_links_tenant_ticket_fk",
+      columns: [table.tenantId, table.serviceTicketId],
+      foreignColumns: [serviceTickets.tenantId, serviceTickets.id],
+    }).onDelete("restrict"),
+  })
+);
