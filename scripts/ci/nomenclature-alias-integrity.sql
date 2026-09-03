@@ -29,6 +29,14 @@ INSERT INTO asset_aliases (id,tenant_id,branch_id,asset_id,alias_type,alias_valu
 ('89000000-0000-4000-8000-000000000001','81000000-0000-4000-8000-000000000001','81100000-0000-4000-8000-000000000001','87000000-0000-4000-8000-000000000001','PHYSICAL_LABEL','Cámara / 01','field');
 
 DO $$ BEGIN
+  IF (SELECT count(*) FROM pg_class WHERE relkind = 'r' AND relname IN ('system_solution_aliases','asset_aliases','asset_alias_events')) <> 3 THEN RAISE EXCEPTION 'alias tables incomplete'; END IF;
+  IF (SELECT count(*) FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid WHERE c.relname IN ('system_solution_aliases','asset_aliases') AND a.attname='normalized_value' AND a.attgenerated='s' AND NOT a.attisdropped) <> 2 THEN RAISE EXCEPTION 'generated alias columns incomplete'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='assets_tenant_branch_id_uq' AND contype='u') THEN RAISE EXCEPTION 'assets tenant branch unique missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='asset_aliases_tenant_id_id_uq' AND contype='u') THEN RAISE EXCEPTION 'asset alias tenant unique missing'; END IF;
+  IF (SELECT count(*) FROM pg_constraint WHERE conname IN ('system_solution_aliases_entity_fk','asset_aliases_entity_fk','asset_alias_events_alias_fk') AND contype='f') <> 3 THEN RAISE EXCEPTION 'alias foreign keys incomplete'; END IF;
+  IF (SELECT count(*) FROM pg_constraint WHERE conname IN ('system_solution_aliases_type_ck','system_solution_aliases_value_ck','system_solution_aliases_dates_ck','asset_aliases_type_ck','asset_aliases_value_ck','asset_aliases_dates_ck','asset_alias_events_type_ck') AND contype='c') <> 7 THEN RAISE EXCEPTION 'alias checks incomplete'; END IF;
+  IF (SELECT count(*) FROM pg_indexes WHERE indexname IN ('system_solution_aliases_active_value_uq','asset_aliases_active_value_uq') AND indexdef ILIKE '%UNIQUE%' AND indexdef ILIKE '%WHERE active%') <> 2 THEN RAISE EXCEPTION 'active alias partial unique indexes incomplete'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='asset_alias_events_alias_idx' AND indexdef ILIKE '%tenant_id, asset_alias_id, created_at DESC%') THEN RAISE EXCEPTION 'asset alias event index mismatch'; END IF;
   IF horos_normalize_alias('  CAM-01  Almacén ') <> 'cam-01-almacen' THEN RAISE EXCEPTION 'normalization mismatch'; END IF;
   IF (SELECT count(*) FROM system_solutions WHERE branch_id='81100000-0000-4000-8000-000000000001' AND lower(code)=lower('CCTV-A-001')) <> 1 THEN RAISE EXCEPTION 'solution code resolution failed'; END IF;
   IF (SELECT count(*) FROM system_solution_aliases WHERE branch_id='81100000-0000-4000-8000-000000000001' AND active AND normalized_value=horos_normalize_alias('CAM/01 ALMACEN')) <> 1 THEN RAISE EXCEPTION 'solution alias resolution failed'; END IF;
@@ -57,6 +65,7 @@ DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner WHERE c.relname IN ('system_solution_aliases','asset_aliases','asset_alias_events') AND r.rolname='horos_runtime') THEN RAISE EXCEPTION 'runtime owns alias tables'; END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='horos_runtime' AND rolbypassrls) THEN RAISE EXCEPTION 'runtime bypasses RLS'; END IF;
   IF has_table_privilege('horos_runtime','system_solution_aliases','DELETE') OR has_table_privilege('horos_runtime','asset_aliases','DELETE') THEN RAISE EXCEPTION 'runtime can delete aliases'; END IF;
+  IF NOT has_table_privilege('horos_runtime','system_solution_aliases','SELECT,INSERT') OR NOT has_table_privilege('horos_runtime','asset_aliases','SELECT,INSERT') OR NOT has_table_privilege('horos_runtime','asset_alias_events','SELECT,INSERT') THEN RAISE EXCEPTION 'runtime alias grants incomplete'; END IF;
 END $$;
 
 SET LOCAL ROLE horos_runtime;
