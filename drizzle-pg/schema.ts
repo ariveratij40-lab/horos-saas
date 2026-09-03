@@ -1568,6 +1568,95 @@ export const assetAliasEvents = pgTable(
   }),
 );
 
+export const assetPorts = pgTable(
+  "asset_ports",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    assetId: uuid("asset_id").notNull(),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    portType: varchar("port_type", { length: 32 }).notNull(),
+    direction: varchar("direction", { length: 24 }).notNull().default("NOT_APPLICABLE"),
+    medium: varchar("medium", { length: 24 }).notNull(),
+    connectorType: varchar("connector_type", { length: 64 }),
+    status: varchar("status", { length: 24 }).notNull().default("AVAILABLE"),
+    sequence: integer("sequence"),
+    description: text("description"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdBy: varchar("created_by", { length: 255 }),
+    updatedBy: varchar("updated_by", { length: 255 }),
+  },
+  table => ({
+    tenantBranchIdUnique: unique("asset_ports_tenant_branch_id_uq").on(table.tenantId, table.branchId, table.id),
+    assetCodeUnique: unique("asset_ports_asset_code_uq").on(table.tenantId, table.branchId, table.assetId, table.code),
+    assetIdx: index("asset_ports_asset_idx").on(table.tenantId, table.branchId, table.assetId, table.active),
+    assetFk: foreignKey({ name: "asset_ports_asset_fk", columns: [table.tenantId, table.branchId, table.assetId], foreignColumns: [assets.tenantId, assets.branchId, assets.id] }).onDelete("restrict"),
+    typeCheck: check("asset_ports_type_ck", sql`${table.portType} in ('ETHERNET','FIBER','POWER','RELAY_INPUT','RELAY_OUTPUT','ALARM_INPUT','AUDIO_INPUT','AUDIO_OUTPUT','SERIAL','WIRELESS','LOGICAL','OTHER')`),
+    directionCheck: check("asset_ports_direction_ck", sql`${table.direction} in ('INPUT','OUTPUT','BIDIRECTIONAL','NOT_APPLICABLE')`),
+    mediumCheck: check("asset_ports_medium_ck", sql`${table.medium} in ('COPPER','FIBER','WIRELESS','ELECTRICAL','AUDIO','LOGICAL','OTHER')`),
+    statusCheck: check("asset_ports_status_ck", sql`${table.status} in ('AVAILABLE','CONNECTED','INACTIVE')`),
+    codeCheck: check("asset_ports_code_ck", sql`length(btrim(${table.code})) between 1 and 64`),
+    sequenceCheck: check("asset_ports_sequence_ck", sql`${table.sequence} is null or ${table.sequence} >= 0`),
+  }),
+);
+
+export const assetLinks = pgTable(
+  "asset_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(),
+    code: varchar("code", { length: 64 }).notNull(), name: varchar("name", { length: 255 }).notNull(), linkType: varchar("link_type", { length: 24 }).notNull(),
+    endpointAPortId: uuid("endpoint_a_port_id").notNull(), endpointBPortId: uuid("endpoint_b_port_id").notNull(), status: varchar("status", { length: 24 }).notNull().default("PLANNED"),
+    medium: varchar("medium", { length: 24 }).notNull(), description: text("description"), installedAt: timestamp("installed_at", { withTimezone: true, mode: "date" }),
+    decommissionedAt: timestamp("decommissioned_at", { withTimezone: true, mode: "date" }), active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdBy: varchar("created_by", { length: 255 }), updatedBy: varchar("updated_by", { length: 255 }),
+  }, table => ({
+    tenantBranchIdUnique: unique("asset_links_tenant_branch_id_uq").on(table.tenantId, table.branchId, table.id),
+    codeUnique: unique("asset_links_code_uq").on(table.tenantId, table.branchId, table.code),
+    endpointsIdx: index("asset_links_endpoints_idx").on(table.tenantId, table.branchId, table.endpointAPortId, table.endpointBPortId, table.active),
+    endpointAFk: foreignKey({ name: "asset_links_endpoint_a_fk", columns: [table.tenantId, table.branchId, table.endpointAPortId], foreignColumns: [assetPorts.tenantId, assetPorts.branchId, assetPorts.id] }).onDelete("restrict"),
+    endpointBFk: foreignKey({ name: "asset_links_endpoint_b_fk", columns: [table.tenantId, table.branchId, table.endpointBPortId], foreignColumns: [assetPorts.tenantId, assetPorts.branchId, assetPorts.id] }).onDelete("restrict"),
+    distinctCheck: check("asset_links_distinct_endpoints_ck", sql`${table.endpointAPortId} <> ${table.endpointBPortId}`),
+    typeCheck: check("asset_links_type_ck", sql`${table.linkType} in ('PHYSICAL','WIRELESS','LOGICAL')`),
+    statusCheck: check("asset_links_status_ck", sql`${table.status} in ('PLANNED','INSTALLED','ACTIVE','DEGRADED','INACTIVE','DECOMMISSIONED')`),
+    mediumCheck: check("asset_links_medium_ck", sql`${table.medium} in ('COPPER','FIBER','WIRELESS','ELECTRICAL','AUDIO','LOGICAL','OTHER')`),
+    datesCheck: check("asset_links_dates_ck", sql`${table.decommissionedAt} is null or ${table.installedAt} is null or ${table.decommissionedAt} >= ${table.installedAt}`),
+  }),
+);
+
+export const assetRelationships = pgTable(
+  "asset_relationships",
+  {
+    id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(),
+    sourceAssetId: uuid("source_asset_id").notNull(), targetAssetId: uuid("target_asset_id").notNull(), relationshipType: varchar("relationship_type", { length: 32 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("ACTIVE"), description: text("description"), active: boolean("active").notNull().default(true),
+    sourceSystemSolutionId: uuid("source_system_solution_id"), targetSystemSolutionId: uuid("target_system_solution_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdBy: varchar("created_by", { length: 255 }), updatedBy: varchar("updated_by", { length: 255 }),
+  }, table => ({
+    tenantBranchIdUnique: unique("asset_relationships_tenant_branch_id_uq").on(table.tenantId, table.branchId, table.id),
+    sourceIdx: index("asset_relationships_source_idx").on(table.tenantId, table.branchId, table.sourceAssetId, table.active),
+    targetIdx: index("asset_relationships_target_idx").on(table.tenantId, table.branchId, table.targetAssetId, table.active),
+    sourceFk: foreignKey({ name: "asset_relationships_source_fk", columns: [table.tenantId, table.branchId, table.sourceAssetId], foreignColumns: [assets.tenantId, assets.branchId, assets.id] }).onDelete("restrict"),
+    targetFk: foreignKey({ name: "asset_relationships_target_fk", columns: [table.tenantId, table.branchId, table.targetAssetId], foreignColumns: [assets.tenantId, assets.branchId, assets.id] }).onDelete("restrict"),
+    sourceSolutionFk: foreignKey({ name: "asset_relationships_source_solution_fk", columns: [table.tenantId, table.branchId, table.sourceSystemSolutionId], foreignColumns: [systemSolutions.tenantId, systemSolutions.branchId, systemSolutions.id] }).onDelete("restrict"),
+    targetSolutionFk: foreignKey({ name: "asset_relationships_target_solution_fk", columns: [table.tenantId, table.branchId, table.targetSystemSolutionId], foreignColumns: [systemSolutions.tenantId, systemSolutions.branchId, systemSolutions.id] }).onDelete("restrict"),
+    distinctCheck: check("asset_relationships_distinct_assets_ck", sql`${table.sourceAssetId} <> ${table.targetAssetId}`),
+    typeCheck: check("asset_relationships_type_ck", sql`${table.relationshipType} in ('POWERED_BY','CONTROLLED_BY','RECORDED_BY','MONITORED_BY','HOSTED_ON','DEPENDS_ON','SERVES','BACKED_UP_BY','PARENT_OF','CONNECTED_TO','OTHER')`),
+    statusCheck: check("asset_relationships_status_ck", sql`${table.status} in ('PLANNED','ACTIVE','INACTIVE','DECOMMISSIONED')`),
+  }),
+);
+
+export const assetTopologyEvents = pgTable(
+  "asset_topology_events",
+  { id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(), entityType: varchar("entity_type", { length: 24 }).notNull(), entityId: uuid("entity_id").notNull(), eventType: varchar("event_type", { length: 48 }).notNull(), actorExternalSubject: varchar("actor_external_subject", { length: 255 }), details: jsonb("details").notNull().default({}), createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow() },
+  table => ({ entityIdx: index("asset_topology_events_entity_idx").on(table.tenantId, table.branchId, table.entityType, table.entityId, table.createdAt.desc()), typeCheck: check("asset_topology_events_type_ck", sql`${table.entityType} in ('PORT','LINK','RELATIONSHIP')`) }),
+);
+
 export const systemSolutionEvents = pgTable(
   "system_solution_events",
   {

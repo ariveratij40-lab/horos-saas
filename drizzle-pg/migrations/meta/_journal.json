@@ -45,6 +45,7 @@
     { "idx": 40, "version": "7", "when": 1788245400000, "tag": "0040_canonical_maintenance_work_orders", "breakpoints": true },
     { "idx": 41, "version": "7", "when": 1788247200000, "tag": "0041_maintenance_evidence_integrity", "breakpoints": true },
     { "idx": 42, "version": "7", "when": 1788357600000, "tag": "0042_canonical_system_solutions", "breakpoints": true },
-    { "idx": 43, "version": "7", "when": 1788444000000, "tag": "0043_canonical_nomenclature_aliases", "breakpoints": true }
+    { "idx": 43, "version": "7", "when": 1788444000000, "tag": "0043_canonical_nomenclature_aliases", "breakpoints": true },
+    { "idx": 44, "version": "7", "when": 1788526800000, "tag": "0044_canonical_asset_topology", "breakpoints": true }
   ]
 }
