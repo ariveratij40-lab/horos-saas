@@ -17,6 +17,7 @@ import { canonicalMaintenanceRouter } from "./routers/canonicalMaintenance";
 import { canonicalMaintenanceEvidenceRouter } from "./routers/canonicalMaintenanceEvidence";
 import { systemSolutionsRouter } from "./routers/systemSolutions";
 import { nomenclatureRouter } from "./routers/nomenclature";
+import { topologyRouter } from "./routers/topology";
 import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashboard";
 import { slaRouter } from "./routers/sla";
 import { cctvRouter } from "./routers/cctv";
@@ -52,6 +53,7 @@ function whenEnabled<TRoutes extends Record<string, unknown>>(
 }
 
 export const appRouter = router({
+  topology: topologyRouter,
   system: systemRouter,
 
   auth: router({

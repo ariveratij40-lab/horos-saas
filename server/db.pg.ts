@@ -154,6 +154,29 @@ export async function withTenantTransaction<T>(
   return callbackResult!;
 }
 
+export async function withTenantBranchTransaction<T>(
+  tenantId: string,
+  branchId: string,
+  callback: (tx: TransactionSql) => Promise<T>,
+): Promise<T> {
+  const normalizedTenantId = requireTenantId(tenantId);
+  const normalizedBranchId = requireTenantId(branchId);
+  const sql = getSqlClient();
+  let completed = false;
+  let callbackResult: T;
+  await sql.begin(async tx => {
+    await tx`SELECT set_config('app.current_tenant_id', ${normalizedTenantId}, true), set_config('app.current_branch_id', ${normalizedBranchId}, true)`;
+    const context = await tx<{ tenantId: string; branchId: string }[]>`
+      SELECT current_setting('app.current_tenant_id', true) AS "tenantId", current_setting('app.current_branch_id', true) AS "branchId"`;
+    if (context[0]?.tenantId !== normalizedTenantId || context[0]?.branchId !== normalizedBranchId) throw new Error("PostgreSQL topology context could not be established");
+    callbackResult = await callback(tx);
+    completed = true;
+    return [];
+  });
+  if (!completed) throw new Error("PostgreSQL topology transaction did not complete");
+  return callbackResult!;
+}
+
 /**
  * Executes an intentionally non-tenant PostgreSQL
  * operation.
