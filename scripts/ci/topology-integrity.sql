@@ -1,0 +1,60 @@
+\set ON_ERROR_STOP on
+BEGIN;
+
+DO $$ BEGIN
+  IF (SELECT count(*) FROM pg_class WHERE relname IN ('asset_ports','asset_links','asset_relationships','asset_topology_events') AND relkind='r') <> 4 THEN RAISE EXCEPTION 'topology tables incomplete'; END IF;
+  IF (SELECT count(*) FROM pg_class WHERE relname IN ('asset_ports','asset_links','asset_relationships','asset_topology_events') AND relrowsecurity AND relforcerowsecurity) <> 4 THEN RAISE EXCEPTION 'topology RLS incomplete'; END IF;
+  IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner WHERE c.relname IN ('asset_ports','asset_links','asset_relationships','asset_topology_events') AND r.rolname='horos_runtime') THEN RAISE EXCEPTION 'runtime owns topology tables'; END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='horos_runtime' AND rolbypassrls) THEN RAISE EXCEPTION 'runtime bypasses RLS'; END IF;
+  IF has_table_privilege('horos_runtime','asset_ports','DELETE') OR has_table_privilege('horos_runtime','asset_links','DELETE') OR has_table_privilege('horos_runtime','asset_relationships','DELETE') THEN RAISE EXCEPTION 'runtime can physically delete topology'; END IF;
+  IF (SELECT count(*) FROM pg_constraint WHERE conname IN ('asset_ports_asset_fk','asset_links_endpoint_a_fk','asset_links_endpoint_b_fk','asset_relationships_source_fk','asset_relationships_target_fk') AND contype='f') <> 5 THEN RAISE EXCEPTION 'topology FKs incomplete'; END IF;
+  IF (SELECT count(*) FROM pg_indexes WHERE indexname IN ('asset_links_endpoint_pair_active_uq','asset_relationships_directed_active_uq','asset_relationships_connected_active_uq') AND indexdef ILIKE '%WHERE%') <> 3 THEN RAISE EXCEPTION 'topology partial indexes incomplete'; END IF;
+END $$;
+
+INSERT INTO tenants(id,code,name) VALUES ('91000000-0000-4000-8000-000000000001','TOPO-A','Topology A'),('92000000-0000-4000-8000-000000000002','TOPO-B','Topology B');
+INSERT INTO branches(id,tenant_id,code,name,timezone) VALUES
+('91100000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000001','A1','A1','UTC'),
+('91100000-0000-4000-8000-000000000002','91000000-0000-4000-8000-000000000001','A2','A2','UTC'),
+('92200000-0000-4000-8000-000000000001','92000000-0000-4000-8000-000000000002','B1','B1','UTC');
+INSERT INTO asset_types(id,code,name,category) VALUES ('93000000-0000-4000-8000-000000000001','TOPO-DEVICE','Topology device','network');
+INSERT INTO assets(id,tenant_id,branch_id,asset_type_id,asset_code) VALUES
+('94000000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','93000000-0000-4000-8000-000000000001','A-1'),
+('94000000-0000-4000-8000-000000000002','91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','93000000-0000-4000-8000-000000000001','A-2'),
+('94000000-0000-4000-8000-000000000003','91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','93000000-0000-4000-8000-000000000001','A-3'),
+('94000000-0000-4000-8000-000000000004','91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000002','93000000-0000-4000-8000-000000000001','A2-1'),
+('94000000-0000-4000-8000-000000000005','92000000-0000-4000-8000-000000000002','92200000-0000-4000-8000-000000000001','93000000-0000-4000-8000-000000000001','B-1');
+INSERT INTO asset_ports(id,tenant_id,branch_id,asset_id,code,name,port_type,direction,medium) VALUES
+('95000000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','94000000-0000-4000-8000-000000000001','ETH-1','Ethernet 1','ETHERNET','BIDIRECTIONAL','COPPER'),
+('95000000-0000-4000-8000-000000000002','91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','94000000-0000-4000-8000-000000000002','ETH-1','Ethernet 1','ETHERNET','BIDIRECTIONAL','COPPER'),
+('95000000-0000-4000-8000-000000000003','91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','94000000-0000-4000-8000-000000000003','FIB-1','Fiber 1','FIBER','BIDIRECTIONAL','FIBER');
+
+DO $$ BEGIN
+  BEGIN INSERT INTO asset_ports(tenant_id,branch_id,asset_id,code,name,port_type,direction,medium) VALUES('91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','94000000-0000-4000-8000-000000000001','ETH-1','Duplicate','ETHERNET','INPUT','COPPER'); RAISE EXCEPTION 'duplicate port accepted'; EXCEPTION WHEN unique_violation THEN NULL; END;
+  BEGIN INSERT INTO asset_ports(tenant_id,branch_id,asset_id,code,name,port_type,direction,medium) VALUES('91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','94000000-0000-4000-8000-000000000004','BAD','Wrong branch','ETHERNET','INPUT','COPPER'); RAISE EXCEPTION 'cross branch port accepted'; EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+  BEGIN INSERT INTO asset_links(tenant_id,branch_id,code,name,link_type,endpoint_a_port_id,endpoint_b_port_id,medium) VALUES('91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','SELF','Self','PHYSICAL','95000000-0000-4000-8000-000000000001','95000000-0000-4000-8000-000000000001','COPPER'); RAISE EXCEPTION 'self link accepted'; EXCEPTION WHEN check_violation THEN NULL; END;
+  BEGIN INSERT INTO asset_links(tenant_id,branch_id,code,name,link_type,endpoint_a_port_id,endpoint_b_port_id,medium) VALUES('91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','MEDIUM','Mismatch','PHYSICAL','95000000-0000-4000-8000-000000000001','95000000-0000-4000-8000-000000000003','COPPER'); RAISE EXCEPTION 'medium mismatch accepted'; EXCEPTION WHEN check_violation THEN NULL; END;
+END $$;
+
+INSERT INTO asset_links(id,tenant_id,branch_id,code,name,link_type,endpoint_a_port_id,endpoint_b_port_id,status,medium) VALUES ('96000000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','LINK-1','Link 1','PHYSICAL','95000000-0000-4000-8000-000000000001','95000000-0000-4000-8000-000000000002','ACTIVE','COPPER');
+DO $$ BEGIN
+  BEGIN INSERT INTO asset_links(tenant_id,branch_id,code,name,link_type,endpoint_a_port_id,endpoint_b_port_id,medium) VALUES('91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','REVERSE','Reverse','PHYSICAL','95000000-0000-4000-8000-000000000002','95000000-0000-4000-8000-000000000001','COPPER'); RAISE EXCEPTION 'reversed link accepted'; EXCEPTION WHEN unique_violation THEN NULL; END;
+END $$;
+UPDATE asset_links SET active=false,status='INACTIVE' WHERE id='96000000-0000-4000-8000-000000000001';
+INSERT INTO asset_links(tenant_id,branch_id,code,name,link_type,endpoint_a_port_id,endpoint_b_port_id,medium) VALUES('91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','LINK-2','Replacement','PHYSICAL','95000000-0000-4000-8000-000000000001','95000000-0000-4000-8000-000000000002','COPPER');
+
+INSERT INTO asset_relationships(id,tenant_id,branch_id,source_asset_id,target_asset_id,relationship_type) VALUES
+('97000000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','94000000-0000-4000-8000-000000000001','94000000-0000-4000-8000-000000000002','PARENT_OF'),
+('97000000-0000-4000-8000-000000000002','91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','94000000-0000-4000-8000-000000000002','94000000-0000-4000-8000-000000000003','PARENT_OF');
+DO $$ BEGIN
+  BEGIN INSERT INTO asset_relationships(tenant_id,branch_id,source_asset_id,target_asset_id,relationship_type) VALUES('91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','94000000-0000-4000-8000-000000000003','94000000-0000-4000-8000-000000000001','PARENT_OF'); RAISE EXCEPTION 'parent cycle accepted'; EXCEPTION WHEN check_violation THEN NULL; END;
+  INSERT INTO asset_relationships(tenant_id,branch_id,source_asset_id,target_asset_id,relationship_type) VALUES('91000000-0000-4000-8000-000000000001','91100000-0000-4000-8000-000000000001','94000000-0000-4000-8000-000000000002','94000000-0000-4000-8000-000000000001','DEPENDS_ON');
+END $$;
+
+SET LOCAL ROLE horos_runtime;
+SELECT set_config('app.current_tenant_id','91000000-0000-4000-8000-000000000001',true),set_config('app.current_branch_id','91100000-0000-4000-8000-000000000001',true);
+DO $$ BEGIN
+  IF (SELECT count(*) FROM asset_ports)<>3 THEN RAISE EXCEPTION 'branch RLS read mismatch'; END IF;
+  BEGIN DELETE FROM asset_ports WHERE id='95000000-0000-4000-8000-000000000003'; RAISE EXCEPTION 'runtime delete accepted'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+END $$;
+RESET ROLE;
+ROLLBACK;

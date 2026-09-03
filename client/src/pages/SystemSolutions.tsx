@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { AliasManager } from "@/components/AliasManager";
+import { TopologyManager } from "@/components/TopologyManager";
 
 type Context = {
   branches: Array<{ id: string; code: string; name: string }>;
@@ -494,6 +495,12 @@ export default function SystemSolutions() {
               entityType="solution"
               entityId={selectedId}
               branchId={branchId}
+              canManage={Boolean(context?.canManage)}
+            />
+            <TopologyManager
+              branchId={branchId}
+              solutionId={selectedId}
+              assets={selected.assets.map(asset => ({ ...asset, aliases: [] }))}
               canManage={Boolean(context?.canManage)}
             />
           </CardContent>
