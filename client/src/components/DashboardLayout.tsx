@@ -81,6 +81,7 @@ const menuGroups: NavGroup[] = [
       { icon: Package, label: "Inventario General", path: "/assets" },
       { icon: Building2, label: "Sucursales", path: "/branches" },
       { icon: Wrench, label: "Mantenimiento", path: "/maintenance" },
+      { icon: ClipboardList, label: "Inspecciones", path: "/inspections" },
     ],
     systems: [
       {
