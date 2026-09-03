@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   foreignKey,
   index,
@@ -1272,6 +1274,14 @@ export const assets = pgTable(
       table.id,
     ),
 
+    tenantBranchIdUnique: unique(
+      "assets_tenant_branch_id_uq",
+    ).on(
+      table.tenantId,
+      table.branchId,
+      table.id,
+    ),
+
     rfidUnique: unique(
       "assets_rfid_epc_uq",
     ).on(
@@ -1370,6 +1380,191 @@ export const assets = pgTable(
       ],
     })
       .onDelete("restrict"),
+  }),
+);
+
+export const systemSolutionAliases = pgTable(
+  "system_solution_aliases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    systemSolutionId: uuid("system_solution_id").notNull(),
+    aliasType: varchar("alias_type", { length: 32 }).notNull(),
+    aliasValue: varchar("alias_value", { length: 255 }).notNull(),
+    normalizedValue: varchar("normalized_value", { length: 255 })
+      .generatedAlwaysAs(sql`horos_normalize_alias(alias_value)`),
+    source: varchar("source", { length: 128 }).notNull(),
+    active: boolean("active").notNull().default(true),
+    validFrom: timestamp("valid_from", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    validUntil: timestamp("valid_until", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    createdBy: varchar("created_by", { length: 255 }),
+    updatedBy: varchar("updated_by", { length: 255 }),
+  },
+  table => ({
+    activeValueUnique: uniqueIndex(
+      "system_solution_aliases_active_value_uq",
+    ).on(
+      table.tenantId,
+      table.branchId,
+      table.normalizedValue,
+    ).where(sql`${table.active}`),
+    entityIdx: index(
+      "system_solution_aliases_entity_idx",
+    ).on(
+      table.tenantId,
+      table.branchId,
+      table.systemSolutionId,
+      table.active,
+    ),
+    entityFk: foreignKey({
+      name: "system_solution_aliases_entity_fk",
+      columns: [
+        table.tenantId,
+        table.branchId,
+        table.systemSolutionId,
+      ],
+      foreignColumns: [
+        systemSolutions.tenantId,
+        systemSolutions.branchId,
+        systemSolutions.id,
+      ],
+    }).onDelete("restrict"),
+    typeCheck: check(
+      "system_solution_aliases_type_ck",
+      sql`${table.aliasType} in ('CUSTOMER_CODE','PHYSICAL_LABEL','LEGACY_CODE','IMPORT_IDENTIFIER','COMMON_NAME','PREVIOUS_NAME')`,
+    ),
+    valueCheck: check(
+      "system_solution_aliases_value_ck",
+      sql`length(btrim(${table.aliasValue})) between 1 and 255 and length(horos_normalize_alias(${table.aliasValue})) between 1 and 255`,
+    ),
+    datesCheck: check(
+      "system_solution_aliases_dates_ck",
+      sql`${table.validUntil} is null or ${table.validUntil} >= ${table.validFrom}`,
+    ),
+  }),
+);
+
+export const assetAliases = pgTable(
+  "asset_aliases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    branchId: uuid("branch_id").notNull(),
+    assetId: uuid("asset_id").notNull(),
+    aliasType: varchar("alias_type", { length: 32 }).notNull(),
+    aliasValue: varchar("alias_value", { length: 255 }).notNull(),
+    normalizedValue: varchar("normalized_value", { length: 255 })
+      .generatedAlwaysAs(sql`horos_normalize_alias(alias_value)`),
+    source: varchar("source", { length: 128 }).notNull(),
+    active: boolean("active").notNull().default(true),
+    validFrom: timestamp("valid_from", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    validUntil: timestamp("valid_until", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    createdBy: varchar("created_by", { length: 255 }),
+    updatedBy: varchar("updated_by", { length: 255 }),
+  },
+  table => ({
+    tenantIdIdUnique: unique(
+      "asset_aliases_tenant_id_id_uq",
+    ).on(
+      table.tenantId,
+      table.id,
+    ),
+    activeValueUnique: uniqueIndex(
+      "asset_aliases_active_value_uq",
+    ).on(
+      table.tenantId,
+      table.branchId,
+      table.normalizedValue,
+    ).where(sql`${table.active}`),
+    entityIdx: index(
+      "asset_aliases_entity_idx",
+    ).on(
+      table.tenantId,
+      table.branchId,
+      table.assetId,
+      table.active,
+    ),
+    entityFk: foreignKey({
+      name: "asset_aliases_entity_fk",
+      columns: [
+        table.tenantId,
+        table.branchId,
+        table.assetId,
+      ],
+      foreignColumns: [
+        assets.tenantId,
+        assets.branchId,
+        assets.id,
+      ],
+    }).onDelete("restrict"),
+    typeCheck: check(
+      "asset_aliases_type_ck",
+      sql`${table.aliasType} in ('CUSTOMER_CODE','PHYSICAL_LABEL','LEGACY_CODE','IMPORT_IDENTIFIER','COMMON_NAME','PREVIOUS_NAME')`,
+    ),
+    valueCheck: check(
+      "asset_aliases_value_ck",
+      sql`length(btrim(${table.aliasValue})) between 1 and 255 and length(horos_normalize_alias(${table.aliasValue})) between 1 and 255`,
+    ),
+    datesCheck: check(
+      "asset_aliases_dates_ck",
+      sql`${table.validUntil} is null or ${table.validUntil} >= ${table.validFrom}`,
+    ),
+  }),
+);
+
+export const assetAliasEvents = pgTable(
+  "asset_alias_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    assetAliasId: uuid("asset_alias_id").notNull(),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorExternalSubject: varchar("actor_external_subject", { length: 255 }),
+    details: jsonb("details").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  table => ({
+    aliasIdx: index(
+      "asset_alias_events_alias_idx",
+    ).on(
+      table.tenantId,
+      table.assetAliasId,
+      table.createdAt.desc(),
+    ),
+    aliasFk: foreignKey({
+      name: "asset_alias_events_alias_fk",
+      columns: [
+        table.tenantId,
+        table.assetAliasId,
+      ],
+      foreignColumns: [
+        assetAliases.tenantId,
+        assetAliases.id,
+      ],
+    }).onDelete("restrict"),
+    typeCheck: check(
+      "asset_alias_events_type_ck",
+      sql`${table.eventType} in ('alias_created','alias_updated','alias_deactivated','alias_reactivated')`,
+    ),
   }),
 );
 

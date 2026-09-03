@@ -16,6 +16,7 @@ import { maintenanceRouter } from "./routers/maintenance";
 import { canonicalMaintenanceRouter } from "./routers/canonicalMaintenance";
 import { canonicalMaintenanceEvidenceRouter } from "./routers/canonicalMaintenanceEvidence";
 import { systemSolutionsRouter } from "./routers/systemSolutions";
+import { nomenclatureRouter } from "./routers/nomenclature";
 import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashboard";
 import { slaRouter } from "./routers/sla";
 import { cctvRouter } from "./routers/cctv";
@@ -252,6 +253,7 @@ export const appRouter = router({
   canonicalMaintenance: canonicalMaintenanceRouter,
   canonicalMaintenanceEvidence: canonicalMaintenanceEvidenceRouter,
   systemSolutions: systemSolutionsRouter,
+  nomenclature: nomenclatureRouter,
 
   ...whenEnabled(ENV.legacyTidbEnabled, {
     dashboard: dashboardRouter,
