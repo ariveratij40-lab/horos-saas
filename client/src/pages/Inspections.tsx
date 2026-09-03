@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { SecureEvidencePanel } from "@/components/SecureEvidencePanel";
 
 const errorMessage = (error: unknown) =>
   typeof error === "object" && error && "message" in error
@@ -126,8 +127,12 @@ export default function Inspections() {
     { enabled: Boolean(branchId && inspectionId) }
   );
   const selectedInspection = inspectionQuery.data as
-    | {
+      | {
+        id: string;
         status: string;
+        maintenance_work_order_id: string | null;
+        asset_id: string | null;
+        component_id: string | null;
         template_name: string;
         template_version: number;
         results: Result[];
@@ -843,6 +848,15 @@ export default function Inspections() {
                           readonly={["COMPLETED", "CANCELLED"].includes(
                             selectedInspection.status
                           )}
+                          evidenceContext={{
+                            branchId,
+                            inspectionId: selectedInspection.id,
+                            inspectionResultId: r.id,
+                            workOrderId: selectedInspection.maintenance_work_order_id ?? undefined,
+                            assetId: selectedInspection.asset_id ?? undefined,
+                            componentId: selectedInspection.component_id ?? undefined,
+                            canManage: context?.canManage ?? false,
+                          }}
                           onSave={(response, outcomeValue, observation) =>
                             save.mutate({
                               branchId,
@@ -924,9 +938,19 @@ function ResultEditor({
   result,
   readonly,
   onSave,
+  evidenceContext,
 }: {
   result: Result;
   readonly: boolean;
+  evidenceContext: {
+    branchId: string;
+    inspectionId: string;
+    inspectionResultId: string;
+    workOrderId?: string;
+    assetId?: string;
+    componentId?: string;
+    canManage: boolean;
+  };
   onSave: (
     response: unknown,
     outcome: string,
@@ -1012,10 +1036,7 @@ function ResultEditor({
           ))}
         </div>
       ) : result.responseType === "PHOTO_REQUIRED" ? (
-        <p className="rounded bg-muted p-2 text-sm">
-          La evidencia fotográfica compatible es obligatoria; la carga binaria
-          se habilitará en GOV-001F.
-        </p>
+        <SecureEvidencePanel {...evidenceContext} readonly={readonly || !evidenceContext.canManage} />
       ) : (
         <Input
           type={

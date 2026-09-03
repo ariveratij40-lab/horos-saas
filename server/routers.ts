@@ -14,11 +14,11 @@ import { serviceSlaDashboardRouter } from "./routers/serviceSlaDashboard";
 import { assetsRouter } from "./routers/assets";
 import { maintenanceRouter } from "./routers/maintenance";
 import { canonicalMaintenanceRouter } from "./routers/canonicalMaintenance";
-import { canonicalMaintenanceEvidenceRouter } from "./routers/canonicalMaintenanceEvidence";
 import { systemSolutionsRouter } from "./routers/systemSolutions";
 import { nomenclatureRouter } from "./routers/nomenclature";
 import { topologyRouter } from "./routers/topology";
 import { inspectionsRouter } from "./routers/inspections";
+import { secureEvidenceRouter } from "./routers/secureEvidence";
 import { dashboardRouter, auditRouter, aiAssistantRouter } from "./routers/dashboard";
 import { slaRouter } from "./routers/sla";
 import { cctvRouter } from "./routers/cctv";
@@ -56,6 +56,7 @@ function whenEnabled<TRoutes extends Record<string, unknown>>(
 export const appRouter = router({
   topology: topologyRouter,
   inspections: inspectionsRouter,
+  evidence: secureEvidenceRouter,
   system: systemRouter,
 
   auth: router({
@@ -255,7 +256,6 @@ export const appRouter = router({
   servicePolicySla: servicePolicySlaRouter,
   serviceSlaDashboard: serviceSlaDashboardRouter,
   canonicalMaintenance: canonicalMaintenanceRouter,
-  canonicalMaintenanceEvidence: canonicalMaintenanceEvidenceRouter,
   systemSolutions: systemSolutionsRouter,
   nomenclature: nomenclatureRouter,
 

@@ -1656,6 +1656,10 @@ export const canonicalMaintenanceRouter = router({
         }),
       )
       .mutation(async ({ ctx, input }) => {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Legacy evidence references are disabled; use verified private evidence upload",
+        });
         return withTenantTransaction(
           ctx.pgTenant.tenantId,
           async tx => {

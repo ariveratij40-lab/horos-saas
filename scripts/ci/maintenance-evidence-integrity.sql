@@ -25,6 +25,11 @@ BEGIN
   INSERT INTO tenants (id, code, name)
   VALUES (tenant_a, 'stab-a', 'STAB tenant A'), (tenant_b, 'stab-b', 'STAB tenant B');
 
+  INSERT INTO users(id, external_subject, name)
+  VALUES ('10000000-0000-4000-8000-000000000099', 'stab-evidence-user', 'STAB evidence user');
+  INSERT INTO tenant_users(tenant_id,user_id,role)
+  VALUES (tenant_a,'10000000-0000-4000-8000-000000000099','admin');
+
   INSERT INTO branches (id, tenant_id, code, name, timezone)
   VALUES
     (branch_a, tenant_a, 'stab-a', 'STAB branch A', 'UTC'),
@@ -43,15 +48,15 @@ BEGIN
     (finding_b, tenant_a, order_b, 'Finding A2');
 
   INSERT INTO maintenance_evidence
-    (tenant_id, work_order_id, finding_id, file_name, storage_key)
+    (tenant_id, branch_id, work_order_id, finding_id, file_name, storage_provider, storage_key, source, uploaded_at)
   VALUES
-    (tenant_a, order_a, finding_a, 'valid.jpg', 'stab/valid.jpg');
+    (tenant_a, branch_a, order_a, finding_a, 'valid.jpg', 'legacy', 'stab/valid.jpg', 'LEGACY', now());
 
   BEGIN
     INSERT INTO maintenance_evidence
-      (tenant_id, work_order_id, finding_id, file_name, storage_key)
+      (tenant_id, branch_id, work_order_id, finding_id, file_name, storage_provider, storage_key, source, uploaded_at)
     VALUES
-      (tenant_a, order_a, finding_b, 'cross-order.jpg', 'stab/cross-order.jpg');
+      (tenant_a, branch_a, order_a, finding_b, 'cross-order.jpg', 'legacy', 'stab/cross-order.jpg', 'LEGACY', now());
     RAISE EXCEPTION 'cross-order finding was accepted';
   EXCEPTION
     WHEN foreign_key_violation THEN NULL;
@@ -84,26 +89,28 @@ BEGIN
   IF table_owner = 'horos_runtime' THEN
     RAISE EXCEPTION 'horos_runtime owns maintenance_evidence';
   END IF;
-  IF has_table_privilege('horos_runtime', 'maintenance_evidence', 'UPDATE') THEN
-    RAISE EXCEPTION 'horos_runtime unexpectedly has UPDATE on maintenance_evidence';
+  IF has_column_privilege('horos_runtime', 'maintenance_evidence', 'storage_key', 'UPDATE') THEN
+    RAISE EXCEPTION 'horos_runtime can update immutable storage key';
   END IF;
 END
 $$;
 
 SET ROLE horos_runtime;
 SELECT set_config('app.current_tenant_id', '10000000-0000-4000-8000-000000000001', false);
+SELECT set_config('app.current_branch_id', '10000000-0000-4000-8000-000000000011', false);
 
 DO $$
 BEGIN
   BEGIN
     INSERT INTO maintenance_evidence
-      (tenant_id, work_order_id, file_name, storage_key)
+      (tenant_id, branch_id, work_order_id, file_name, storage_provider, storage_key, source, uploaded_at)
     VALUES
       (
         '20000000-0000-4000-8000-000000000002',
+        '20000000-0000-4000-8000-000000000022',
         '20000000-0000-4000-8000-000000000201',
         'cross-tenant.jpg',
-        'stab/cross-tenant.jpg'
+        'legacy', 'stab/cross-tenant.jpg', 'LEGACY', now()
       );
     RAISE EXCEPTION 'cross-tenant evidence was accepted';
   EXCEPTION

@@ -48,20 +48,22 @@ psql "${ROOT_URL}/${CLEAN_DB}" -X -f scripts/ci/nomenclature-alias-integrity.sql
 psql "${ROOT_URL}/${CLEAN_DB}" -X -f scripts/ci/topology-integrity.sql >/dev/null
 psql "${ROOT_URL}/${CLEAN_DB}" -X -f scripts/ci/inspection-integrity.sql >/dev/null
 psql "${ROOT_URL}/${CLEAN_DB}" -X -f scripts/ci/maintenance-evidence-integrity.sql >/dev/null
+psql "${ROOT_URL}/${CLEAN_DB}" -X -f scripts/ci/secure-evidence-integrity.sql >/dev/null
 
 reset_database "$UPGRADE_DB"
 for migration in drizzle-pg/migrations/[0-9][0-9][0-9][0-9]_*.sql; do
   tag=$(basename "$migration" .sql)
   number=${tag%%_*}
-  if [ "$number" -le 44 ]; then
+  if [ "$number" -le 45 ]; then
     psql "${ROOT_URL}/${UPGRADE_DB}" -X -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
   fi
 done
-psql "${ROOT_URL}/${UPGRADE_DB}" -X -v ON_ERROR_STOP=1 -f drizzle-pg/migrations/0045_components_inspections_checklists.sql >/dev/null
+psql "${ROOT_URL}/${UPGRADE_DB}" -X -v ON_ERROR_STOP=1 -f drizzle-pg/migrations/0046_evidence_integrity_secure_files.sql >/dev/null
 psql "${ROOT_URL}/${UPGRADE_DB}" -X -f scripts/ci/system-solutions-integrity.sql >/dev/null
 psql "${ROOT_URL}/${UPGRADE_DB}" -X -f scripts/ci/nomenclature-alias-integrity.sql >/dev/null
 psql "${ROOT_URL}/${UPGRADE_DB}" -X -f scripts/ci/topology-integrity.sql >/dev/null
 psql "${ROOT_URL}/${UPGRADE_DB}" -X -f scripts/ci/inspection-integrity.sql >/dev/null
 psql "${ROOT_URL}/${UPGRADE_DB}" -X -f scripts/ci/maintenance-evidence-integrity.sql >/dev/null
+psql "${ROOT_URL}/${UPGRADE_DB}" -X -f scripts/ci/secure-evidence-integrity.sql >/dev/null
 
-echo "PostgreSQL clean migration and 0044-to-0045 upgrade checks passed"
+echo "PostgreSQL clean migration and 0045-to-0046 upgrade checks passed"

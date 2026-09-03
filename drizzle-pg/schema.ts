@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   check,
   date,
@@ -1732,6 +1733,32 @@ export const inspectionEvents = pgTable("inspection_events", {
   id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(), entityType: varchar("entity_type", { length: 24 }).notNull(), entityId: uuid("entity_id").notNull(),
   eventType: varchar("event_type", { length: 48 }).notNull(), actorExternalSubject: varchar("actor_external_subject", { length: 255 }), details: jsonb("details").notNull().default({}), createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 }, table => ({ entityIdx: index("inspection_events_entity_idx").on(table.tenantId, table.branchId, table.entityType, table.entityId, table.createdAt.desc()) }));
+
+export const maintenanceEvidence = pgTable("maintenance_evidence", {
+  id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(),
+  workOrderId: uuid("work_order_id").notNull(), workOrderAssetId: uuid("work_order_asset_id"), findingId: uuid("finding_id"),
+  inspectionId: uuid("inspection_id"), inspectionResultId: uuid("inspection_result_id"), assetId: uuid("asset_id"), componentId: uuid("component_id"),
+  evidencePhase: varchar("evidence_phase", { length: 16 }).notNull().default("general"), evidenceType: varchar("evidence_type", { length: 24 }).notNull().default("OTHER"),
+  mediaType: varchar("media_type", { length: 24 }).notNull().default("photo"), fileName: varchar("file_name", { length: 255 }).notNull(),
+  mimeType: varchar("mime_type", { length: 128 }), storageProvider: varchar("storage_provider", { length: 32 }).notNull(), storageKey: varchar("storage_key", { length: 1024 }).notNull(),
+  fileUrl: text("file_url"), contentTypeDeclared: varchar("content_type_declared", { length: 128 }), contentTypeDetected: varchar("content_type_detected", { length: 128 }),
+  byteSize: bigint("byte_size", { mode: "number" }), sha256: varchar("sha256", { length: 64 }), status: varchar("status", { length: 24 }).notNull().default("LEGACY_UNVERIFIED"),
+  caption: text("caption"), takenAt: timestamp("taken_at", { withTimezone: true, mode: "date" }), uploadedAt: timestamp("uploaded_at", { withTimezone: true, mode: "date" }).notNull(),
+  uploadedByUserId: uuid("uploaded_by_user_id"), source: varchar("source", { length: 32 }).notNull(), supersedesEvidenceId: uuid("supersedes_evidence_id").references((): AnyPgColumn => maintenanceEvidence.id, { onDelete: "restrict" }),
+  rejectionReason: varchar("rejection_reason", { length: 500 }), imageWidth: integer("image_width"), imageHeight: integer("image_height"), sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, table => ({
+  tenantBranchIdUnique: unique("maintenance_evidence_tenant_branch_id_uq").on(table.tenantId, table.branchId, table.id),
+  storageKeyUnique: uniqueIndex("maintenance_evidence_storage_key_uq").on(table.storageProvider, table.storageKey),
+  contextIdx: index("maintenance_evidence_context_idx").on(table.tenantId, table.branchId, table.workOrderId, table.status, table.uploadedAt.desc()),
+  inspectionIdx: index("maintenance_evidence_inspection_idx").on(table.tenantId, table.branchId, table.inspectionId, table.inspectionResultId, table.status),
+}));
+
+export const evidenceEvents = pgTable("evidence_events", {
+  id: uuid("id").defaultRandom().primaryKey(), tenantId: uuid("tenant_id").notNull(), branchId: uuid("branch_id").notNull(), evidenceId: uuid("evidence_id").notNull(),
+  eventType: varchar("event_type", { length: 48 }).notNull(), actorExternalSubject: varchar("actor_external_subject", { length: 255 }), details: jsonb("details").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, table => ({ historyIdx: index("evidence_events_history_idx").on(table.tenantId, table.branchId, table.evidenceId, table.createdAt, table.id) }));
 
 export const systemSolutionEvents = pgTable(
   "system_solution_events",
