@@ -72,6 +72,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import FloorPlans from "./pages/FloorPlans";
 import FloorPlanViewer from "./pages/FloorPlanViewer";
+import SystemSolutions from "./pages/SystemSolutions";
 
 function redirectToLogin() {
   window.location.href = getLoginUrl();
@@ -118,6 +119,7 @@ function Router() {
       <Route path="/tickets" component={() => <ProtectedRoute component={Tickets} />} />
       <Route path="/tickets/:id" component={() => <ProtectedRoute component={TicketDetail} />} />
       <Route path="/assets" component={() => <ProtectedRoute component={Assets} />} />
+      <Route path="/system-solutions" component={() => <ProtectedRoute component={SystemSolutions} />} />
       <Route path="/sla" component={() => <ProtectedRoute component={SLA} />} />
       <Route path="/branches" component={() => <ProtectedRoute component={Branches} />} />
       <Route path="/maintenance/:id" component={() => <ProtectedRoute component={MaintenanceDetail} />} />

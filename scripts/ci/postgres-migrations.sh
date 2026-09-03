@@ -43,17 +43,19 @@ HOROS_PG_DATABASE_URL="${ROOT_URL}/${CLEAN_DB}" pnpm pg:migrate
 clean_count=$(psql "${ROOT_URL}/${CLEAN_DB}" -X -Atqc 'SELECT count(*) FROM drizzle.__drizzle_migrations')
 expected_count=$(find drizzle-pg/migrations -maxdepth 1 -type f -name '[0-9][0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
 test "$clean_count" = "$expected_count"
+psql "${ROOT_URL}/${CLEAN_DB}" -X -f scripts/ci/system-solutions-integrity.sql >/dev/null
 psql "${ROOT_URL}/${CLEAN_DB}" -X -f scripts/ci/maintenance-evidence-integrity.sql >/dev/null
 
 reset_database "$UPGRADE_DB"
 for migration in drizzle-pg/migrations/[0-9][0-9][0-9][0-9]_*.sql; do
   tag=$(basename "$migration" .sql)
   number=${tag%%_*}
-  if [ "$number" -le 40 ]; then
+  if [ "$number" -le 41 ]; then
     psql "${ROOT_URL}/${UPGRADE_DB}" -X -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
   fi
 done
-psql "${ROOT_URL}/${UPGRADE_DB}" -X -v ON_ERROR_STOP=1 -f drizzle-pg/migrations/0041_maintenance_evidence_integrity.sql >/dev/null
+psql "${ROOT_URL}/${UPGRADE_DB}" -X -v ON_ERROR_STOP=1 -f drizzle-pg/migrations/0042_canonical_system_solutions.sql >/dev/null
+psql "${ROOT_URL}/${UPGRADE_DB}" -X -f scripts/ci/system-solutions-integrity.sql >/dev/null
 psql "${ROOT_URL}/${UPGRADE_DB}" -X -f scripts/ci/maintenance-evidence-integrity.sql >/dev/null
 
-echo "PostgreSQL clean migration and 0040-to-0041 upgrade checks passed"
+echo "PostgreSQL clean migration and 0041-to-0042 upgrade checks passed"
